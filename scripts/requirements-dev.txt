@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2026 Quentin Raimbaud
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Development tools only. Nothing listed here is shipped with Musubee.
+# REUSE: Apache-2.0 AND CC0-1.0 AND CC-BY-SA-4.0 AND GPL-3.0-or-later
+# (tool used locally and in CI, never distributed).
+# The charset-normalizer extra is required on Windows, where libmagic is absent.
+reuse[charset-normalizer]==6.2.0
