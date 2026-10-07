@@ -97,7 +97,7 @@ func renderTemplate(path string, data any) ([]byte, error) {
 
 // prepareTelegram writes the bridge configuration and appservice
 // registration (with random tokens) before Synapse starts and loads the
-// registration, and builds the bridge image.
+// registration.
 func (e *Env) prepareTelegram(ctx context.Context, opts TelegramOptions) error {
 	if opts.APIID == 0 || opts.APIHash == "" {
 		return fmt.Errorf("telegram: api_id and api_hash are required")
@@ -126,9 +126,6 @@ func (e *Env) prepareTelegram(ctx context.Context, opts TelegramOptions) error {
 	}
 	if err := e.writeSynapseConfigWithAppservice(dir); err != nil {
 		return err
-	}
-	if _, err := e.compose(ctx, "build", "--quiet", "telegram"); err != nil {
-		return fmt.Errorf("building the bridge image: %w", err)
 	}
 	e.Bridge = &Bridge{secret: secrets.ProvisioningSecret, httpClient: &http.Client{Timeout: 2 * time.Minute}}
 	return nil
@@ -215,6 +212,18 @@ func (b *Bridge) WaitStep(ctx context.Context, user id.UserID, step *LoginStep) 
 	var next LoginStep
 	path := fmt.Sprintf("/v3/login/step/%s/%s/display_and_wait", url.PathEscape(step.LoginID), url.PathEscape(step.StepID))
 	err := b.call(ctx, http.MethodPost, path, user, map[string]any{}, &next)
+	if next.LoginID == "" {
+		next.LoginID = step.LoginID
+	}
+	return &next, err
+}
+
+// SubmitInput answers a user-input login step (for example a bot token) and
+// returns the next step.
+func (b *Bridge) SubmitInput(ctx context.Context, user id.UserID, step *LoginStep, input map[string]string) (*LoginStep, error) {
+	var next LoginStep
+	path := fmt.Sprintf("/v3/login/step/%s/%s/user_input", url.PathEscape(step.LoginID), url.PathEscape(step.StepID))
+	err := b.call(ctx, http.MethodPost, path, user, input, &next)
 	if next.LoginID == "" {
 		next.LoginID = step.LoginID
 	}

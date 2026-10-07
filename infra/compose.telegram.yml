@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Quentin Raimbaud
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Overlay for compose.test.yml: adds the mautrix-telegram bridge, connected to
-# Telegram's TEST environment (never production). Used with:
+# Overlay for compose.test.yml: adds the mautrix-telegram bridge. In the tests
+# it only logs in as a dedicated test bot (ADR 0005). Used with:
 #   docker compose -f compose.test.yml -f compose.telegram.yml ...
 # which infra/testenv does when the Telegram option is enabled.
 #
@@ -19,9 +19,13 @@ services:
       - ${MUSUBEE_TEST_TELEGRAM_DIR:?set MUSUBEE_TEST_TELEGRAM_DIR}/registration.yaml:/appservices/telegram.yaml:ro
 
   telegram:
-    build:
-      context: ./telegram
-    image: musubee/mautrix-telegram-test:9b2a6e3e
+    # Official image (AGPL-3.0-or-later), pinned by digest.
+    image: dock.mau.dev/mautrix/telegram:v0.2609.0@sha256:03e79bcf076da566a9984b0bc06151acbf71e3df9cd2e291142713ad9ebff980
+    # The image's start script lets the bridge rewrite its config file,
+    # which fails on Docker Desktop bind mounts: run the binary directly,
+    # without config updates.
+    entrypoint: ["/usr/bin/mautrix-telegram"]
+    command: ["--config", "/data/config.yaml", "--no-update"]
     # The bridge checks the homeserver at startup; Synapse only needs the
     # registration file, which exists before "up".
     depends_on:
