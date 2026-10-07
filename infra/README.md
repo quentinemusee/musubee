@@ -45,7 +45,9 @@ go test -tags=telegram -v ./infra/telegramtest/
    ```
 4. The channel ID: the test finds it in the peer bot's updates of the last 24 hours (post any message in the channel) and prints it; store it as a repository variable so later runs do not depend on that window: `gh variable set MUSUBEE_TG_CHAT_ID`.
 
-For local runs, export the same variables. Optional: `MUSUBEE_TG_API_ID` and `MUSUBEE_TG_API_HASH` select your own application instead of the public test one.
+5. The project's own application credentials, created on <https://my.telegram.org> ("API development tools"): `gh secret set MUSUBEE_TG_API_ID` and `gh secret set MUSUBEE_TG_API_HASH`. Without them the test falls back on the public test application, which Telegram rate-limits for everyone (`API_ID_PUBLISHED_FLOOD`).
+
+For local runs, export the same variables.
 
 ## Use the environment by hand
 
