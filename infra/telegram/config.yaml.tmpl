@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: 2026 Quentin Raimbaud
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# mautrix-telegram configuration template for the end-to-end tests, rendered
+# per run by infra/testenv (Go text/template). Only the keys that differ from
+# the bridge's defaults are set; the bridge fills in the rest at startup.
+# The appservice tokens are random per run and match registration.yaml.tmpl.
+
+network:
+    api_id: {{.APIID}}
+    api_hash: {{.APIHash}}
+    # Telegram's test environment, never production (test-servers.patch).
+    test_servers: true
+
+bridge:
+    permissions:
+        "musubee.test": user
+
+database:
+    type: sqlite3-fk-wal
+    # Inside the container, not on the bind mount: SQLite locking is not
+    # reliable on Docker Desktop file shares.
+    uri: file:/tmp/mautrix-telegram.db?_txlock=immediate
+
+homeserver:
+    address: http://synapse:8008
+    domain: musubee.test
+
+appservice:
+    address: http://telegram:29317
+    hostname: 0.0.0.0
+    port: 29317
+    id: telegram
+    bot:
+        username: telegrambot
+        displayname: Telegram bridge bot
+    username_template: telegram_{{"{{.}}"}}
+    as_token: {{.ASToken}}
+    hs_token: {{.HSToken}}
+
+provisioning:
+    shared_secret: {{.ProvisioningSecret}}
+    allow_matrix_auth: false
+
+encryption:
+    allow: false
+
+# Warnings and errors only, to stdout: no message content in the logs.
+logging:
+    min_level: warn
+    writers:
+        - type: stdout
+          format: json

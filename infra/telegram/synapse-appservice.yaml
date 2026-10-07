@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2026 Quentin Raimbaud
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Synapse configuration fragment added by compose.telegram.yml: registers the
+# mautrix-telegram appservice. The registration file is generated per run by
+# infra/testenv (tokens are random and never stored in the repository).
+app_service_config_files:
+  - /appservices/telegram.yaml

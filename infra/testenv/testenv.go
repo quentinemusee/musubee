@@ -52,8 +52,11 @@ type Env struct {
 	Project string
 	// HomeserverURL is the base URL of Synapse's client API on localhost.
 	HomeserverURL string
-	// SecretsDir holds the registration shared secret mounted into Synapse.
+	// SecretsDir holds the registration shared secret mounted into Synapse,
+	// and the bridge files when Telegram is enabled.
 	SecretsDir string
+	// Bridge is the Telegram bridge, or nil when it is not enabled.
+	Bridge *Bridge
 
 	infraDir     string
 	sharedSecret string
@@ -86,11 +89,29 @@ func DockerAvailable(ctx context.Context) error {
 	return nil
 }
 
-// Start creates a new environment under the given Compose project name and
-// waits until every service is healthy. secretsDir is created if needed and
-// receives a fresh random registration shared secret. On error, whatever was
-// started is torn down.
+// Config describes an environment to start.
+type Config struct {
+	// Project is the Docker Compose project name.
+	Project string
+	// SecretsDir receives the per-run secrets and generated files.
+	SecretsDir string
+	// Telegram, when set, adds the mautrix-telegram bridge connected to
+	// Telegram's test environment (compose.telegram.yml).
+	Telegram *TelegramOptions
+}
+
+// Start creates a new environment (Synapse and PostgreSQL) under the given
+// Compose project name; see StartConfig.
 func Start(ctx context.Context, project, secretsDir string) (*Env, error) {
+	return StartConfig(ctx, Config{Project: project, SecretsDir: secretsDir})
+}
+
+// StartConfig creates a new environment and waits until every service is
+// healthy. The secrets directory is created if needed and receives a fresh
+// random registration shared secret. On error, whatever was started is torn
+// down.
+func StartConfig(ctx context.Context, cfg Config) (*Env, error) {
+	project, secretsDir := cfg.Project, cfg.SecretsDir
 	infraDir, err := InfraDir()
 	if err != nil {
 		return nil, err
@@ -110,6 +131,12 @@ func Start(ctx context.Context, project, secretsDir string) (*Env, error) {
 		sharedSecret: secret,
 		httpClient:   &http.Client{Timeout: 30 * time.Second},
 	}
+	if cfg.Telegram != nil {
+		if err := env.prepareTelegram(ctx, *cfg.Telegram); err != nil {
+			_ = env.Stop(context.WithoutCancel(ctx))
+			return nil, err
+		}
+	}
 	if _, err := env.compose(ctx, "up", "--detach", "--wait", "--wait-timeout", strconv.Itoa(int(waitTimeout.Seconds()))); err != nil {
 		logs, _ := env.compose(context.WithoutCancel(ctx), "logs", "--no-color", "--tail", "50")
 		_ = env.Stop(context.WithoutCancel(ctx))
@@ -122,6 +149,16 @@ func Start(ctx context.Context, project, secretsDir string) (*Env, error) {
 	if err != nil {
 		_ = env.Stop(context.WithoutCancel(ctx))
 		return nil, fmt.Errorf("finding Synapse's published port: %w", err)
+	}
+	if env.Bridge != nil {
+		out, err := env.compose(ctx, "port", "telegram", "29317")
+		if err == nil {
+			env.Bridge.URL, err = ParsePublishedPort(out)
+		}
+		if err != nil {
+			_ = env.Stop(context.WithoutCancel(ctx))
+			return nil, fmt.Errorf("finding the bridge's published port: %w", err)
+		}
 	}
 	return env, nil
 }
@@ -176,9 +213,16 @@ func Down(ctx context.Context, project, secretsDir string) error {
 }
 
 func (e *Env) compose(ctx context.Context, args ...string) (string, error) {
-	full := append([]string{"compose", "--file", filepath.Join(e.infraDir, ComposeFileName), "--project-name", e.Project}, args...)
+	full := []string{"compose", "--file", filepath.Join(e.infraDir, ComposeFileName)}
+	environ := append(os.Environ(), secretsDirEnv+"="+e.SecretsDir)
+	if e.hasTelegram() {
+		full = append(full, "--file", filepath.Join(e.infraDir, TelegramComposeFileName))
+		environ = append(environ, telegramDirEnv+"="+e.telegramDir())
+	}
+	full = append(full, "--project-name", e.Project)
+	full = append(full, args...)
 	cmd := exec.CommandContext(ctx, "docker", full...)
-	cmd.Env = append(os.Environ(), secretsDirEnv+"="+e.SecretsDir)
+	cmd.Env = environ
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
