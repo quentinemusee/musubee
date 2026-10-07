@@ -81,3 +81,23 @@ func TestBotAPIErrorsDoNotLeakTheToken(t *testing.T) {
 		t.Fatalf("network error = %v, want an error without the token", err)
 	}
 }
+
+func TestDescribeUpdatesHasNoText(t *testing.T) {
+	updates := []Update{
+		{ChannelPost: &Post{Text: "secret words", Chat: Chat{ID: -100, Type: "channel", Title: "Musubee CI"}}},
+		{Message: &Post{Text: "more secret", Chat: Chat{ID: -42, Type: "group", Title: "G"}}},
+		{},
+	}
+	got := DescribeUpdates(updates)
+	for _, want := range []string{"3 updates", "channel_post in channel", "message in group", "other"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("DescribeUpdates() = %q, want %q", got, want)
+		}
+	}
+	if strings.Contains(got, "secret") {
+		t.Errorf("DescribeUpdates() leaks message text: %q", got)
+	}
+	if DescribeUpdates(nil) != "no updates" {
+		t.Error("empty updates not described")
+	}
+}
