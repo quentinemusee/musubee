@@ -37,10 +37,10 @@ go test -tags=telegram -v ./infra/telegramtest/      # builds the patched bridge
 
 `TestBridgeOffersQRLoginOnTestServers` needs nothing else. `TestMessageFlowsThroughTheBridge` (the T0.4 acceptance test) needs a test account and a test bot, created once:
 
-1. **Create the test account.** In Telegram Desktop: open Settings, then **Shift + Alt + right click** on "Add Account" and choose **"Test Server"**. Sign up with your phone number. This account lives only on the test environment; Telegram wipes it from time to time.
+1. **Create the test account and save its session.** From the repository root: `go run ./infra/cmd/tgsession`. Enter your phone number (international format). The tool shows how Telegram says it sends the code (SMS, phone call, another app, payment required...); if nothing arrives, type `resend` after the delay it shows to get a phone call instead. If the number has no account on the test environment yet, the tool creates one (it asks for a first name). The session goes to `infra/.testenv/telegram/session.b64` (ignored by Git; it gives full access to the test account, keep it private). This account lives only on the test environment, not in your usual Telegram, and Telegram wipes it from time to time.
+   Alternatives with an official client: Telegram Web at `https://web.telegram.org/k/?test=1`; Telegram Desktop (Settings, then **Shift + Alt + right click** on "Add Account", **"Test Server"**); iOS (tap the Settings icon 10 times, Accounts, Login to another account, Test).
 2. **Create the test bot.** From that test account, talk to **@BotFather**, send `/newbot`, and keep the token it gives you.
-3. **Save the account's session.** From the repository root: `go run ./infra/cmd/tgsession`. Enter the phone number and the login code (Telegram sends it to the test account in Telegram Desktop). The session goes to `infra/.testenv/telegram/session.b64` (ignored by Git; it gives full access to the test account, keep it private).
-4. **Store the secrets** for CI (GitHub CLI, from the repository root):
+3. **Store the secrets** for CI (GitHub CLI, from the repository root):
    ```
    gh secret set MUSUBEE_TG_SESSION < infra/.testenv/telegram/session.b64
    gh secret set MUSUBEE_TG_BOT_TOKEN
