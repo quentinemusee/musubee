@@ -4,6 +4,8 @@
 # Skills: version our own (musubee- prefix), not copies of third-party skills
 .claude/skills/*
 !.claude/skills/musubee-*/
+# Personal Claude Code settings (the shared ones are in .claude/settings.json)
+.claude/settings.local.json
 
 # Secrets and local environment
 .env
