@@ -1,0 +1,20 @@
+{
+  "name": "musubee-mobile-e2e",
+  "private": true,
+  "description": "Mobile end-to-end tests (Appium + WebdriverIO). See apps/mobile/e2e/README.md.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test:android": "node --test android.hello.test.mjs",
+    "test:ios": "node --test ios.hello.test.mjs"
+  },
+  "devDependencies": {
+    "appium": "3.8.0",
+    "appium-uiautomator2-driver": "8.7.0",
+    "appium-xcuitest-driver": "12.15.2",
+    "webdriverio": "10.0.1"
+  }
+}
