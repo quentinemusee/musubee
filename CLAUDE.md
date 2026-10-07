@@ -146,7 +146,14 @@ Verified in T0.3 (Windows, Go 1.27, Docker Desktop; see `infra/README.md`):
 infra unit:         go test ./infra/...
 infra integration:  go test -tags=integration ./infra/...       (needs Docker; about 20 s)
 test homeserver:    go run ./infra/cmd/testenv up | status | user NAME PASS | down
-vet:                go vet -tags=integration ./infra/...
+vet:                go vet -tags=integration ./infra/...    go vet -tags=telegram ./infra/...
+```
+
+Verified in T0.4 (see `infra/README.md` for the one-time Telegram test account):
+
+```
+telegram e2e:       go test -tags=telegram -v ./infra/telegramtest/   (builds the patched bridge; needs Docker and network)
+telegram session:   go run ./infra/cmd/tgsession
 ```
 
 `go test -race` needs a 64-bit C toolchain (cgo); on the maintainer's Windows machine it is not available until T1.2, so race tests run in CI.
