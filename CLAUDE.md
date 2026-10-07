@@ -165,6 +165,12 @@ android hello:      MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android   (n
 ios hello:          MUSUBEE_IOS_UDID=<udid> npm run test:ios                  (macOS, booted simulator)
 ```
 
+Verified in T0.6:
+
+```
+dependency licenses: go run ./scripts/licenseaudit        (-v lists every dependency; run npm ci first)
+```
+
 To be confirmed in the corresponding tasks (T1.1, T1.5):
 
 ```

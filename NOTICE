@@ -75,6 +75,8 @@ Development tools (used to build or check the project, NOT distributed)
   versions: apps/mobile/e2e/package-lock.json.
 - GitHub Actions also used in CI: actions/setup-go, actions/setup-node (MIT),
   reactivecircus/android-emulator-runner (Apache-2.0).
+- Dependency license audit (scripts/licenseaudit, development only):
+  github.com/google/licensecheck v0.3.1 (BSD-3-Clause).
 - GitHub CLI (gh), MIT. Used by the maintainer and Claude Code to open pull
   requests and follow CI.
 - ShellCheck (preinstalled on GitHub's Ubuntu runners), lints scripts/*.sh.
