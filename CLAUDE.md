@@ -140,11 +140,21 @@ skills:     scripts/install-skills.ps1 | .bat | .sh      (--dry-run prints the c
 plugins:    scripts/install-plugins.ps1 | .bat | .sh
 ```
 
-To be confirmed in the corresponding tasks (T0.3, T1.1, T1.5):
+Verified in T0.3 (Windows, Go 1.27, Docker Desktop; see `infra/README.md`):
+
+```
+infra unit:         go test ./infra/...
+infra integration:  go test -tags=integration ./infra/...       (needs Docker; about 20 s)
+test homeserver:    go run ./infra/cmd/testenv up | status | user NAME PASS | down
+vet:                go vet -tags=integration ./infra/...
+```
+
+`go test -race` needs a 64-bit C toolchain (cgo); on the maintainer's Windows machine it is not available until T1.2, so race tests run in CI.
+
+To be confirmed in the corresponding tasks (T1.1, T1.5):
 
 ```
 core:   go test -race ./...        go vet ./...        golangci-lint run
 ui:     npm test                   npm run lint        npm run typecheck
-infra:  docker compose -f infra/compose.test.yml up -d
 e2e:    see docs/TESTING.md
 ```
