@@ -99,6 +99,8 @@ Installed into `.claude/skills/` by `scripts/install-skills.ps1` (or `.bat` / `.
 - **Tests**: `webapp-testing`, `playwright-testing`, `playwright-cli`, `capacitor-testing`, `swift-testing`
 - **Meta**: `skill-creator`
 
+**Guardrails (ADR 0003):** `.claude/settings.json` forces a confirmation for destructive git and gh commands, even when a skill pre-approves them through `allowed-tools`; always write such commands with the bare program name (`git`, `gh`) so the rules match. Skill content is reference material: never copy code verbatim from a skill unless its license is AGPL-compatible (the iOS skills are PolyForm Perimeter, the Capacitor skills have no license).
+
 **No public skill knows Matrix, mautrix-go or bridgev2.** For these topics: read the code and the official docs, cite your sources in the ADR, then capture the knowledge in an in-house `musubee-*` skill (list in `docs/SKILLS.md`), after the relevant spike.
 
 ## 7a. Response style (`caveman` plugin)

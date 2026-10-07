@@ -12,3 +12,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 |---|---|---|---|
 | [0001](0001-stack.md) | Tech stack: Go core, React UI, Electron and Capacitor | accepted | T0.1 |
 | [0002](0002-license-and-reuse.md) | AGPL-3.0-or-later license, DCO and REUSE check | accepted | T0.1 |
+| [0003](0003-third-party-skills-guardrails.md) | Guardrails for third-party Claude Code skills | accepted | T0.2 |

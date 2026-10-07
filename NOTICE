@@ -42,5 +42,15 @@ Development tools (used to build or check the project, NOT distributed)
   (package metadata). Used by
   scripts/license_check.py, locally and in CI.
 - GitHub Actions: actions/checkout, actions/setup-python (MIT). CI only.
+- skills CLI 1.7.1 (npm `skills`, run through npx), MIT. Installs the
+  third-party Claude Code skills listed in scripts/skills.txt; telemetry
+  disabled by our scripts.
+- Third-party Claude Code skills (scripts/skills.txt, skills-lock.json):
+  development aids, not distributed. Licenses: MIT, Apache-2.0, PolyForm
+  Perimeter 1.0.0 (dpearson2699/swift-ios-skills, not open source) and none
+  (Cap-go/capgo-skills). No code from them is included in Musubee; see
+  docs/ADR/0003-third-party-skills-guardrails.md.
+- GitHub CLI (gh), MIT. Used by the maintainer and Claude Code to open pull
+  requests and follow CI.
 - ShellCheck (preinstalled on GitHub's Ubuntu runners), lints scripts/*.sh.
   License: GPL-3.0. CI only.
