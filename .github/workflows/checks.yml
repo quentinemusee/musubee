@@ -3,8 +3,10 @@
 #
 # Repository checks: SPDX headers (REUSE 3.3), English-only content, the
 # install scripts (.ps1 / .bat / .sh in dry-run mode), and the tests of all
-# these checks. Runs on Linux and Windows, the two platforms developers use
-# today. Full multi-platform CI comes in T0.5.
+# these checks; Go formatting, vet and unit tests (race detector); and the
+# integration tests against a real Synapse + PostgreSQL (Linux only, Docker).
+# Runs on Linux and Windows, the two platforms developers use today. Full
+# multi-platform CI comes in T0.5.
 
 name: checks
 
@@ -63,3 +65,57 @@ jobs:
 
       - name: Tests of the checks and install scripts
         run: python -m unittest discover -s scripts/tests -v
+
+  go:
+    name: Go unit tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: infra/go.mod
+          cache-dependency-path: infra/go.sum
+
+      - name: Formatting (gofmt)
+        shell: bash
+        run: |
+          unformatted=$(gofmt -l infra)
+          if [ -n "$unformatted" ]; then
+            echo "Run gofmt on:"; echo "$unformatted"; exit 1
+          fi
+
+      - name: go vet
+        run: go vet -tags=integration ./infra/...
+
+      - name: Unit tests (race detector)
+        run: go test -race -count=1 ./infra/...
+
+  integration:
+    name: Integration tests (Synapse + PostgreSQL)
+    # Linux runners have Docker; GitHub's Windows and macOS runners cannot run
+    # the Linux containers.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Fail instead of skipping if Docker is missing.
+      MUSUBEE_REQUIRE_INTEGRATION: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: infra/go.mod
+          cache-dependency-path: infra/go.sum
+
+      - name: Integration tests
+        run: go test -tags=integration -race -count=1 -v ./infra/...
