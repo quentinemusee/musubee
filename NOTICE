@@ -34,6 +34,20 @@ Third-party material included in this repository (not code)
   see LICENSES/LicenseRef-DCO.txt.
 
 ========================================================================
+Test tooling (infra/, used to run tests, NOT distributed)
+========================================================================
+
+- Go module github.com/quentinemusee/musubee/infra depends on:
+  maunium.net/go/mautrix v0.31.0 (MPL-2.0), go.mau.fi/util v0.10.1
+  (MPL-2.0), github.com/rs/zerolog (MIT), github.com/tidwall/gjson, match,
+  pretty, sjson (MIT), github.com/mattn/go-colorable, go-isatty (MIT),
+  golang.org/x/crypto, exp, net, sys, text (BSD-3-Clause),
+  filippo.io/edwards25519 (BSD-3-Clause). Exact versions: infra/go.mod.
+- Container images run by infra/compose.test.yml: Synapse v1.162.0
+  (ghcr.io/element-hq/synapse, AGPL-3.0) and PostgreSQL 18.6
+  (postgres:18.6-alpine, PostgreSQL License).
+
+========================================================================
 Development tools (used to build or check the project, NOT distributed)
 ========================================================================
 

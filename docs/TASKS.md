@@ -21,7 +21,7 @@ Legend: 🧪 = mandatory test · 🍎 = requires a Mac · 💶 = requires a paid
 **T0.3 — Integration test environment**
 - Deliverable: `infra/compose.test.yml` with Synapse, PostgreSQL, dummybridge; start and stop script; documentation.
 - Acceptance: a Matrix test client creates a room, sends a message, reads it back.
-- 🧪 Test: `go test ./infra/...` starts the environment, checks service health, shuts it down.
+- 🧪 Test: `go test -tags=integration ./infra/...` starts the environment, checks service health, shuts it down (integration tests carry the `integration` build tag, see ADR 0004).
 
 **T0.4 — Telegram test environment**
 - Deliverable: connection to the Telegram test server with `99966XYYYY` numbers (see `docs/TESTING.md`), Telegram bridge connected to the local Synapse.

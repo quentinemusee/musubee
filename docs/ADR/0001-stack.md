@@ -1,7 +1,7 @@
 # ADR 0001 — Tech stack: Go core, React UI, Electron and Capacitor
 
 - **Status**: accepted
-- **Date**: 2026-10-06 (translated into English on 2026-10-07, no change in substance)
+- **Date**: 2026-10-06 (translated into English on 2026-10-07, no change in substance; see "Revisions")
 - **Task**: T0.1
 - **Deciders**: Quentin Raimbaud (maintainer), with the design assistant
 
@@ -72,6 +72,10 @@ This ADR records the decision summarized in `CLAUDE.md` §2 and checks its justi
 - **Harder**: cgo and cross-compilation (C toolchain on Windows, Android NDK, Xcode for iOS); Electron's weight on desktop; the memory constraint of the iOS extension; two languages (Go and TypeScript) linked by a versioned API contract (T1.4).
 - **To watch**: the fast evolution of mautrix-go (0.x versions, unstable API); the maturity of Wails v3 mobile (if it becomes stable and WebKitGTK improves, the question could be reopened for Linux desktop).
 - **Revisit if**: T1.1 shows that `bridgev2` cannot run without a homeserver and no reasonable workaround exists; or T1.3/T1.7 show that the Go core is unusable on mobile.
+
+## Revisions
+
+- 2026-10-07 (T0.3): mautrix-go's latest release is now **v0.31.0** (2026-09-16, GitHub API); the "0.28.1 (June 2026)" row above was correct when written. The decision is unchanged.
 
 ## Sources
 

@@ -8,7 +8,7 @@ Principle: **test against the real thing**. Setting up the environment may take 
 |---|---|---|---|
 | Go unit | `go test -race`, fuzzing on parsers, `goleak` for goroutine leaks | Domain logic, conversation merging, conversions | Every commit |
 | UI unit | Vitest + Testing Library | Components, states, themes | Every commit |
-| Integration | Docker compose: **Synapse + Postgres** + real connectors | The core really speaks Matrix and talks to the bridges | Every PR |
+| Integration | Docker compose: **Synapse + Postgres** + real connectors; Go tests tagged `integration` | The core really speaks Matrix and talks to the bridges | Every PR (Linux runner) |
 | Contract | Versioned core ↔ UI API schema | UI and core stay compatible | Every PR |
 | Desktop E2E | Playwright (supports Electron) | Complete user journeys on Windows/macOS/Linux | Every PR (runners for the 3 OSes) |
 | Android E2E | Android emulator (KVM on Linux) + UI tool (Maestro or Appium, decided in T0.5) + **real device** before each release | Foreground service, notifications, network recovery | PR + release |
@@ -19,8 +19,10 @@ Principle: **test against the real thing**. Setting up the environment may take 
 
 ## Realistic environment (`infra/compose.test.yml`)
 
-- **Synapse** (reference homeserver, with appservices) + **PostgreSQL**.
-- Beeper's **dummybridge**: a Matrix bridge that generates fake data. Ideal for testing the pipeline without an external network.
+In place since T0.3 ([ADR 0004](ADR/0004-integration-test-environment.md), usage in [`infra/README.md`](../infra/README.md)): `go test -tags=integration ./infra/...` starts a fresh environment, runs the tests and removes it.
+
+- **Synapse** (reference homeserver) + **PostgreSQL**: in place.
+- Beeper's **dummybridge**: a Matrix bridge that generates fake data. **Blocked: its repository has no license** (ADR 0004 lists the options).
 - **Telegram — official test servers**: an environment parallel to production. Reserved numbers `99966XYYYY` (X = datacenter 1 to 3); the login code is X repeated 5 or 6 times; these numbers only work on the test DCs. Usable in CI (no real user account).
   - *Credentials (verified in the official docs on 2026-10-07):* any Telegram client, including one talking to the test DCs, needs an `api_id` / `api_hash` pair. It is issued at my.telegram.org after signing in with a real phone number (<https://core.telegram.org/api/obtaining_api_id>), and the test DC addresses are only shown in that panel (<https://core.telegram.org/api/auth>). The pair identifies the *application*, not a user: CI never signs in to the maintainer's account, only to `99966XYYYY` test accounts. It is stored as an encrypted GitHub Actions secret, as allowed by rule 3 of `CLAUDE.md` §6. Whether the sample `api_id` shipped with Telegram's open-source code can be used instead for testing is **unknown**, to check in T0.4.
 - **Signal / WhatsApp**: as far as we know, there is no equivalent public sandbox for WhatsApp (to verify in T0.4). Dedicated accounts, low volume, **never in CI**, documented manual tests. Expect a risk of account bans.
