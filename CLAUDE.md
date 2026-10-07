@@ -76,7 +76,7 @@ A local link table `Person ↔ [Conversation]` (stored on the device, syncable i
 
 1. **Nothing is "done" without passing tests.** Write the test first when possible. Run them and show the output. See `docs/TESTING.md`.
 2. **Test environment as close to reality as possible**, even if the setup is long: real Synapse, real bridges, real devices for iOS. No mocks for integrations. Mocks are only tolerated in pure unit tests.
-3. **Never a real account or a secret in CI.** Telegram: official test servers. WhatsApp: manual tests with dedicated accounts, never in CI.
+3. **Never a real user account nor a production secret in CI.** Test credentials are allowed, stored as encrypted CI secrets (GitHub Actions secrets), never in the repository or in logs. Telegram: official test servers with `99966XYYYY` test accounts; the app's `api_id` / `api_hash` is such a test credential. WhatsApp: manual tests with dedicated accounts, never in CI.
 4. **Licenses**: before adding a dependency, check its SPDX identifier. Reject anything incompatible with AGPL-3.0. Keep `NOTICE` up to date.
 5. **Verify rather than assume** for fast-moving libraries (mautrix-go, Capacitor, Electron, Xcode): read the current docs/code, cite the source in the ADR.
 6. **One ADR per structural decision** in `docs/ADR/`. Spikes end with a "go / no-go" ADR.
