@@ -4,6 +4,8 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -139,6 +141,21 @@ func TestDetectLicenses(t *testing.T) {
 }
 
 func TestNPMDependencies(t *testing.T) {
+	// The npm registry is replaced by a local fake (pure unit test): it knows
+	// the license of "ghost", a package not installed on this platform.
+	registry := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.EscapedPath() {
+		case "/ghost/5.0.0":
+			_, _ = w.Write([]byte(`{"name":"ghost","version":"5.0.0","license":"Apache-2.0"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer registry.Close()
+	previous := NPMRegistry
+	NPMRegistry = registry.URL
+	defer func() { NPMRegistry = previous }()
+
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "package-lock.json"), `{
   "lockfileVersion": 3,
@@ -151,10 +168,16 @@ func TestNPMDependencies(t *testing.T) {
     "node_modules/from-files": {"version": "3.0.0"},
     "node_modules/a/node_modules/nested": {"version": "4.0.0", "license": "BSD-3-Clause"},
     "node_modules/ghost": {"version": "5.0.0", "optional": true},
+    "node_modules/@scope/unknown": {"version": "6.0.0", "devOptional": true},
     "node_modules/linked": {"link": true}
   }
 }`)
 	writeFile(t, filepath.Join(dir, "node_modules", "from-files", "LICENSE"), mitText)
+	// Old npm versions leave empty directories for skipped optional
+	// packages: "ghost" must still be looked up in the registry.
+	if err := os.MkdirAll(filepath.Join(dir, "node_modules", "ghost"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	deps, err := NPMDependencies(filepath.Join(dir, "package-lock.json"))
 	if err != nil {
@@ -166,7 +189,7 @@ func TestNPMDependencies(t *testing.T) {
 	}
 	want := map[string]string{
 		"ok-lib": "MIT", "gpl-lib": "GPL-2.0-only", "old-style": "ISC", "dual": "(MIT OR Apache-2.0)",
-		"from-files": "MIT", "nested": "BSD-3-Clause", "ghost": "",
+		"from-files": "MIT", "nested": "BSD-3-Clause", "ghost": "Apache-2.0", "@scope/unknown": "",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d dependencies %v, want %d", len(got), got, len(want))
@@ -176,8 +199,11 @@ func TestNPMDependencies(t *testing.T) {
 			t.Errorf("%s: license = %q, want %q", name, got[name].License, license)
 		}
 	}
-	if !strings.Contains(got["ghost"].Source, "not installed") {
-		t.Errorf("ghost: source = %q, want it to say the package is not installed", got["ghost"].Source)
+	if !strings.Contains(got["ghost"].Source, "npm registry") {
+		t.Errorf("ghost: source = %q, want the npm registry", got["ghost"].Source)
+	}
+	if !strings.Contains(got["@scope/unknown"].Source, "HTTP 404") {
+		t.Errorf("@scope/unknown: source = %q, want the registry error", got["@scope/unknown"].Source)
 	}
 }
 
