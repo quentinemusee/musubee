@@ -1,0 +1,98 @@
+SPDX-FileCopyrightText: 2026 Quentin Raimbaud
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+Patch for mautrix-telegram (AGPL-3.0-or-later), applied by infra/telegram/Dockerfile
+at the pinned commit. It adds a 'test_servers' option that connects the bridge to
+Telegram's test environment (test DCs) instead of production, for automated tests.
+Text before the first 'diff --git' line is ignored by git apply.
+
+diff --git a/pkg/connector/client.go b/pkg/connector/client.go
+index 9d5721ef..373bedba 100644
+--- a/pkg/connector/client.go
++++ b/pkg/connector/client.go
+@@ -49,6 +49,7 @@ import (
+ 	"go.mau.fi/mautrix-telegram/pkg/connector/telegramfmt"
+ 	"go.mau.fi/mautrix-telegram/pkg/gotd/pool"
+ 	"go.mau.fi/mautrix-telegram/pkg/gotd/telegram"
++	"go.mau.fi/mautrix-telegram/pkg/gotd/telegram/dcs"
+ 	"go.mau.fi/mautrix-telegram/pkg/gotd/telegram/auth"
+ 	"go.mau.fi/mautrix-telegram/pkg/gotd/telegram/updates"
+ 	"go.mau.fi/mautrix-telegram/pkg/gotd/tg"
+@@ -129,6 +130,15 @@ var _ bridgev2.NetworkAPI = (*TelegramClient)(nil)
+ 
+ var messageLinkRegex = regexp.MustCompile(`^https?://t(?:elegram)?\.(?:me|dog)/([A-Za-z][A-Za-z0-9_]{3,31}[A-Za-z0-9]|[Cc]/[0-9]{1,20})/([0-9]{1,20})(?:/([0-9]{1,20}))?$`)
+ 
++// dcOptions returns the data center list and initial DC: Telegram's test
++// environment when test_servers is enabled, the library defaults otherwise.
++func (tc *TelegramConnector) dcOptions() (dcs.List, int) {
++	if tc.Config.TestServers {
++		return dcs.Test(), 2
++	}
++	return dcs.List{}, 0
++}
++
+ func (tc *TelegramConnector) deviceConfig() telegram.DeviceConfig {
+ 	return telegram.DeviceConfig{
+ 		DeviceModel:    tc.Config.DeviceInfo.DeviceModel,
+@@ -222,7 +232,10 @@ func NewTelegramClient(ctx context.Context, tc *TelegramConnector, login *bridge
+ 	if err != nil {
+ 		return nil, err
+ 	}
++	dcList, dc := tc.dcOptions()
+ 	client.client = telegram.NewClient(tc.Config.APIID, tc.Config.APIHash, telegram.Options{
++		DCList:               dcList,
++		DC:                   dc,
+ 		CustomSessionStorage: &login.Metadata.(*UserLoginMetadata).Session,
+ 		Logger:               zaplog,
+ 		UpdateHandler:        client.updatesManager,
+diff --git a/pkg/connector/config.go b/pkg/connector/config.go
+index 46480a74..c17bc42f 100644
+--- a/pkg/connector/config.go
++++ b/pkg/connector/config.go
+@@ -65,6 +65,9 @@ type ProxyConfig struct {
+ type TelegramConfig struct {
+ 	APIID   int    `yaml:"api_id"`
+ 	APIHash string `yaml:"api_hash"`
++	// TestServers connects to Telegram's test environment (test DCs)
++	// instead of production. Only for automated testing.
++	TestServers bool `yaml:"test_servers"`
+ 
+ 	DeviceInfo      DeviceInfo                  `yaml:"device_info"`
+ 	AnimatedSticker media.AnimatedStickerConfig `yaml:"animated_sticker"`
+@@ -157,6 +160,7 @@ func upgradeConfig(helper up.Helper) {
+ 	bridgeconfig.CopyToOtherLocation(helper, up.Str, []string{"app_hash"}, []string{"api_hash"})
+ 	helper.Copy(up.Int, "api_id")
+ 	helper.Copy(up.Str, "api_hash")
++	helper.Copy(up.Bool, "test_servers")
+ 	helper.Copy(up.Str|up.Null, "device_info", "device_model")
+ 	helper.Copy(up.Str|up.Null, "device_info", "system_version")
+ 	helper.Copy(up.Str|up.Null, "device_info", "app_version")
+diff --git a/pkg/connector/example-config.yaml b/pkg/connector/example-config.yaml
+index 04ddd31e..dca35026 100644
+--- a/pkg/connector/example-config.yaml
++++ b/pkg/connector/example-config.yaml
+@@ -1,6 +1,9 @@
+ # Get your own API keys at https://my.telegram.org/apps
+ api_id: 12345
+ api_hash: tjyd5yge35lbodk1xwzw2jstp90k55qz
++# Connect to Telegram's test environment (test DCs) instead of production.
++# Only for automated testing; accounts there are separate from production.
++test_servers: false
+ 
+ # Device info shown in the Telegram device list.
+ device_info:
+diff --git a/pkg/connector/login.go b/pkg/connector/login.go
+index bd81e75b..7100a05e 100644
+--- a/pkg/connector/login.go
++++ b/pkg/connector/login.go
+@@ -180,7 +180,10 @@ func (bl *baseLogin) makeClient(ctx context.Context, dispatcher *tg.UpdateDispat
+ 	if err != nil {
+ 		return err
+ 	}
++	dcList, dc := bl.main.dcOptions()
+ 	bl.client = telegram.NewClient(bl.main.Config.APIID, bl.main.Config.APIHash, telegram.Options{
++		DCList:               dcList,
++		DC:                   dc,
+ 		Resolver:             resolver,
+ 		CustomSessionStorage: &bl.session,
+ 		Logger:               zaplog,
