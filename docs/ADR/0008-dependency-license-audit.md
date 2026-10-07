@@ -39,12 +39,14 @@ The REUSE check (ADR 0002) covers our own files only, not dependencies.
 | First audit of the repository: 16 Go modules, 500 npm packages; 53 problems, all in the Appium tooling. 49 were platform builds of `sharp` whose license is not in the lock file: solved by the registry lookup (Apache-2.0, LGPL-3.0-or-later for libvips). The 3 others are the justified exceptions above | **verified** | local runs, 2026-10-07 |
 | On Linux CI, `@emnapi/runtime` (MIT) and `tslib` (0BSD), optional dependencies of sharp's WebAssembly build, are not installed and have no license in the lock file: the first CI run failed on them, which led to the registry lookup | **verified** | CI, PR #10 |
 | The unit tests fail when the policy allows an incompatible license | **verified** (mutation: GPL-2.0-only added to the policy made `TestRepositoryPolicyIsValid` fail) | local run |
-| CI fails when an incompatible dependency is added | **verified**: see "Acceptance run" below | CI |
+| CI fails when an incompatible dependency is added | **verified**: see "Acceptance run" below | CI run 37693400189 |
 | The compatibility list matches the FSF's views (GPLv3/AGPLv3 compatibility of MPL-2.0, Apache-2.0, LGPL, CC0, CC-BY-4.0) | **assumed** from the FSF license list; **to be reviewed by a lawyer** | <https://www.gnu.org/licenses/license-list.html> |
 
 ## Acceptance run
 
-A test branch adds `highcharts` (license declared as `https://www.highcharts.com/license`, a proprietary license) as a development dependency of `apps/mobile/e2e`. The result of its CI run is recorded in the "Revisions" section once it has run.
+A test branch added `highcharts` (license declared as `https://www.highcharts.com/license`, a proprietary license) as a development dependency of `apps/mobile/e2e`, with npm 11 so that the lock file only gained that package. **Result (verified, CI run 37693400189, PR #12):** the "Dependency license audit" job failed with exactly one problem, `npm highcharts@13.1.1: license "https://www.highcharts.com/license" is not compatible with AGPL-3.0-or-later`; the build, unit, integration and mobile jobs passed. The pull request was closed without merging and the branch deleted.
+
+A first attempt (PR #11) was made with the maintainer's local npm 8.10, which rewrote the lock file and dropped nested optional entries, so `npm ci` failed in unrelated jobs. The e2e project now requires npm 11 or later (`engines` and `engine-strict`).
 
 ## Consequences
 
