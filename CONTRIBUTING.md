@@ -111,7 +111,7 @@ Before adding a dependency (Go, npm, Gradle, Swift…):
 2. Reject any license incompatible with AGPL-3.0 (for example: proprietary, SSPL, BUSL, Commons Clause, GPL-2.0-only, CC-BY-NC).
 3. Update [`NOTICE`](NOTICE) in the same commit.
 
-The automated dependency audit arrives in T0.6.
+CI runs the automated audit (`go run ./scripts/licenseaudit`, [ADR 0008](docs/ADR/0008-dependency-license-audit.md)) and fails on any incompatible or unknown license. If a dependency is acceptable but cannot be classified automatically, add an exception with a written reason to `scripts/license-policy.json`.
 
 ## 7. Commits, branches and pull requests
 
