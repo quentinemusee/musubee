@@ -29,6 +29,7 @@ GOOD_HEADER = (
     "// SPDX-FileCopyrightText: 2026 Quentin Raimbaud\n"
     "// SPDX-License-Identifier: AGPL-3.0-or-later\n"
 )
+# REUSE-IgnoreEnd
 
 
 def repo_files() -> list[Path]:
@@ -113,6 +114,37 @@ class LicenseCheckTest(unittest.TestCase):
             "// SPDX-License-Identifier: GPL-2.0-only\n\npackage domain\n",
         )
         self.assertFails(self.run_check(), "GPL-2.0-only")
+
+    # REUSE-IgnoreEnd
+
+    def git_init(self) -> None:
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+
+    def test_git_ignored_third_party_files_are_skipped(self) -> None:
+        # Third-party skills live in .claude/skills/ (git-ignored) and carry
+        # no SPDX headers. REUSE alone does not skip them because of the
+        # negation rule in .gitignore; the check must.
+        self.git_init()
+        self.write(".claude/skills/some-skill/evals/evals.json", "{}\n")
+        self.write(".claude/skills/some-skill/run.py", "print('hi')\n")
+        self.assertPasses(self.run_check())
+
+    def test_unignored_file_still_fails_in_a_git_repository(self) -> None:
+        self.git_init()
+        self.write(".claude/skills/some-skill/run.py", "print('hi')\n")
+        self.write("core/domain/bad.go", "package domain\n")
+        result = self.run_check()
+        self.assertFails(result, "bad.go")
+        self.assertNotIn("run.py", result.stdout + result.stderr)
+
+    # REUSE-IgnoreStart
+    def test_invalid_spdx_expression_fails(self) -> None:
+        self.write(
+            "core/domain/invalid.go",
+            "// SPDX-FileCopyrightText: 2026 Someone\n"
+            "// SPDX-License-Identifier: AGPL-3.0-or-later AND (\n\npackage domain\n",
+        )
+        self.assertFails(self.run_check(), "invalid.go")
 
     # REUSE-IgnoreEnd
 
