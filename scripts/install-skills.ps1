@@ -20,6 +20,11 @@
 $ErrorActionPreference = "Stop"
 $DryRun = ($args -contains "--dry-run") -or ($args -contains "-DryRun")
 
+# The skills CLI reports each install (source and skill names) to skills.sh
+# unless DISABLE_TELEMETRY or DO_NOT_TRACK is set. Opt out for this process.
+$env:DISABLE_TELEMETRY = "1"
+Write-Host "Telemetry to skills.sh disabled (DISABLE_TELEMETRY=$env:DISABLE_TELEMETRY)."
+
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Manifest = Join-Path $PSScriptRoot "skills.txt"
 Set-Location $RepoRoot

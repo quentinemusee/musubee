@@ -127,6 +127,17 @@ class InstallScriptsTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(printed_commands(result.stdout), expected, result.stdout)
 
+    def test_skill_installers_disable_telemetry(self) -> None:
+        # The skills CLI reports installs to skills.sh unless told not to.
+        for variant in ("ps1", "bat", "sh"):
+            with self.subTest(variant=variant):
+                result = self.run_script(variant, "install-skills", "--dry-run") if command_line(
+                    variant, "install-skills"
+                ) else None
+                if result is None:
+                    continue
+                self.assertIn("DISABLE_TELEMETRY=1", result.stdout)
+
     def test_manifest_lists_the_expected_sources(self) -> None:
         commands = expected_skill_commands()
         self.assertEqual(len(commands), 10)
