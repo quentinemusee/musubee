@@ -67,6 +67,14 @@ Development tools (used to build or check the project, NOT distributed)
   Perimeter 1.0.0 (dpearson2699/swift-ios-skills, not open source) and none
   (Cap-go/capgo-skills). No code from them is included in Musubee; see
   docs/ADR/0003-third-party-skills-guardrails.md.
+- Mobile end-to-end tests (apps/mobile/e2e, development only): Appium
+  3.8.0, appium-uiautomator2-driver 8.7.0, appium-xcuitest-driver 12.15.2
+  (Apache-2.0), WebdriverIO 10.0.1 (MIT), and their npm dependencies (MIT,
+  ISC, Apache-2.0, BSD-2/3-Clause, BlueOak-1.0.0, CC0-1.0, Unlicense, WTFPL,
+  PSF-2.0, CC-BY-3.0 data, LGPL-3.0-or-later for libvips in sharp). Exact
+  versions: apps/mobile/e2e/package-lock.json.
+- GitHub Actions also used in CI: actions/setup-go, actions/setup-node (MIT),
+  reactivecircus/android-emulator-runner (Apache-2.0).
 - GitHub CLI (gh), MIT. Used by the maintainer and Claude Code to open pull
   requests and follow CI.
 - ShellCheck (preinstalled on GitHub's Ubuntu runners), lints scripts/*.sh.

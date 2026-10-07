@@ -16,3 +16,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0004](0004-integration-test-environment.md) | Integration test environment: Synapse and PostgreSQL with Docker Compose | accepted | T0.3 |
 | [0005](0005-telegram-test-environment.md) | Telegram test environment for end-to-end bridge tests | superseded by 0006 (findings valid) | T0.4 |
 | [0006](0006-telegram-e2e-with-test-bots.md) | Telegram end-to-end tests with dedicated test bots | accepted | T0.4 |
+| [0007](0007-mobile-e2e-tool.md) | Mobile end-to-end test tool: Appium with WebdriverIO | accepted | T0.5 |

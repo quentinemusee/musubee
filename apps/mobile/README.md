@@ -2,14 +2,15 @@
 
 Mobile application: the UI from [`ui/`](../../ui/) inside Capacitor, plus a native plugin embedding the Go core. The native shells stay thin: Kotlin for Android, Swift for iOS.
 
-**Status: empty.** Work planned in T1.3 (Android), T1.7 (iOS extension memory budget) then E3.3 (iOS). See [`docs/TASKS.md`](../../docs/TASKS.md).
+**Status: no app yet** (only the end-to-end test tooling in `e2e/`). Work planned in T1.3 (Android), T1.7 (iOS extension memory budget) then E3.3 (iOS). See [`docs/TASKS.md`](../../docs/TASKS.md).
 
-## Planned layout
+## Layout
 
 ```
 apps/mobile/
-  android/   Gradle project: Capacitor plugin, foreground service, notifications
-  ios/       Xcode project: Capacitor plugin + Notification Service Extension (NSE) in Swift
+  e2e/       Appium + WebdriverIO end-to-end tests (in place since T0.5, ADR 0007)
+  android/   planned: Gradle project, Capacitor plugin, foreground service, notifications
+  ios/       planned: Xcode project, Capacitor plugin + Notification Service Extension (NSE) in Swift
 ```
 
 ## Points of attention
