@@ -1,0 +1,58 @@
+{
+  "allowed": [
+    "0BSD",
+    "AGPL-3.0",
+    "AGPL-3.0-only",
+    "AGPL-3.0-or-later",
+    "Apache-2.0",
+    "BlueOak-1.0.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "GPL-2.0-or-later",
+    "GPL-3.0",
+    "GPL-3.0-only",
+    "GPL-3.0-or-later",
+    "ISC",
+    "LGPL-2.1",
+    "LGPL-2.1-only",
+    "LGPL-2.1-or-later",
+    "LGPL-3.0",
+    "LGPL-3.0-only",
+    "LGPL-3.0-or-later",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    "PSF-2.0",
+    "Python-2.0",
+    "Unlicense",
+    "WTFPL",
+    "Zlib"
+  ],
+  "exceptions": [
+    {
+      "ecosystem": "npm",
+      "package": "@img/sharp-*",
+      "license": "Apache-2.0 (sharp builds) and LGPL-3.0-or-later (libvips builds)",
+      "reason": "Prebuilt binaries of sharp for each platform, pulled in by the Appium drivers (test tooling, never distributed). package-lock.json carries no license for these optional packages and they are only installed on their own platform; the npm registry declares Apache-2.0 for @img/sharp-<platform> and LGPL-3.0-or-later for @img/sharp-libvips-<platform>, both compatible (checked 2026-10-07)."
+    },
+    {
+      "ecosystem": "npm",
+      "package": "css-value",
+      "license": "MIT",
+      "reason": "Dependency of webdriverio (test tooling). Its package.json has no license field, but its README states the MIT License (checked 2026-10-07)."
+    },
+    {
+      "ecosystem": "npm",
+      "package": "@promptbook/utils",
+      "license": "CC-BY-4.0",
+      "reason": "Dependency of webdriverio through @wdio/utils and locate-app (test tooling, never distributed). CC-BY-4.0 is unusual for code; the FSF lists it as compatible with GPLv3. Must not reach shipped code."
+    },
+    {
+      "ecosystem": "npm",
+      "package": "spdx-exceptions",
+      "license": "CC-BY-3.0",
+      "reason": "Data package (the list of SPDX license exception identifiers) used by license-parsing code inside the Appium tooling (test tooling, never distributed)."
+    }
+  ]
+}
