@@ -214,6 +214,10 @@ func channelID(t *testing.T, ctx context.Context, peer BotAPI) int64 {
 	}
 	chat, err := FindChannel(updates)
 	if err != nil {
+		t.Logf("peer bot updates: %s", DescribeUpdates(updates))
+		if info, infoErr := peer.GetWebhookInfo(ctx); infoErr == nil {
+			t.Logf("peer bot webhook set: %t, pending updates: %d, last error: %q", info.URL != "", info.PendingUpdateCount, info.LastErrorMessage)
+		}
 		t.Fatalf("finding the test channel: %v (post a message in the channel, or set %s)", err, chatIDEnv)
 	}
 	t.Logf("found channel %q: set %s=%d to keep using it after its updates expire", chat.Title, chatIDEnv, chat.ID)

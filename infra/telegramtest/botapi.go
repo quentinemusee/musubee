@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -138,6 +139,46 @@ func (b BotAPI) call(ctx context.Context, method string, params, out any) error 
 		return fmt.Errorf("Bot API %s: %s", method, envelope.Description)
 	}
 	return json.Unmarshal(envelope.Result, out)
+}
+
+// WebhookInfo is the result of getWebhookInfo (only diagnostic fields).
+type WebhookInfo struct {
+	URL                string `json:"url"`
+	PendingUpdateCount int    `json:"pending_update_count"`
+	LastErrorMessage   string `json:"last_error_message"`
+}
+
+// GetWebhookInfo reports whether a webhook is set and how many updates wait.
+func (b BotAPI) GetWebhookInfo(ctx context.Context) (WebhookInfo, error) {
+	var info WebhookInfo
+	err := b.call(ctx, "getWebhookInfo", map[string]any{}, &info)
+	return info, err
+}
+
+// DescribeUpdates summarizes updates for diagnostics, without any message
+// text: update kinds and the chats they concern.
+func DescribeUpdates(updates []Update) string {
+	if len(updates) == 0 {
+		return "no updates"
+	}
+	var parts []string
+	for _, u := range updates {
+		kind := "other"
+		switch {
+		case u.ChannelPost != nil:
+			kind = "channel_post"
+		case u.Message != nil:
+			kind = "message"
+		case u.MyChatMember != nil:
+			kind = "my_chat_member"
+		}
+		if chat, ok := u.Chat(); ok {
+			parts = append(parts, fmt.Sprintf("%s in %s %q (%d)", kind, chat.Type, chat.Title, chat.ID))
+		} else {
+			parts = append(parts, kind)
+		}
+	}
+	return fmt.Sprintf("%d updates: %s", len(updates), strings.Join(parts, "; "))
 }
 
 // GetMe returns the bot's own user.
