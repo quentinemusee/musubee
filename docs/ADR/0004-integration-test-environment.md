@@ -53,17 +53,14 @@
 | mautrix-go's latest release is v0.31.0 (2026-09-16), MPL-2.0 | **verified** | GitHub API, mautrix/go |
 | Compiled dependencies are MPL-2.0 (mautrix-go, go.mau.fi/util), MIT (zerolog, tidwall/*, mattn/*) or BSD-3-Clause (golang.org/x/*, filippo.io/edwards25519), all compatible with AGPL-3.0-or-later | **verified** (license files in the module cache) | `go list -deps`, 2026-10-07 |
 | beeper/dummybridge has no license | **verified** (README "License" section, GitHub API) | <https://github.com/beeper/dummybridge> |
-| The integration job works on GitHub's Ubuntu runners | **unknown** until the first CI run of the pull request | — |
+| The integration job works on GitHub's Ubuntu runners | **verified**: environment ready in 29 s, all integration tests pass (after a permission fix for Linux bind mounts) | CI run 37623051337 |
 | `go test -race` works on the maintainer's Windows machine | **verified not to work** today: the only `gcc` is 32-bit MinGW.org ("64-bit mode not compiled in"); the race detector needs cgo with a 64-bit C toolchain. Race tests run in CI and in a Linux container. To be fixed with the Windows C toolchain in T1.2. | local run |
 
 ## Consequences
 
 - Anyone with Docker gets a disposable Matrix homeserver in about 12 seconds, from the tests or with `go run ./infra/cmd/testenv up`.
 - On Windows, the per-run secret of the developer command lives in `infra/.testenv/` (ignored by Git) rather than in `AppData\Local`, because packaged (MSIX) applications see a redirected `AppData\Local` that Docker Desktop cannot read.
-- **dummybridge is blocked by licensing.** Options, to be decided by the maintainer:
-  1. ask Beeper to publish a license (an issue on beeper/dummybridge); nothing changes in our code if they choose an AGPL-compatible one;
-  2. write our own minimal echo connector with `bridgev2` (AGPL), which T1.1 needs anyway to prove in-process bridging;
-  3. use dummybridge as a black-box image in tests only, accepting the legal uncertainty (not recommended, and still no reuse of its code).
+- **dummybridge is blocked by licensing.** Options considered: (1) ask Beeper to publish a license; (2) write our own minimal echo connector with `bridgev2` (AGPL), which T1.1 needs anyway to prove in-process bridging; (3) use dummybridge as a black-box image in tests only, accepting the legal uncertainty. **Decision (maintainer, 2026-10-07): option 2**, built in T1.1. Its code (about 2,100 lines, much of it Beeper-specific) is not read or copied.
 - Integration tests run on Linux runners only: GitHub's Windows and macOS runners cannot run these Linux containers. Windows developers run them locally with Docker Desktop.
 
 ## Sources

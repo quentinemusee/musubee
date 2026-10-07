@@ -44,7 +44,8 @@ Goal: prove that the Go core can run **on the device**. Each spike ends with an 
 
 **T1.1 — bridgev2 connector without a homeserver**
 - Question: can a `bridgev2` connector run in-process, with a local implementation of the "Matrix" interface?
-- Deliverable: proof of concept with the dummy connector (send and receive in a Go test), ADR.
+- Deliverable: our own minimal **echo connector** written with `bridgev2` (AGPL; replaces Beeper's dummybridge, which has no license, see ADR 0004): one login flow, fake contacts and conversations, messages echoed back, a few failure modes (delayed echo, failed send). Proof of concept running it in-process (send and receive in a Go test), ADR.
+- Rule: do not read or copy dummybridge's code (no license). Learning from AGPL-compatible mautrix bridges is allowed once their license is checked.
 - 🧪 Test: the message goes through the connector and reaches local storage, without Synapse.
 
 **T1.2 — Core as a shared library (Windows and Linux)**
