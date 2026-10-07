@@ -8,11 +8,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Dependency is one third-party package found in the repository.
@@ -83,16 +87,52 @@ type lockFile struct {
 }
 
 type lockEntry struct {
-	Name     string          `json:"name"`
-	Version  string          `json:"version"`
-	License  json.RawMessage `json:"license"`
-	Link     bool            `json:"link"`
-	Optional bool            `json:"optional"`
+	Name    string          `json:"name"`
+	Version string          `json:"version"`
+	License json.RawMessage `json:"license"`
+	Link    bool            `json:"link"`
+}
+
+// NPMRegistry is the registry queried for packages that are not installed
+// on this platform (optional, platform-specific packages), whose license
+// appears nowhere locally. Tests replace it.
+var NPMRegistry = "https://registry.npmjs.org"
+
+var registryClient = &http.Client{Timeout: 20 * time.Second}
+
+// registryLicense returns the license that the npm registry declares for
+// one version of a package.
+func registryLicense(name, version string) (string, error) {
+	endpoint := NPMRegistry + "/" + url.PathEscape(name) + "/" + url.PathEscape(version)
+	resp, err := registryClient.Get(endpoint)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("registry answered HTTP %d for %s@%s", resp.StatusCode, name, version)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if err != nil {
+		return "", err
+	}
+	var manifest struct {
+		License  json.RawMessage `json:"license"`
+		Licenses json.RawMessage `json:"licenses"`
+	}
+	if err := json.Unmarshal(body, &manifest); err != nil {
+		return "", err
+	}
+	if v := licenseValue(manifest.License); v != "" {
+		return v, nil
+	}
+	return licenseValue(manifest.Licenses), nil
 }
 
 // NPMDependencies lists the packages of a package-lock.json (lockfile v2 or
 // v3). The declared license comes from the lock file, else from the
-// installed package.json, else from its license files.
+// installed package.json, else from its license files; for packages not
+// installed on this platform, from the npm registry.
 func NPMDependencies(lockPath string) ([]Dependency, error) {
 	data, err := os.ReadFile(lockPath)
 	if err != nil {
@@ -125,10 +165,16 @@ func NPMDependencies(lockPath string) ([]Dependency, error) {
 		default:
 			if ids := DetectLicenses(dir); len(ids) > 0 {
 				dep.License, dep.Source = strings.Join(ids, " AND "), "license file"
-			} else if _, err := os.Stat(dir); err != nil && entry.Optional {
-				dep.Source = "optional package not installed on this platform"
-			} else {
+			} else if _, err := os.Stat(filepath.Join(dir, "package.json")); err == nil {
+				// Installed (an empty directory, as old npm versions leave
+				// for skipped optional packages, does not count).
 				dep.Source = "no license declared or detected"
+			} else if license, err := registryLicense(name, entry.Version); err != nil {
+				dep.Source = "not installed here, and the npm registry could not be read: " + err.Error()
+			} else if license != "" {
+				dep.License, dep.Source = license, "npm registry (not installed on this platform)"
+			} else {
+				dep.Source = "not installed here, and the npm registry declares no license"
 			}
 		}
 		deps = append(deps, dep)
