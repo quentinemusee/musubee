@@ -3,42 +3,38 @@
 
 //go:build telegram
 
-// End-to-end tests of the mautrix-telegram bridge against Telegram's TEST
-// environment, with Synapse and PostgreSQL. Run them with:
+// End-to-end tests of the mautrix-telegram bridge with Synapse and
+// PostgreSQL, on production Telegram with dedicated test bots (ADR 0005).
+// Run them with:
 //
 //	go test -tags=telegram -v ./infra/telegramtest/
 //
-// The first test needs only Docker and network access. The message test also
-// needs a test-environment account and bot (see infra/README.md):
+// The first test needs only Docker and network access. The message test
+// needs two test bots, administrators of a private channel (see
+// infra/README.md):
 //
-//	MUSUBEE_TG_SESSION    session of the test account (go run ./infra/cmd/tgsession)
-//	MUSUBEE_TG_BOT_TOKEN  token of a bot created with @BotFather on the test environment
+//	MUSUBEE_TG_BRIDGE_BOT_TOKEN  bot the bridge logs in as
+//	MUSUBEE_TG_PEER_BOT_TOKEN    bot playing the remote party
+//	MUSUBEE_TG_CHAT_ID           the channel; found in the peer bot's recent
+//	                             updates when unset
 //
-// Without them it is skipped, unless MUSUBEE_REQUIRE_TELEGRAM_E2E=1 (CI with
-// secrets), in which case it fails. Without Docker everything is skipped,
+// Without the tokens it is skipped, unless MUSUBEE_REQUIRE_TELEGRAM_E2E=1 (CI
+// with secrets), in which case it fails. Without Docker everything is skipped,
 // unless MUSUBEE_REQUIRE_INTEGRATION=1.
 
 package telegramtest
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"os"
-	"strings"
+	"strconv"
 	"testing"
 	"time"
 
-	"github.com/gotd/td/telegram/message"
-	"github.com/gotd/td/tg"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
@@ -46,7 +42,15 @@ import (
 	"github.com/quentinemusee/musubee/infra/testenv"
 )
 
-const botTokenEnv = "MUSUBEE_TG_BOT_TOKEN"
+const (
+	bridgeBotTokenEnv = "MUSUBEE_TG_BRIDGE_BOT_TOKEN"
+	peerBotTokenEnv   = "MUSUBEE_TG_PEER_BOT_TOKEN"
+	chatIDEnv         = "MUSUBEE_TG_CHAT_ID"
+
+	// botTokenField is the input field of mautrix-telegram's bot login
+	// (pkg/connector/loginbot.go).
+	botTokenField = "fi.mau.telegram.login.bot_token"
+)
 
 var env *testenv.Env
 
@@ -102,19 +106,21 @@ func run(m *testing.M) int {
 	return code
 }
 
-// TestBridgeOffersQRLoginOnTestServers needs no Telegram account: the bridge
-// must start, register with Synapse, and obtain a login token from
-// Telegram's test environment.
-func TestBridgeOffersQRLoginOnTestServers(t *testing.T) {
+// TestBridgeOffersLogin needs no Telegram account: the bridge must start,
+// register with Synapse, offer the bot login, and obtain a QR login token
+// from Telegram (which proves it reaches Telegram's servers).
+func TestBridgeOffersLogin(t *testing.T) {
 	ctx := t.Context()
-	user := newMatrixUser(t, "qr")
+	user := newMatrixUser(t, "probe")
 
 	flows, err := env.Bridge.LoginFlows(ctx, user.UserID)
 	if err != nil {
 		t.Fatalf("listing login flows: %v", err)
 	}
-	if !hasFlow(flows, "qr") {
-		t.Fatalf("login flows %+v do not include qr", flows)
+	for _, want := range []string{"bot", "qr"} {
+		if !hasFlow(flows, want) {
+			t.Fatalf("login flows %+v do not include %q", flows, want)
+		}
 	}
 
 	step, err := env.Bridge.StartLogin(ctx, user.UserID, "qr")
@@ -122,108 +128,96 @@ func TestBridgeOffersQRLoginOnTestServers(t *testing.T) {
 		t.Fatalf("starting the QR login: %v", err)
 	}
 	t.Cleanup(func() { _ = env.Bridge.CancelLogin(context.WithoutCancel(ctx), user.UserID, step.LoginID) })
-	if _, err := loginToken(step); err != nil {
-		t.Fatal(err)
+	if step.Type != "display_and_wait" || step.DisplayAndWait == nil || step.DisplayAndWait.Type != "qr" {
+		t.Fatalf("unexpected login step %+v", step)
+	}
+	if u, err := url.Parse(step.DisplayAndWait.Data); err != nil || u.Scheme != "tg" || u.Query().Get("token") == "" {
+		t.Fatalf("unexpected QR data %q", step.DisplayAndWait.Data)
 	}
 }
 
-// TestMessageFlowsThroughTheBridge is the T0.4 acceptance test: a test bot
-// writes to the test account, the message reaches Matrix through the bridge,
-// the Matrix user replies, and the bot receives the reply on Telegram.
+// TestMessageFlowsThroughTheBridge is the T0.4 acceptance test, with bots:
+// the bridge logs in as the bridge bot; the peer bot posts in the channel;
+// the post reaches the Matrix user through the bridge; the Matrix user
+// replies; the peer bot sees the reply in the channel.
 func TestMessageFlowsThroughTheBridge(t *testing.T) {
-	session, err := SessionFromEnv(t.Context())
-	botToken := os.Getenv(botTokenEnv)
-	if errors.Is(err, ErrNoSession) || botToken == "" {
+	bridgeToken, peerToken := os.Getenv(bridgeBotTokenEnv), os.Getenv(peerBotTokenEnv)
+	if bridgeToken == "" || peerToken == "" {
 		if os.Getenv("MUSUBEE_REQUIRE_TELEGRAM_E2E") == "1" {
-			t.Fatalf("%s and %s are required", SessionEnv, botTokenEnv)
+			t.Fatalf("%s and %s are required", bridgeBotTokenEnv, peerBotTokenEnv)
 		}
-		t.Skipf("set %s and %s to run this test (see infra/README.md)", SessionEnv, botTokenEnv)
+		t.Skipf("set %s and %s to run this test (see infra/README.md)", bridgeBotTokenEnv, peerBotTokenEnv)
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	creds, err := CredentialsFromEnv()
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 8*time.Minute)
 	defer cancel()
 
-	bot := botAPI{token: botToken}
-	botUser, err := bot.getMe(ctx)
+	peer := BotAPI{Token: peerToken}
+	peerUser, err := peer.GetMe(ctx)
 	if err != nil {
-		t.Fatalf("bot getMe: %v", err)
+		t.Fatalf("peer bot getMe: %v", err)
 	}
-	offset, err := bot.drainUpdates(ctx)
-	if err != nil {
-		t.Fatalf("bot getUpdates: %v", err)
-	}
+	chatID := channelID(t, ctx, peer)
+	t.Logf("peer bot @%s, channel %d", peerUser.Username, chatID)
 
+	// 1. Log the bridge in as the bridge bot.
 	alice := newMatrixUser(t, "alice")
-	client := NewClient(creds, session)
-	err = client.Run(ctx, func(ctx context.Context) error {
-		// 1. Log the bridge in to the test account through the QR flow: the
-		//    harness, already logged in, accepts the login token.
-		step, err := env.Bridge.StartLogin(ctx, alice.UserID, "qr")
-		if err != nil {
-			return fmt.Errorf("starting the QR login: %w", err)
-		}
-		token, err := loginToken(step)
-		if err != nil {
-			return err
-		}
-		if _, err := client.API().AuthAcceptLoginToken(ctx, token); err != nil {
-			return fmt.Errorf("accepting the login token: %w", err)
-		}
-		done, err := env.Bridge.WaitStep(ctx, alice.UserID, step)
-		if err != nil {
-			return fmt.Errorf("finishing the QR login: %w", err)
-		}
-		if done.Type != "complete" || done.Complete == nil {
-			return fmt.Errorf("login ended with step %q, want complete", done.Type)
-		}
-		t.Cleanup(func() {
-			_ = env.Bridge.Logout(context.WithoutCancel(ctx), alice.UserID, done.Complete.UserLoginID)
-		})
-
-		// 2. The test account starts the bot, so that the bot may write to it.
-		resolved, err := client.API().ContactsResolveUsername(ctx, &tg.ContactsResolveUsernameRequest{Username: botUser.Username})
-		if err != nil {
-			return fmt.Errorf("resolving the bot: %w", err)
-		}
-		botPeer, err := inputUser(resolved, botUser.ID)
-		if err != nil {
-			return err
-		}
-		if _, err := message.NewSender(client.API()).To(botPeer).Text(ctx, "/start"); err != nil {
-			return fmt.Errorf("starting the bot: %w", err)
-		}
-		return nil
+	step, err := env.Bridge.StartLogin(ctx, alice.UserID, "bot")
+	if err != nil {
+		t.Fatalf("starting the bot login: %v", err)
+	}
+	if step.Type != "user_input" {
+		t.Fatalf("bot login started with step %q, want user_input", step.Type)
+	}
+	done, err := env.Bridge.SubmitInput(ctx, alice.UserID, step, map[string]string{botTokenField: bridgeToken})
+	if err != nil {
+		t.Fatalf("submitting the bot token: %v", err)
+	}
+	if done.Type != "complete" || done.Complete == nil {
+		t.Fatalf("bot login ended with step %q, want complete", done.Type)
+	}
+	t.Cleanup(func() {
+		_ = env.Bridge.Logout(context.WithoutCancel(ctx), alice.UserID, done.Complete.UserLoginID)
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	accountChatID, offset, err := bot.waitForText(ctx, offset, "/start")
-	if err != nil {
-		t.Fatalf("bot waiting for /start: %v", err)
-	}
-
-	// 3. Telegram -> Matrix.
-	inbound := "hello from the test bot " + randomHex(4)
-	if err := bot.sendMessage(ctx, accountChatID, inbound); err != nil {
-		t.Fatalf("bot sendMessage: %v", err)
+	// 2. Telegram -> Matrix: the peer bot posts in the channel.
+	inbound := "musubee e2e: from Telegram " + randomHex(4)
+	if _, err := peer.SendMessage(ctx, chatID, inbound); err != nil {
+		t.Fatalf("peer bot posting in the channel: %v", err)
 	}
 	roomID := waitForMatrixMessage(t, ctx, alice, inbound)
 
-	// 4. Matrix -> Telegram.
-	outbound := "reply from Matrix " + randomHex(4)
+	// 3. Matrix -> Telegram: the Matrix user replies in the portal room.
+	outbound := "musubee e2e: from Matrix " + randomHex(4)
 	if _, err := alice.SendText(ctx, roomID, outbound); err != nil {
 		t.Fatalf("sending the reply on Matrix: %v", err)
 	}
-	if _, _, err := bot.waitForText(ctx, offset, outbound); err != nil {
-		t.Fatalf("bot waiting for the reply: %v", err)
+	if err := peer.WaitForText(ctx, chatID, outbound, 2*time.Minute); err != nil {
+		t.Fatalf("peer bot waiting for the reply: %v", err)
 	}
+}
+
+// channelID returns MUSUBEE_TG_CHAT_ID, or the channel found in the peer
+// bot's recent updates (Telegram keeps them for 24 hours only, so the ID is
+// printed to be stored as a CI variable).
+func channelID(t *testing.T, ctx context.Context, peer BotAPI) int64 {
+	t.Helper()
+	if text := os.Getenv(chatIDEnv); text != "" {
+		id, err := strconv.ParseInt(text, 10, 64)
+		if err != nil {
+			t.Fatalf("%s: %v", chatIDEnv, err)
+		}
+		return id
+	}
+	updates, err := peer.Updates(ctx, 0)
+	if err != nil {
+		t.Fatalf("peer bot getUpdates: %v", err)
+	}
+	chat, err := FindChannel(updates)
+	if err != nil {
+		t.Fatalf("finding the test channel: %v (post a message in the channel, or set %s)", err, chatIDEnv)
+	}
+	t.Logf("found channel %q: set %s=%d to keep using it after its updates expire", chat.Title, chatIDEnv, chat.ID)
+	return chat.ID
 }
 
 func newMatrixUser(t *testing.T, name string) *mautrix.Client {
@@ -249,38 +243,12 @@ func hasFlow(flows []testenv.LoginFlow, id string) bool {
 	return false
 }
 
-// loginToken extracts the token from the bridge's QR step
-// ("tg://login?token=<base64url>").
-func loginToken(step *testenv.LoginStep) ([]byte, error) {
-	if step.Type != "display_and_wait" || step.DisplayAndWait == nil || step.DisplayAndWait.Type != "qr" {
-		return nil, fmt.Errorf("unexpected login step %+v", step)
-	}
-	u, err := url.Parse(step.DisplayAndWait.Data)
-	if err != nil || u.Scheme != "tg" || u.Host != "login" {
-		return nil, fmt.Errorf("unexpected QR data %q", step.DisplayAndWait.Data)
-	}
-	token, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(u.Query().Get("token"), "="))
-	if err != nil || len(token) == 0 {
-		return nil, fmt.Errorf("invalid login token in %q: %v", step.DisplayAndWait.Data, err)
-	}
-	return token, nil
-}
-
-func inputUser(resolved *tg.ContactsResolvedPeer, userID int64) (tg.InputPeerClass, error) {
-	for _, u := range resolved.Users {
-		if user, ok := u.(*tg.User); ok && user.ID == userID {
-			return &tg.InputPeerUser{UserID: user.ID, AccessHash: user.AccessHash}, nil
-		}
-	}
-	return nil, fmt.Errorf("bot %d not found in the resolved peer", userID)
-}
-
 // waitForMatrixMessage syncs as the Matrix user, joins the rooms the bridge
 // invites it to, and returns the room in which text arrives.
 func waitForMatrixMessage(t *testing.T, ctx context.Context, user *mautrix.Client, text string) id.RoomID {
 	t.Helper()
 	since := ""
-	deadline := time.Now().Add(2 * time.Minute)
+	deadline := time.Now().Add(3 * time.Minute)
 	for time.Now().Before(deadline) {
 		resp, err := user.SyncRequest(ctx, 10000, since, "", false, event.PresenceOffline)
 		if err != nil {
@@ -304,105 +272,8 @@ func waitForMatrixMessage(t *testing.T, ctx context.Context, user *mautrix.Clien
 			}
 		}
 	}
-	t.Fatalf("message %q did not reach Matrix within 2 minutes", text)
+	t.Fatalf("message %q did not reach Matrix within 3 minutes", text)
 	return ""
-}
-
-// botAPI is a minimal client for the Bot API of Telegram's test environment
-// (https://api.telegram.org/bot<token>/test/<method>).
-type botAPI struct {
-	token string
-}
-
-type botUser struct {
-	ID       int64  `json:"id"`
-	Username string `json:"username"`
-}
-
-type botUpdate struct {
-	UpdateID int64 `json:"update_id"`
-	Message  *struct {
-		Text string `json:"text"`
-		Chat struct {
-			ID int64 `json:"id"`
-		} `json:"chat"`
-	} `json:"message"`
-}
-
-func (b botAPI) call(ctx context.Context, method string, params, out any) error {
-	data, err := json.Marshal(params)
-	if err != nil {
-		return err
-	}
-	endpoint := "https://api.telegram.org/bot" + b.token + "/test/" + method
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(data))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{Timeout: time.Minute}).Do(req)
-	if err != nil {
-		// The URL contains the token: never report it.
-		return fmt.Errorf("Bot API %s: request failed", method)
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return err
-	}
-	var envelope struct {
-		OK          bool            `json:"ok"`
-		Description string          `json:"description"`
-		Result      json.RawMessage `json:"result"`
-	}
-	if err := json.Unmarshal(body, &envelope); err != nil {
-		return fmt.Errorf("Bot API %s: HTTP %d", method, resp.StatusCode)
-	}
-	if !envelope.OK {
-		return fmt.Errorf("Bot API %s: %s", method, envelope.Description)
-	}
-	return json.Unmarshal(envelope.Result, out)
-}
-
-func (b botAPI) getMe(ctx context.Context) (botUser, error) {
-	var u botUser
-	err := b.call(ctx, "getMe", map[string]any{}, &u)
-	return u, err
-}
-
-// drainUpdates skips updates left over from earlier runs and returns the
-// offset of the next one.
-func (b botAPI) drainUpdates(ctx context.Context) (int64, error) {
-	var updates []botUpdate
-	if err := b.call(ctx, "getUpdates", map[string]any{"offset": -1, "timeout": 0}, &updates); err != nil {
-		return 0, err
-	}
-	if len(updates) == 0 {
-		return 0, nil
-	}
-	return updates[len(updates)-1].UpdateID + 1, nil
-}
-
-func (b botAPI) waitForText(ctx context.Context, offset int64, text string) (chatID, next int64, err error) {
-	deadline := time.Now().Add(2 * time.Minute)
-	for time.Now().Before(deadline) {
-		var updates []botUpdate
-		if err := b.call(ctx, "getUpdates", map[string]any{"offset": offset, "timeout": 10}, &updates); err != nil {
-			return 0, offset, err
-		}
-		for _, u := range updates {
-			offset = u.UpdateID + 1
-			if u.Message != nil && u.Message.Text == text {
-				return u.Message.Chat.ID, offset, nil
-			}
-		}
-	}
-	return 0, offset, fmt.Errorf("no message %q within 2 minutes", text)
-}
-
-func (b botAPI) sendMessage(ctx context.Context, chatID int64, text string) error {
-	var ignored json.RawMessage
-	return b.call(ctx, "sendMessage", map[string]any{"chat_id": chatID, "text": text}, &ignored)
 }
 
 func randomHex(n int) string {
