@@ -1,0 +1,148 @@
+# Musubee — project context for Claude Code
+
+> Working name: **Musubee**. A Beeper-style universal messenger built on Matrix that **hides all of Matrix's complexity** from the user. 100% open source.
+
+Read this file in full at the start of every session. It is the source of truth for decisions. If you contradict it, update it in the same commit and explain why.
+
+## 0. Language
+
+**Everything in the repository is written in English**: Markdown files, ADRs, code, identifiers (variables, types, functions), file and directory names, comments, script output, UI strings in source code, commit messages and pull requests. No French anywhere in the project. `python scripts/language_check.py` enforces this in CI.
+
+The **conversation** with the maintainer in Claude Code is in **French**.
+
+## 1. Product vision
+
+Users sign in, add their accounts (Telegram, Signal, WhatsApp…), then write and send voice messages, photos, GIFs and files from a single place, end-to-end encrypted. They can **merge** conversations with the same person coming from several networks into a single thread. Maximum customization (themes, appearance, layout). Self-hosting possible in the long run.
+
+Targets: **Android, iOS, Windows, macOS, Linux** (native apps). **No web app for now** (later phase, "hosted core" mode only).
+
+## 2. Architecture decisions (locked unless an ADR says otherwise)
+
+| Topic | Decision |
+|---|---|
+| Core | **Go**: `mautrix-go` (MPL-2.0), `bridgev2` framework, pure-Go Olm encryption (`goolm` build tag), SQLite |
+| Interface | **TypeScript + React + Vite**, a single codebase for every platform |
+| Desktop | **Electron** (core embedded as a sidecar/library, or a remote core) |
+| Mobile | **Capacitor** + a native plugin embedding the Go core; thin Kotlin (Android) and Swift (iOS) shells |
+| iOS notifications | Notification Service Extension (NSE) in Swift, a separate process with very limited memory |
+| License | **AGPL-3.0-or-later** for all our code. DCO required from contributors |
+| Server tests | Synapse homeserver in Docker (reference), never mocks for integration tests |
+
+Why not Flutter / Wails / Tauri: see `docs/ADR/0001-stack.md`. Summary: Flutter can call a Go core through a C FFI (gomuks' "Nexus" frontend does), but it does not let us reuse the UI for the future web app, nor follow the proven "Go backend + web frontend + Electron" model; Wails mobile is experimental; system webviews are a problem on Linux (the gomuks project left Wails for Electron because of WebKitGTK). *(Corrected in T0.1: the initial version said Flutter had "no natural path" to a Go core, which was too strong.)*
+
+License clarified in T0.1: **AGPL-3.0-or-later**, copyright "Quentin Raimbaud", repository compliant with the REUSE 3.3 specification. See `docs/ADR/0002-license-and-reuse.md`.
+
+### Two connection modes per account (central concept)
+1. **On-device**: the bridge runs inside the app and talks directly to the network (Telegram, Signal…). Real end-to-end encryption: no server sees the content.
+2. **Hosted bridge** (ours or the user's): fallback when mode 1 is not possible. "End-to-bridge" encryption: the Matrix server sees nothing, but **the bridge host sees the plaintext**. The UI must say so honestly.
+
+The domain abstraction layer (`Conversation`, `Message`, `Person`, `Account`) **must not expose any Matrix type to the UI**. This is what makes switching between modes possible.
+
+### Conversation merging
+A local link table `Person ↔ [Conversation]` (stored on the device, syncable in encrypted form). A feature of the domain layer, not of the bridges.
+
+## 3. Known limits — do not promise the impossible
+
+- **No audio/video calls across networks.** Beeper does not support them either; relaying them would require reverse-engineered VoIP stacks. What we do: a call notification + opening the official app; native calls (MatrixRTC) only between Musubee users, later.
+- **iOS is the riskiest platform.** The NSE is a separate process with little memory (Beeper had 15 MB, then 50 MB after an exemption obtained through the EU DMA; more on some devices). A full Go runtime is tight there. A small push relay is required. **iOS starts in hosted-bridge mode.**
+- **Legal risk of bridges**: the terms of service of WhatsApp, iMessage, etc. are hostile to unofficial clients. Increasing risk order: native Matrix → Telegram → Signal → Discord/Slack → WhatsApp → iMessage. We start with the least risky.
+- **AGPL and Apple's App Store**: compatibility must be validated before publishing on iOS. It is not resolved. Deferred by the maintainer on 2026-10-07: the repository is private and has no external contributors.
+- I (the design assistant) am not a lawyer: licensing points must be reviewed by a competent human before the public launch.
+
+## 4. Open questions to settle with spikes (see `docs/TASKS.md`, phase 1)
+
+1. Can a `bridgev2` connector run **without a homeserver**, in the same process as the client? (`bridgev2` exposes an abstract "Matrix" interface; to be confirmed by reading the code.)
+2. Does the Go core build cleanly as a shared library for Windows, Android and iOS (size, memory, cgo)?
+3. What is the real memory budget in the iOS NSE? Go (`goolm`) or lighter crypto?
+4. How does the UI talk to the core: FFI + event stream, or a local socket? (Take inspiration from the **gomuks** backend, which exposes an embeddable backend with a C FFI package and web frontends; check its license before reusing any code.)
+5. Conversation merging: data model and sync across devices.
+6. UI: state management and virtualized message list (chosen by ADR, with performance measurements on low-end Android).
+
+## 5. Repository layout (target)
+
+```
+/core          Go: domain, connectors, storage, local API
+/ui            React + TypeScript
+/apps/desktop  Electron
+/apps/mobile   Capacitor + native shells (android/, ios/ + NSE)
+/infra         test docker compose (Synapse, Postgres, dummybridge…)
+/docs          TASKS.md, TESTING.md, SKILLS.md, ADR/
+/scripts       repository tooling (license and language checks, skill installation) and its tests
+/LICENSES      texts of the licenses cited by SPDX headers (REUSE)
+/.github       GitHub Actions workflows, PR template
+```
+
+## 6. Working rules (mandatory)
+
+1. **Nothing is "done" without passing tests.** Write the test first when possible. Run them and show the output. See `docs/TESTING.md`.
+2. **Test environment as close to reality as possible**, even if the setup is long: real Synapse, real bridges, real devices for iOS. No mocks for integrations. Mocks are only tolerated in pure unit tests.
+3. **Never a real account or a secret in CI.** Telegram: official test servers. WhatsApp: manual tests with dedicated accounts, never in CI.
+4. **Licenses**: before adding a dependency, check its SPDX identifier. Reject anything incompatible with AGPL-3.0. Keep `NOTICE` up to date.
+5. **Verify rather than assume** for fast-moving libraries (mautrix-go, Capacitor, Electron, Xcode): read the current docs/code, cite the source in the ADR.
+6. **One ADR per structural decision** in `docs/ADR/`. Spikes end with a "go / no-go" ADR.
+7. Commits follow *Conventional Commits*, small, DCO-signed (`Signed-off-by`). One task = one branch = one PR.
+8. **Security**: never a secret in the repository; keys in the OS secure storage; `contextIsolation` enabled and IPC validated in Electron; no logging of message content.
+9. Never say a feature works without having run it. Distinguish "verified", "assumed" and "unknown" in your reports.
+10. If a requirement in this file is impossible or dangerous, **stop and report it** instead of working around it.
+11. **English only** in the repository (see §0).
+
+## 7. Skills to use
+
+Installed into `.claude/skills/` by `scripts/install-skills.ps1` (or `.bat` / `.sh`; details and relevance per layer: `docs/SKILLS.md`). Re-read the relevant skill **before** coding in its area:
+
+- **Go core**: `go`, `golang-*` (testing, concurrency, safety, security, errors, context, layout, CI)
+- **UI**: `vercel-react-best-practices` (apply mainly the client-side rules), `vercel-composition-patterns`, `web-design-guidelines`
+- **Mobile**: `capacitor-*`, `debugging-capacitor`, `ios-android-logs`, `safe-area-handling`
+- **Native iOS**: `swift-concurrency`, `swift-testing`, `background-processing`, `push-notifications`, `cryptokit`, `swift-security`, `ios-simulator`, `debugging-instruments`, `ios-memgraph-analysis`, `app-store-review` (no SwiftUI: the UI is web)
+- **Native Android**: `claude-android-ninja` (Compose-centric: consult only for foreground services, notifications, Gradle)
+- **Desktop**: `electron`
+- **Tests**: `webapp-testing`, `playwright-testing`, `playwright-cli`, `capacitor-testing`, `swift-testing`
+- **Meta**: `skill-creator`
+
+**No public skill knows Matrix, mautrix-go or bridgev2.** For these topics: read the code and the official docs, cite your sources in the ADR, then capture the knowledge in an in-house `musubee-*` skill (list in `docs/SKILLS.md`), after the relevant spike.
+
+## 7a. Response style (`caveman` plugin)
+
+The **`caveman`** plugin (repository `JuliusBrussee/caveman`, installed by `scripts/install-plugins.ps1`) reduces the verbosity of your answers. It activates at the start of every session. Use it for routine work: implementing, fixing, refactoring, small questions. Short answer, code first, no closing summary. Answer the maintainer in French: the plugin keeps the user's language.
+
+**Always** switch back to the full style, even if `caveman` is active, for:
+- **spikes and ADRs** (the decision and its justification are the deliverable);
+- **test reports**: paste the results and keep the "verified / assumed / unknown" distinction;
+- **plans before coding**;
+- **encryption, security, iOS extension (NSE) memory, and licensing questions**.
+
+The terse mode applies **only to conversation replies**. Everything written to files stays complete: documentation, ADRs, code comments, UI strings.
+
+Plugin sub-skills and modes:
+- `caveman-commit`: **forbidden**. Our commit messages stay complete (Conventional Commits with the "why" in the body, plus `Signed-off-by`).
+- `caveman-compress`: **forbidden** on `CLAUDE.md`, `docs/` and ADRs. It would rewrite our decisions and erase nuance.
+- `caveman-review`: allowed on routine diffs, **never** on encryption, security or licensing code.
+- `ultra` and `wenyan` modes: **forbidden**. Stay on the default mode.
+
+Security warnings and confirmations before destructive actions are never removed. When in doubt about which style to use, choose the full style. If the user writes "normal mode" or "stop caveman", obey.
+
+## 8. Developer environment
+
+Main developer on **Windows (PowerShell)**. Building the Go core with cgo on Windows requires a C toolchain (for example MSYS2/MinGW-w64): to be checked and documented in T1.2. **iOS builds require a Mac** (or a macOS CI runner). Push notifications and the NSE on a real device require a **paid Apple Developer account** (someone close to the maintainer will use the app on an iPhone: they are the first iOS test user).
+
+## 9. Commands (update this block in every task that adds some)
+
+Verified in T0.1 (Windows, Python 3.14, REUSE 6.2.0):
+
+```
+tools:      python -m pip install -r scripts/requirements-dev.txt
+licenses:   python scripts/license_check.py
+language:   python scripts/language_check.py
+tests:      python -m unittest discover -s scripts/tests -v
+skills:     scripts/install-skills.ps1 | .bat | .sh      (--dry-run prints the commands only)
+plugins:    scripts/install-plugins.ps1 | .bat | .sh
+```
+
+To be confirmed in the corresponding tasks (T0.3, T1.1, T1.5):
+
+```
+core:   go test -race ./...        go vet ./...        golangci-lint run
+ui:     npm test                   npm run lint        npm run typecheck
+infra:  docker compose -f infra/compose.test.yml up -d
+e2e:    see docs/TESTING.md
+```
