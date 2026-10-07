@@ -10,6 +10,9 @@ Services started with Docker for integration and end-to-end tests. Principle: **
 | `synapse/` | Test-only Synapse configuration (no federation, rate limits lifted) |
 | `testenv/` | Go package that starts and stops the environment and creates users; integration tests |
 | `cmd/testenv/` | Command for manual work: `up`, `status`, `user`, `down` |
+| `compose.telegram.yml`, `telegram/` | mautrix-telegram, patched to use Telegram's **test** environment ([ADR 0005](../docs/ADR/0005-telegram-test-environment.md)) |
+| `telegramtest/` | Telegram test-environment client and the Telegram end-to-end tests |
+| `cmd/tgsession/` | One-time login of the Telegram test account, to create its session |
 
 Requirements: Docker with the Compose plugin (Docker Desktop on Windows and macOS), Go (version in `go.mod`).
 
@@ -23,6 +26,28 @@ go test -tags=integration ./infra/...        # integration tests: starts a fresh
 ```
 
 Without Docker the integration tests are skipped; set `MUSUBEE_REQUIRE_INTEGRATION=1` to make them fail instead (CI does).
+
+## Telegram end-to-end tests
+
+They run the bridge against Telegram's **test environment** (separate from production Telegram):
+
+```
+go test -tags=telegram -v ./infra/telegramtest/      # builds the patched bridge (a few minutes the first time)
+```
+
+`TestBridgeOffersQRLoginOnTestServers` needs nothing else. `TestMessageFlowsThroughTheBridge` (the T0.4 acceptance test) needs a test account and a test bot, created once:
+
+1. **Create the test account.** In Telegram Desktop: open Settings, then **Shift + Alt + right click** on "Add Account" and choose **"Test Server"**. Sign up with your phone number. This account lives only on the test environment; Telegram wipes it from time to time.
+2. **Create the test bot.** From that test account, talk to **@BotFather**, send `/newbot`, and keep the token it gives you.
+3. **Save the account's session.** From the repository root: `go run ./infra/cmd/tgsession`. Enter the phone number and the login code (Telegram sends it to the test account in Telegram Desktop). The session goes to `infra/.testenv/telegram/session.b64` (ignored by Git; it gives full access to the test account, keep it private).
+4. **Store the secrets** for CI (GitHub CLI, from the repository root):
+   ```
+   gh secret set MUSUBEE_TG_SESSION < infra/.testenv/telegram/session.b64
+   gh secret set MUSUBEE_TG_BOT_TOKEN
+   ```
+   (the second command asks for the bot token). For local runs, set the same two environment variables.
+
+Optional: `MUSUBEE_TG_API_ID` and `MUSUBEE_TG_API_HASH` select your own application instead of the public test one.
 
 ## Use the environment by hand
 
@@ -43,5 +68,4 @@ Any Matrix client can log in to the printed URL with the users you create. `-pro
 ## Not included yet
 
 - **Echo connector** (ours, T1.1), replacing Beeper's dummybridge, which has no license (ADR 0004).
-- Telegram bridge on the official test servers: T0.4.
 - Fault-injection proxy (for example Toxiproxy): when the core needs it.

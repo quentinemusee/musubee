@@ -14,3 +14,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0002](0002-license-and-reuse.md) | AGPL-3.0-or-later license, DCO and REUSE check | accepted | T0.1 |
 | [0003](0003-third-party-skills-guardrails.md) | Guardrails for third-party Claude Code skills | accepted | T0.2 |
 | [0004](0004-integration-test-environment.md) | Integration test environment: Synapse and PostgreSQL with Docker Compose | accepted | T0.3 |
+| [0005](0005-telegram-test-environment.md) | Telegram test environment for end-to-end bridge tests | accepted | T0.4 |
