@@ -127,6 +127,6 @@ Nothing is done without passing tests. Integration tests run against a real Syna
 
 ## 9. Security
 
-- **Never a secret in the repository** (tokens, keys, passwords, `.env` files). Never a real account in CI.
+- **Never a secret in the repository** (tokens, keys, passwords, `.env` files). Never a real user account nor a production secret in CI; test credentials go into encrypted CI secrets.
 - Never log message content.
 - Found a vulnerability? Do not open a public issue. Contact the maintainer privately (a reporting address will be published before the first release).
