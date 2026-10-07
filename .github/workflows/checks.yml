@@ -1,0 +1,65 @@
+# SPDX-FileCopyrightText: 2026 Quentin Raimbaud
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Repository checks: SPDX headers (REUSE 3.3), English-only content, the
+# install scripts (.ps1 / .bat / .sh in dry-run mode), and the tests of all
+# these checks. Runs on Linux and Windows, the two platforms developers use
+# today. Full multi-platform CI comes in T0.5.
+
+name: checks
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository:
+    name: Repository checks (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      # Actions are pinned to a full commit SHA (tag in the comment).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: scripts/requirements-dev.txt
+
+      - name: Install development tools
+        run: python -m pip install -r scripts/requirements-dev.txt
+
+      - name: License check (REUSE)
+        run: python scripts/license_check.py
+
+      - name: Language check (English only)
+        run: python scripts/language_check.py
+
+      - name: Shell scripts lint
+        if: runner.os == 'Linux'
+        run: |
+          # Preinstalled on GitHub's Ubuntu runners; installed if missing
+          # (for example when the workflow runs locally with act).
+          if ! command -v shellcheck >/dev/null; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          fi
+          shellcheck --version | head -2
+          shellcheck scripts/*.sh
+
+      - name: Tests of the checks and install scripts
+        run: python -m unittest discover -s scripts/tests -v
