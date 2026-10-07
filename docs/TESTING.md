@@ -11,11 +11,11 @@ Principle: **test against the real thing**. Setting up the environment may take 
 | Integration | Docker compose: **Synapse + Postgres** + real connectors; Go tests tagged `integration` | The core really speaks Matrix and talks to the bridges | Every PR (Linux runner) |
 | Contract | Versioned core ↔ UI API schema | UI and core stay compatible | Every PR |
 | Desktop E2E | Playwright (supports Electron) | Complete user journeys on Windows/macOS/Linux | Every PR (runners for the 3 OSes) |
-| Android E2E | Android emulator (KVM on Linux) + UI tool (Maestro or Appium, decided in T0.5) + **real device** before each release | Foreground service, notifications, network recovery | PR + release |
-| iOS E2E | Xcode simulator (macOS runner) + **real iPhone** | Notifications, NSE, background, memory | Release (the simulator does not replace the device for background behavior) |
+| Android E2E | Android emulator (KVM on Linux) + Appium/WebdriverIO (ADR 0007) + **real device** before each release | Foreground service, notifications, network recovery | PR + release |
+| iOS E2E | Xcode simulator (macOS runner) + Appium/WebdriverIO (ADR 0007) + **real iPhone** | Notifications, NSE, background, memory | Release (the simulator does not replace the device for background behavior) |
 
 ## Installed testing skills
-`playwright-testing`, `playwright-cli` and `webapp-testing` (UI and Electron E2E); `capacitor-testing` (mobile unit, E2E and native tests); `swift-testing`, `ios-simulator` (iOS); `golang-testing` (core, with `goleak`, fuzzing, parallel tests). Re-read the skill for the relevant level before writing a test.
+`playwright-testing`, `playwright-cli` and `webapp-testing` (UI and Electron E2E); `capacitor-testing` (mobile unit, E2E and native tests; its Appium section is the reference for `apps/mobile/e2e/`); `swift-testing`, `ios-simulator` (iOS); `golang-testing` (core, with `goleak`, fuzzing, parallel tests). Re-read the skill for the relevant level before writing a test.
 
 ## Realistic environment (`infra/compose.test.yml`)
 

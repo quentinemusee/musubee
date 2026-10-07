@@ -157,6 +157,14 @@ telegram e2e:       go test -tags=telegram -v ./infra/telegramtest/   (needs Doc
 
 `go test -race` needs a 64-bit C toolchain (cgo); on the maintainer's Windows machine it is not available until T1.2, so race tests run in CI.
 
+Verified in T0.5 (see `apps/mobile/e2e/README.md`):
+
+```
+mobile tools:       cd apps/mobile/e2e && npm ci
+android hello:      MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android   (needs a running emulator)
+ios hello:          MUSUBEE_IOS_UDID=<udid> npm run test:ios                  (macOS, booted simulator)
+```
+
 To be confirmed in the corresponding tasks (T1.1, T1.5):
 
 ```
