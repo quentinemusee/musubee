@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2026 Quentin Raimbaud
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Skills: version our own (musubee- prefix), not copies of third-party skills
+.claude/skills/*
+!.claude/skills/musubee-*/
+
+# Secrets and local environment
+.env
+.env.*
+*.pem
+*.key
+*.keystore
+*.p12
+*.mobileprovision
+
+# Dependencies and build artifacts
+node_modules/
+dist/
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+*.aar
+*.apk
+*.ipa
+*.xcframework/
+core/bin/
+
+# Python (repository tooling: scripts/)
+__pycache__/
+*.py[cod]
+.venv/
+
+# Local test data
+/infra/data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
