@@ -35,8 +35,9 @@ __pycache__/
 *.py[cod]
 .venv/
 
-# Local test data
+# Local test data and per-run secrets of the test environment
 /infra/data/
+/infra/.testenv/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm

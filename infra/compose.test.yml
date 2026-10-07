@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: 2026 Quentin Raimbaud
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Integration test environment: Synapse (reference homeserver) + PostgreSQL.
+# Started and stopped by infra/testenv (Go), from the tests or from
+#   go run ./infra/cmd/testenv up | down
+# Everything is throw-away: data lives in memory (tmpfs) and disappears on "down",
+# and only Synapse's client API is published, on a random localhost port.
+#
+# MUSUBEE_TEST_SECRETS_DIR must point to a directory holding the file
+# "registration_shared_secret" (generated at random by infra/testenv).
+#
+# Images are pinned by digest (tag kept for readability). Licenses:
+# Synapse AGPL-3.0, PostgreSQL PostgreSQL License.
+
+services:
+  postgres:
+    image: postgres:18.6-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+    environment:
+      POSTGRES_USER: synapse
+      POSTGRES_DB: synapse
+      # Test only: no password, the database is reachable from the Compose
+      # network alone (no published port).
+      POSTGRES_HOST_AUTH_METHOD: trust
+      # Synapse requires the C collation.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    tmpfs:
+      - /var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synapse -d synapse"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  synapse:
+    image: ghcr.io/element-hq/synapse:v1.162.0@sha256:6b84a7bbac36f080b2d2e51e0289cf1b08b349598ea44a558df38d558f2c2311
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SYNAPSE_CONFIG_PATH: /config/homeserver.yaml
+    volumes:
+      - ./synapse:/config:ro
+      - ${MUSUBEE_TEST_SECRETS_DIR:?set MUSUBEE_TEST_SECRETS_DIR (see infra/README.md)}:/secrets:ro
+      # Throw-away data (signing key, media) in memory. Synapse runs as UID 991,
+      # so the mount must be writable by it.
+      - type: tmpfs
+        target: /data
+        tmpfs:
+          mode: 01777
+    ports:
+      - "127.0.0.1::8008"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8008/health || exit 1"]
+      interval: 2s
+      timeout: 5s
+      retries: 90
+      start_period: 5s
