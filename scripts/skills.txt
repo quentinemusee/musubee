@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: 2026 Quentin Raimbaud
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Third-party Claude Code skills installed into .claude/skills/ (project level).
+# Read by scripts/install-skills.ps1, .bat and .sh: keep the three in sync by
+# editing only this file.
+#
+# Format: one source per line, then the skills to take from it, separated by
+# spaces. A source with no skill listed installs everything it provides.
+# Lines starting with '#' and blank lines are ignored.
+#
+# Each line becomes:
+#   npx skills add <source> --skill <skill> ... -a claude-code -y
+#
+# Third-party skills are content written by others: read each SKILL.md before
+# enabling it (docs/SKILLS.md).
+
+# Meta: write our own skills, test the web UI
+anthropics/skills skill-creator webapp-testing
+
+# Go: the core (mandatory)
+spf13/go-skills go
+samber/cc-skills-golang golang-testing golang-concurrency golang-safety golang-security golang-error-handling golang-context golang-project-layout golang-continuous-integration
+
+# React / TypeScript: the interface (mandatory)
+vercel-labs/agent-skills vercel-react-best-practices vercel-composition-patterns web-design-guidelines
+
+# Capacitor: mobile (mandatory). Mind the case: the GitHub owner is Cap-go, not capgo.
+Cap-go/capgo-skills capacitor-best-practices capacitor-plugins capacitor-testing capacitor-push-notifications capacitor-security capacitor-offline-first capacitor-performance debugging-capacitor ios-android-logs safe-area-handling
+
+# iOS / Swift: native shell and notification extension (mandatory for the iOS phase).
+# No SwiftUI skills on purpose: the interface is web, not SwiftUI.
+https://github.com/avdlee/swift-concurrency-agent-skill swift-concurrency
+dpearson2699/swift-ios-skills swift-testing background-processing push-notifications cryptokit swift-security ios-simulator debugging-instruments ios-memgraph-analysis app-store-review
+
+# Android: native shell (recommended). Compose-centric: use it only for
+# foreground services, notifications, Gradle and tests.
+Drjacky/claude-android-ninja
+
+# Electron and desktop E2E tests
+TerminalSkills/skills electron playwright-testing
+microsoft/playwright-cli playwright-cli
