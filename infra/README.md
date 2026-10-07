@@ -42,6 +42,6 @@ Any Matrix client can log in to the printed URL with the users you create. `-pro
 
 ## Not included yet
 
-- **dummybridge**: blocked, its repository has no license (ADR 0004).
+- **Echo connector** (ours, T1.1), replacing Beeper's dummybridge, which has no license (ADR 0004).
 - Telegram bridge on the official test servers: T0.4.
 - Fault-injection proxy (for example Toxiproxy): when the core needs it.

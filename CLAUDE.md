@@ -65,7 +65,7 @@ A local link table `Person ↔ [Conversation]` (stored on the device, syncable i
 /ui            React + TypeScript
 /apps/desktop  Electron
 /apps/mobile   Capacitor + native shells (android/, ios/ + NSE)
-/infra         test docker compose (Synapse, Postgres, dummybridge…)
+/infra         test docker compose (Synapse, Postgres, test bridges…)
 /docs          TASKS.md, TESTING.md, SKILLS.md, ADR/
 /scripts       repository tooling (license and language checks, skill installation) and its tests
 /LICENSES      texts of the licenses cited by SPDX headers (REUSE)
