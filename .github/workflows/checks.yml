@@ -3,8 +3,9 @@
 #
 # Repository checks: SPDX headers (REUSE 3.3), English-only content, the
 # install scripts (.ps1 / .bat / .sh in dry-run mode), and the tests of all
-# these checks; Go formatting, vet and unit tests (race detector); and the
-# integration tests against a real Synapse + PostgreSQL (Linux only, Docker).
+# these checks; Go formatting, vet and unit tests (race detector); the
+# integration tests against a real Synapse + PostgreSQL (Linux only, Docker);
+# and the Telegram bridge against Telegram's test environment.
 # Runs on Linux and Windows, the two platforms developers use today. Full
 # multi-platform CI comes in T0.5.
 
@@ -93,7 +94,9 @@ jobs:
           fi
 
       - name: go vet
-        run: go vet -tags=integration ./infra/...
+        run: |
+          go vet -tags=integration ./infra/...
+          go vet -tags=telegram ./infra/...
 
       - name: Unit tests (race detector)
         run: go test -race -count=1 ./infra/...
@@ -119,3 +122,31 @@ jobs:
 
       - name: Integration tests
         run: go test -tags=integration -race -count=1 -v ./infra/...
+
+  telegram:
+    name: Telegram bridge on Telegram's test environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: infra/go.mod
+          cache-dependency-path: infra/go.sum
+
+      # Builds the patched bridge (a few minutes), then runs the tests.
+      # The bridge-start test needs no secret. The message test needs the
+      # test-environment account and bot (repository secrets, see
+      # infra/README.md); it is required as soon as the session secret exists.
+      - name: Telegram end-to-end tests
+        env:
+          MUSUBEE_REQUIRE_INTEGRATION: "1"
+          MUSUBEE_TG_SESSION: ${{ secrets.MUSUBEE_TG_SESSION }}
+          MUSUBEE_TG_BOT_TOKEN: ${{ secrets.MUSUBEE_TG_BOT_TOKEN }}
+          MUSUBEE_TG_API_ID: ${{ secrets.MUSUBEE_TG_API_ID }}
+          MUSUBEE_TG_API_HASH: ${{ secrets.MUSUBEE_TG_API_HASH }}
+          MUSUBEE_REQUIRE_TELEGRAM_E2E: ${{ secrets.MUSUBEE_TG_SESSION != '' && '1' || '' }}
+        run: go test -tags=telegram -count=1 -v -timeout 25m ./infra/telegramtest/
