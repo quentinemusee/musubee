@@ -1,0 +1,82 @@
+# SPDX-FileCopyrightText: 2026 Quentin Raimbaud
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Synapse configuration for the local integration test environment ONLY.
+# Never use it for a real server: federation is off, rate limits are lifted,
+# and the database trusts every connection from the Compose network.
+#
+# Secrets are not stored here: the registration shared secret is generated
+# at random for every run by infra/testenv and mounted at /secrets. The
+# signing key is generated at startup into the throw-away /data volume.
+# Reference: https://element-hq.github.io/synapse/latest/usage/configuration/config_documentation.html
+
+server_name: "musubee.test"
+public_baseurl: "http://localhost:8008/"
+pid_file: /data/homeserver.pid
+report_stats: false
+
+listeners:
+  - port: 8008
+    type: http
+    tls: false
+    x_forwarded: false
+    bind_addresses: ["0.0.0.0"]
+    resources:
+      - names: [client]
+        compress: false
+
+database:
+  name: psycopg2
+  args:
+    user: synapse
+    dbname: synapse
+    host: postgres
+    port: 5432
+    cp_min: 1
+    cp_max: 5
+
+log_config: "/config/log.config"
+media_store_path: /data/media_store
+signing_key_path: /data/musubee.test.signing.key
+
+# Test users are created with the shared-secret admin API; open registration
+# stays off.
+enable_registration: false
+registration_shared_secret_path: /secrets/registration_shared_secret
+
+# Isolated server: no federation, no outbound key lookups, no telemetry.
+federation_domain_whitelist: []
+trusted_key_servers: []
+suppress_key_server_warning: true
+url_preview_enabled: false
+presence:
+  enabled: false
+
+# Tests send bursts of requests; lift the rate limits.
+rc_message:
+  per_second: 1000
+  burst_count: 1000
+rc_registration:
+  per_second: 1000
+  burst_count: 1000
+rc_login:
+  address:
+    per_second: 1000
+    burst_count: 1000
+  account:
+    per_second: 1000
+    burst_count: 1000
+  failed_attempts:
+    per_second: 1000
+    burst_count: 1000
+rc_joins:
+  local:
+    per_second: 1000
+    burst_count: 1000
+rc_invites:
+  per_room:
+    per_second: 1000
+    burst_count: 1000
+  per_user:
+    per_second: 1000
+    burst_count: 1000
