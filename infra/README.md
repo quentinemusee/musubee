@@ -47,7 +47,7 @@ go test -tags=telegram -v ./infra/telegramtest/
 
 5. The project's own application credentials, created on <https://my.telegram.org> ("API development tools"): `gh secret set MUSUBEE_TG_API_ID` and `gh secret set MUSUBEE_TG_API_HASH`. Without them the test falls back on the public test application, which Telegram rate-limits for everyone (`API_ID_PUBLISHED_FLOOD`).
 
-For local runs, export the same variables.
+For local runs, export the same variables. In CI the test has its own workflow (`.github/workflows/telegram.yml`): it runs when `infra/` or `go.work` change, on `master`, once a day, and on demand (`gh workflow run telegram`), because Telegram rate-limits bot logins (`FLOOD_WAIT`).
 
 ## Use the environment by hand
 

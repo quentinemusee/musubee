@@ -29,7 +29,7 @@ ADR 0005 planned the Telegram end-to-end test on Telegram's test environment, wi
 3. Secrets: `MUSUBEE_TG_BRIDGE_BOT_TOKEN` and `MUSUBEE_TG_PEER_BOT_TOKEN`, plus the project's own `MUSUBEE_TG_API_ID` and `MUSUBEE_TG_API_HASH` (GitHub Actions secrets). The channel ID is not secret: repository variable `MUSUBEE_TG_CHAT_ID` (set to the private channel "Musubee CI channel"), or found in the peer bot's recent updates.
 4. **Rule 3 clarified**: tokens of bots dedicated to tests are test credentials, even on production Telegram, because they give access to no personal data. `CLAUDE.md` is updated accordingly.
 5. **The official bridge image** (`dock.mau.dev/mautrix/telegram:v0.2609.0`, pinned by digest) replaces our patched build: the `test_servers` patch, its Dockerfile, the `tgsession` command and the gotd/td dependency are removed. The bridge starts in about 23 s instead of 4 minutes.
-6. The CI job never runs twice at once (the bridge bot can have one bridge login at a time).
+6. The test runs in its own workflow (`.github/workflows/telegram.yml`), never twice at once (the bridge bot can have one bridge login at a time), and only when `infra/` or `go.work` change, on `master`, once a day and on demand: Telegram rate-limits bot logins (see Revisions).
 
 ## State of knowledge
 
@@ -46,6 +46,10 @@ ADR 0005 planned the Telegram end-to-end test on Telegram's test environment, wi
 - The message test runs in CI only (the tokens are write-only GitHub secrets); local runs need the maintainer to export the two tokens.
 - A bot login is not a user login: what is verified is the bridge pipeline (Telegram update → portal → Matrix, and back). User-specific behavior (contacts, private chats, QR or phone login) is covered later, in T1.6, against a real account on the maintainer's machine, never in CI.
 - If the bot approach fails on Telegram's side, the fallback is option 1 (a dedicated number) or option 4.
+
+## Revisions
+
+- 2026-10-08 (T0.6): after many CI runs in a few hours, the bot login failed with `FLOOD_WAIT (1186)` (about 20 minutes): Telegram rate-limits bot authorizations. The test moved from `checks.yml` (every push) to `telegram.yml` with the narrower triggers above, and explains this error when it happens.
 
 ## Sources
 

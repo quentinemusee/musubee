@@ -48,6 +48,7 @@ In place since T0.3 ([ADR 0004](ADR/0004-integration-test-environment.md), usage
   - English only: `python scripts/language_check.py` rejects French text in tracked files.
   - Install scripts: the `.ps1`, `.bat` and `.sh` variants are run in dry-run mode and must print the same commands.
   - Tests of these checks: `python -m unittest discover -s scripts/tests -v`.
+- **Telegram end-to-end** (`.github/workflows/telegram.yml`): only when `infra/` changes, on `master`, daily and on demand, because Telegram rate-limits bot logins (ADR 0006).
 - **Dependency license audit** (in place since T0.6, [ADR 0008](ADR/0008-dependency-license-audit.md)): `go run ./scripts/licenseaudit` checks every Go module and npm package against `scripts/license-policy.json` and fails on any incompatible, unknown or unreadable license
 - Secret scanning
 - Reproducible builds as far as possible; signed artifacts for releases

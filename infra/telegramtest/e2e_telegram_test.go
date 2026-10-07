@@ -172,6 +172,9 @@ func TestMessageFlowsThroughTheBridge(t *testing.T) {
 	}
 	done, err := env.Bridge.SubmitInput(ctx, alice.UserID, step, map[string]string{botTokenField: bridgeToken})
 	if err != nil {
+		if strings.Contains(err.Error(), "FLOOD_WAIT") {
+			t.Fatalf("submitting the bot token: %v (Telegram rate-limits bot logins after many runs: wait the number of seconds shown, then rerun)", err)
+		}
 		if strings.Contains(err.Error(), "API_ID_PUBLISHED_FLOOD") {
 			t.Fatalf("submitting the bot token: %v (the public test api_id is rate-limited by Telegram: set %s and %s to the project's own application, see infra/README.md)", err, APIIDEnv, APIHashEnv)
 		}
