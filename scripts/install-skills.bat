@@ -22,6 +22,11 @@ setlocal EnableExtensions EnableDelayedExpansion
 set "DRY_RUN=0"
 if /i "%~1"=="--dry-run" set "DRY_RUN=1"
 
+@rem The skills CLI reports each install (source and skill names) to skills.sh
+@rem unless DISABLE_TELEMETRY or DO_NOT_TRACK is set. Opt out for this process.
+set "DISABLE_TELEMETRY=1"
+echo Telemetry to skills.sh disabled ^(DISABLE_TELEMETRY=%DISABLE_TELEMETRY%^).
+
 set "SCRIPT_DIR=%~dp0"
 set "MANIFEST=%SCRIPT_DIR%skills.txt"
 pushd "%SCRIPT_DIR%.." || exit /b 1

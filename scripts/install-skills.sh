@@ -23,6 +23,12 @@ if [ "${1:-}" = "--dry-run" ]; then
     dry_run=1
 fi
 
+# The skills CLI reports each install (source and skill names) to skills.sh
+# unless DISABLE_TELEMETRY or DO_NOT_TRACK is set. Opt out for this process.
+DISABLE_TELEMETRY=1
+export DISABLE_TELEMETRY
+echo "Telemetry to skills.sh disabled (DISABLE_TELEMETRY=$DISABLE_TELEMETRY)."
+
 script_dir=$(cd "$(dirname "$0")" && pwd) || exit 1
 repo_root=$(dirname "$script_dir")
 manifest="$script_dir/skills.txt"
