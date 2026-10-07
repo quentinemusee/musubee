@@ -76,7 +76,7 @@ A local link table `Person ↔ [Conversation]` (stored on the device, syncable i
 
 1. **Nothing is "done" without passing tests.** Write the test first when possible. Run them and show the output. See `docs/TESTING.md`.
 2. **Test environment as close to reality as possible**, even if the setup is long: real Synapse, real bridges, real devices for iOS. No mocks for integrations. Mocks are only tolerated in pure unit tests.
-3. **Never a real user account nor a production secret in CI.** Test credentials are allowed, stored as encrypted CI secrets (GitHub Actions secrets), never in the repository or in logs. Telegram: official test servers with `99966XYYYY` test accounts; the app's `api_id` / `api_hash` is such a test credential. WhatsApp: manual tests with dedicated accounts, never in CI.
+3. **Never a real user account nor a production secret in CI.** Test credentials are allowed, stored as encrypted CI secrets (GitHub Actions secrets), never in the repository or in logs: the app's `api_id` / `api_hash`, and tokens of bots dedicated to tests, even on production Telegram, since they give access to no personal data. Telegram: two test bots in a private channel (ADR 0006; Telegram's test environment is unusable for us, ADR 0005). WhatsApp: manual tests with dedicated accounts, never in CI.
 4. **Licenses**: before adding a dependency, check its SPDX identifier. Reject anything incompatible with AGPL-3.0. Keep `NOTICE` up to date.
 5. **Verify rather than assume** for fast-moving libraries (mautrix-go, Capacitor, Electron, Xcode): read the current docs/code, cite the source in the ADR.
 6. **One ADR per structural decision** in `docs/ADR/`. Spikes end with a "go / no-go" ADR.
@@ -149,11 +149,10 @@ test homeserver:    go run ./infra/cmd/testenv up | status | user NAME PASS | do
 vet:                go vet -tags=integration ./infra/...    go vet -tags=telegram ./infra/...
 ```
 
-Verified in T0.4 (see `infra/README.md` for the one-time Telegram test account):
+Verified in T0.4 (see `infra/README.md` for the test bots):
 
 ```
-telegram e2e:       go test -tags=telegram -v ./infra/telegramtest/   (builds the patched bridge; needs Docker and network)
-telegram session:   go run ./infra/cmd/tgsession
+telegram e2e:       go test -tags=telegram -v ./infra/telegramtest/   (needs Docker and network; message test needs the bot tokens)
 ```
 
 `go test -race` needs a 64-bit C toolchain (cgo); on the maintainer's Windows machine it is not available until T1.2, so race tests run in CI.

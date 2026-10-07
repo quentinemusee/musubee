@@ -1,6 +1,6 @@
 # ADR 0005 — Telegram test environment for end-to-end bridge tests
 
-- **Status**: accepted (the message test waits for the maintainer's test account, see "Consequences")
+- **Status**: superseded by [ADR 0006](0006-telegram-e2e-with-test-bots.md) for the decision; the findings below remain valid
 - **Date**: 2026-10-07
 - **Task**: T0.4
 - **Deciders**: Quentin Raimbaud (maintainer), with the design assistant
