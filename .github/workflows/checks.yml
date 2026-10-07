@@ -4,6 +4,7 @@
 # Repository checks: SPDX headers (REUSE 3.3), English-only content, the
 # install scripts (.ps1 / .bat / .sh in dry-run mode), and the tests of all
 # these checks; Go formatting, vet and unit tests (race detector); the
+# license audit of every Go and npm dependency (scripts/licenseaudit); the
 # integration tests against a real Synapse + PostgreSQL (Linux only, Docker);
 # and the Telegram bridge end to end with dedicated test bots.
 # Desktop checks run on Linux, Windows and macOS; mobile "hello tests" run on
@@ -89,7 +90,7 @@ jobs:
       - name: Formatting (gofmt)
         shell: bash
         run: |
-          unformatted=$(gofmt -l infra)
+          unformatted=$(gofmt -l infra scripts)
           if [ -n "$unformatted" ]; then
             echo "Run gofmt on:"; echo "$unformatted"; exit 1
           fi
@@ -98,9 +99,41 @@ jobs:
         run: |
           go vet -tags=integration ./infra/...
           go vet -tags=telegram ./infra/...
+          go vet ./scripts/licenseaudit/...
 
       - name: Unit tests (race detector)
-        run: go test -race -count=1 ./infra/...
+        run: go test -race -count=1 ./infra/... ./scripts/licenseaudit/...
+
+  licenses:
+    name: Dependency license audit (Go and npm)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: infra/go.mod
+          cache-dependency-path: |
+            infra/go.sum
+            scripts/licenseaudit/go.sum
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/mobile/e2e/package-lock.json
+
+      # Installed packages let the audit read license files when a package
+      # declares no license.
+      - name: Install npm dependencies
+        working-directory: apps/mobile/e2e
+        run: npm ci --no-audit --no-fund --ignore-scripts
+
+      - name: License audit
+        run: go run ./scripts/licenseaudit -v
 
   integration:
     name: Integration tests (Synapse + PostgreSQL)
