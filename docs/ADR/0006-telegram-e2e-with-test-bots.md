@@ -26,7 +26,7 @@ ADR 0005 planned the Telegram end-to-end test on Telegram's test environment, wi
 
 1. Two bots created by the maintainer with @BotFather: **bridge bot** (`musubee_bridge_test_bot`), which the bridge logs in as, and **peer bot** (`musubee_peer_test_bot`), which plays the remote party through the Bot API. Both administer a private channel ("Musubee CI").
 2. The acceptance test (`TestMessageFlowsThroughTheBridge`): the bridge logs in as the bridge bot through the provisioning API; the peer bot posts in the channel; the post must reach the Matrix user through the bridge; the Matrix user replies; the peer bot must see the reply in the channel.
-3. Secrets: `MUSUBEE_TG_BRIDGE_BOT_TOKEN` and `MUSUBEE_TG_PEER_BOT_TOKEN` (GitHub Actions secrets). The channel ID is not secret: repository variable `MUSUBEE_TG_CHAT_ID` (set to the private channel "Musubee CI channel"), or found in the peer bot's recent updates.
+3. Secrets: `MUSUBEE_TG_BRIDGE_BOT_TOKEN` and `MUSUBEE_TG_PEER_BOT_TOKEN`, plus the project's own `MUSUBEE_TG_API_ID` and `MUSUBEE_TG_API_HASH` (GitHub Actions secrets). The channel ID is not secret: repository variable `MUSUBEE_TG_CHAT_ID` (set to the private channel "Musubee CI channel"), or found in the peer bot's recent updates.
 4. **Rule 3 clarified**: tokens of bots dedicated to tests are test credentials, even on production Telegram, because they give access to no personal data. `CLAUDE.md` is updated accordingly.
 5. **The official bridge image** (`dock.mau.dev/mautrix/telegram:v0.2609.0`, pinned by digest) replaces our patched build: the `test_servers` patch, its Dockerfile, the `tgsession` command and the gotd/td dependency are removed. The bridge starts in about 23 s instead of 4 minutes.
 6. The CI job never runs twice at once (the bridge bot can have one bridge login at a time).
@@ -39,7 +39,7 @@ ADR 0005 planned the Telegram end-to-end test on Telegram's test environment, wi
 | The bot login first calls the Bot API `logOut` for the bridge bot and tolerates "Logged out" on later runs | **verified** (code) | `pkg/connector/loginbot.go` at `9b2a6e3e` |
 | In a group, the peer bot received nothing at all; in a channel where both bots are administrators, it receives the posts | **verified** (first CI runs: "no updates" with a group; channel found once a channel was used) | CI, PR #7 |
 | The bridge, logged in as a bot, creates a portal for the channel on the first post and relays both ways | **verified** (`TestMessageFlowsThroughTheBridge` passed in 15 s) | CI, PR #7, 2026-10-07 |
-| The public test `api_id` is accepted on production for a bot login | **verified** (same run) | <https://core.telegram.org/api/obtaining_api_id> |
+| The public test `api_id` is accepted on production for a bot login | **verified, but not reliable**: it worked once, then failed repeatedly with `API_ID_PUBLISHED_FLOOD` (shared by everyone, rate-limited by Telegram, as its docs warn). Replaced by the project's own `api_id` (`MUSUBEE_TG_API_ID` / `MUSUBEE_TG_API_HASH`, created by the maintainer on my.telegram.org), with which the test passes | CI, PR #8, 2026-10-07 |
 
 ## Consequences
 
