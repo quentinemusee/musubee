@@ -6,8 +6,9 @@
 # these checks; Go formatting, vet and unit tests (race detector); the
 # integration tests against a real Synapse + PostgreSQL (Linux only, Docker);
 # and the Telegram bridge end to end with dedicated test bots.
-# Runs on Linux and Windows, the two platforms developers use today. Full
-# multi-platform CI comes in T0.5.
+# Desktop checks run on Linux, Windows and macOS; mobile "hello tests" run on
+# an Android emulator (Linux) and an iOS simulator (macOS), see
+# apps/mobile/e2e/ and docs/ADR/0007-mobile-e2e-tool.md.
 
 name: checks
 
@@ -29,7 +30,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
@@ -72,7 +73,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
@@ -156,3 +157,78 @@ jobs:
           MUSUBEE_TG_API_HASH: ${{ secrets.MUSUBEE_TG_API_HASH }}
           MUSUBEE_REQUIRE_TELEGRAM_E2E: ${{ (secrets.MUSUBEE_TG_BRIDGE_BOT_TOKEN != '' && secrets.MUSUBEE_TG_PEER_BOT_TOKEN != '') && '1' || '' }}
         run: go test -tags=telegram -count=1 -v -timeout 25m ./infra/telegramtest/
+
+  android:
+    name: Android hello test (emulator, Appium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/mobile/e2e/package-lock.json
+
+      - name: Install the mobile test tools
+        working-directory: apps/mobile/e2e
+        run: npm ci --no-audit --no-fund
+
+      # Hardware acceleration for the emulator on Linux runners.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Hello test on the emulator
+        uses: reactivecircus/android-emulator-runner@c9c93e6ba9c4194322e114c40970d5983d9a07cc # v2.38.0
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
+          working-directory: apps/mobile/e2e
+          script: MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android
+
+  ios:
+    name: iOS hello test (simulator, Appium)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/mobile/e2e/package-lock.json
+
+      - name: Install the mobile test tools
+        working-directory: apps/mobile/e2e
+        run: npm ci --no-audit --no-fund
+
+      - name: Boot an iPhone simulator
+        id: simulator
+        run: |
+          xcodebuild -version
+          udid=$(xcrun simctl list devices available --json             | jq -r '[.devices | to_entries[] | select(.key | test("iOS")) | .value[] | select(.name | startswith("iPhone"))][0].udid')
+          if [ -z "$udid" ] || [ "$udid" = "null" ]; then
+            echo "no available iPhone simulator"; xcrun simctl list devices available; exit 1
+          fi
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      # The first session builds WebDriverAgent with Xcode (several minutes).
+      - name: Hello test on the simulator
+        working-directory: apps/mobile/e2e
+        env:
+          MUSUBEE_IOS_UDID: ${{ steps.simulator.outputs.udid }}
+        run: npm run test:ios
