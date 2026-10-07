@@ -6,6 +6,7 @@ package testenv
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -90,5 +91,34 @@ func TestNewSharedSecretIsRandomAndLongEnough(t *testing.T) {
 	}
 	if len(a) < 64 {
 		t.Errorf("secret length = %d, want at least 64 hex characters", len(a))
+	}
+}
+
+// Regression test: on Linux CI, a 0700 directory from os.MkdirTemp kept the
+// Synapse container (UID 991) from reading the secret.
+func TestWriteSecretIsReadableByTheContainerUser(t *testing.T) {
+	t.Parallel()
+	dir := filepath.Join(t.TempDir(), "secrets")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeSecret(dir, "s3cret"); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, secretFileName))
+	if err != nil || string(data) != "s3cret" {
+		t.Fatalf("secret file = %q, %v; want %q", data, err, "s3cret")
+	}
+	if runtime.GOOS == "windows" {
+		return // Unix permission bits are not meaningful on Windows.
+	}
+	for path, want := range map[string]os.FileMode{dir: 0o755, filepath.Join(dir, secretFileName): 0o644} {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := info.Mode().Perm(); got != want {
+			t.Errorf("%s mode = %o, want %o", path, got, want)
+		}
 	}
 }

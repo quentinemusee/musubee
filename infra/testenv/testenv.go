@@ -99,13 +99,8 @@ func Start(ctx context.Context, project, secretsDir string) (*Env, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(secretsDir, 0o700); err != nil {
-		return nil, fmt.Errorf("creating secrets directory: %w", err)
-	}
-	// Synapse runs as an unprivileged user inside the container and must be
-	// able to read the file through the bind mount.
-	if err := os.WriteFile(filepath.Join(secretsDir, secretFileName), []byte(secret), 0o644); err != nil { //nolint:gosec // throw-away test secret, see comment above
-		return nil, fmt.Errorf("writing the shared secret: %w", err)
+	if err := writeSecret(secretsDir, secret); err != nil {
+		return nil, err
 	}
 
 	env := &Env{
@@ -315,6 +310,27 @@ type HTTPError struct {
 
 func (e *HTTPError) Error() string {
 	return fmt.Sprintf("HTTP %d: %s", e.StatusCode, e.Body)
+}
+
+// writeSecret stores the shared secret where the Synapse container can read
+// it. Synapse runs as an unprivileged user (UID 991) inside the container, so
+// on Linux the bind-mounted directory must be traversable and the file
+// readable by others; Docker Desktop on Windows and macOS ignores these modes.
+// The secret only protects a throw-away homeserver bound to localhost.
+func writeSecret(dir, secret string) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("creating secrets directory: %w", err)
+	}
+	// MkdirAll keeps the mode of an existing directory (os.MkdirTemp creates
+	// 0700), so set it explicitly.
+	if err := os.Chmod(dir, 0o755); err != nil { //nolint:gosec // see the function comment
+		return fmt.Errorf("making the secrets directory readable by Synapse: %w", err)
+	}
+	path := filepath.Join(dir, secretFileName)
+	if err := os.WriteFile(path, []byte(secret), 0o644); err != nil { //nolint:gosec // see the function comment
+		return fmt.Errorf("writing the shared secret: %w", err)
+	}
+	return os.Chmod(path, 0o644) //nolint:gosec // see the function comment
 }
 
 func newSharedSecret() (string, error) {
