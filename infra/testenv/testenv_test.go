@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -120,5 +121,54 @@ func TestWriteSecretIsReadableByTheContainerUser(t *testing.T) {
 		if got := info.Mode().Perm(); got != want {
 			t.Errorf("%s mode = %o, want %o", path, got, want)
 		}
+	}
+}
+
+func TestRenderTelegramFiles(t *testing.T) {
+	t.Parallel()
+	dir, err := InfraDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	secrets := TelegramSecrets{ASToken: "as-tok", HSToken: "hs-tok", SenderLocalpart: "sender", ProvisioningSecret: "prov-secret"}
+	config, registration, err := RenderTelegramFiles(dir, TelegramOptions{APIID: 17349, APIHash: "abc123"}, secrets)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checks := []struct {
+		text  string
+		wants []string
+	}{
+		{string(config), []string{
+			"api_id: 17349", "api_hash: abc123", "test_servers: true", "shared_secret: prov-secret",
+			"username_template: telegram_{{.}}", "address: http://synapse:8008",
+			"as_token: as-tok", "hs_token: hs-tok",
+		}},
+		{string(registration), []string{
+			"id: telegram", "url: http://telegram:29317", "as_token: as-tok", "hs_token: hs-tok",
+			"sender_localpart: sender", `regex: ^@telegram_.*:musubee\.test$`,
+		}},
+	}
+	for _, c := range checks {
+		for _, want := range c.wants {
+			if !strings.Contains(c.text, want) {
+				t.Errorf("rendered file lacks %q", want)
+			}
+		}
+	}
+}
+
+func TestNewTelegramSecretsAreDistinct(t *testing.T) {
+	t.Parallel()
+	s, err := newTelegramSecrets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, v := range []string{s.ASToken, s.HSToken, s.SenderLocalpart, s.ProvisioningSecret} {
+		if v == "" || seen[v] {
+			t.Fatalf("secrets are empty or repeated: %+v", s)
+		}
+		seen[v] = true
 	}
 }

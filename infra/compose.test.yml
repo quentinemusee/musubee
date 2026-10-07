@@ -38,7 +38,9 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      SYNAPSE_CONFIG_PATH: /config/homeserver.yaml
+      # A directory: Synapse merges every *.yaml file in it, so overlays such
+      # as compose.telegram.yml can add configuration fragments.
+      SYNAPSE_CONFIG_PATH: /config
     volumes:
       - ./synapse:/config:ro
       - ${MUSUBEE_TEST_SECRETS_DIR:?set MUSUBEE_TEST_SECRETS_DIR (see infra/README.md)}:/secrets:ro

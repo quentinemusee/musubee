@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: 2026 Quentin Raimbaud
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Overlay for compose.test.yml: adds the mautrix-telegram bridge, connected to
+# Telegram's TEST environment (never production). Used with:
+#   docker compose -f compose.test.yml -f compose.telegram.yml ...
+# which infra/testenv does when the Telegram option is enabled.
+#
+# MUSUBEE_TEST_TELEGRAM_DIR must point to a directory holding config.yaml,
+# registration.yaml and synapse-config/, generated per run by infra/testenv.
+
+services:
+  synapse:
+    volumes:
+      # Replaces the base /config mount (Compose merges volumes by target):
+      # infra/testenv copies infra/synapse/ there and adds the appservice
+      # fragment (telegram/synapse-appservice.yaml).
+      - ${MUSUBEE_TEST_TELEGRAM_DIR:?set MUSUBEE_TEST_TELEGRAM_DIR}/synapse-config:/config:ro
+      - ${MUSUBEE_TEST_TELEGRAM_DIR:?set MUSUBEE_TEST_TELEGRAM_DIR}/registration.yaml:/appservices/telegram.yaml:ro
+
+  telegram:
+    build:
+      context: ./telegram
+    image: musubee/mautrix-telegram-test:9b2a6e3e
+    # The bridge checks the homeserver at startup; Synapse only needs the
+    # registration file, which exists before "up".
+    depends_on:
+      synapse:
+        condition: service_healthy
+    volumes:
+      - ${MUSUBEE_TEST_TELEGRAM_DIR:?set MUSUBEE_TEST_TELEGRAM_DIR}:/data
+    # The provisioning API (used by the tests to log in) on a random
+    # localhost port.
+    ports:
+      - "127.0.0.1::29317"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:29317/_matrix/mau/live || exit 1"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+      start_period: 5s
