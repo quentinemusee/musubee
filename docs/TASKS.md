@@ -24,8 +24,8 @@ Legend: 🧪 = mandatory test · 🍎 = requires a Mac · 💶 = requires a paid
 - 🧪 Test: `go test -tags=integration ./infra/...` starts the environment, checks service health, shuts it down (integration tests carry the `integration` build tag, see ADR 0004).
 
 **T0.4 — Telegram test environment**
-- Deliverable: connection to the Telegram test server (see `docs/TESTING.md`; the `99966XYYYY` numbers no longer sign in, so one test account is created by hand, ADR 0005), Telegram bridge connected to the local Synapse.
-- Acceptance: a message flows between two Telegram test accounts through the bridge.
+- Deliverable: Telegram bridge connected to the local Synapse and to Telegram. Telegram's test servers turned out unusable (ADR 0005), so the test uses two dedicated test bots in a private channel (ADR 0006).
+- Acceptance: a message flows between two Telegram test parties (bots) through the bridge, both ways.
 - 🧪 Test: automated E2E, usable in CI. Also record in the ADR what exists (or not) for Signal.
 
 **T0.5 — Multi-platform CI**

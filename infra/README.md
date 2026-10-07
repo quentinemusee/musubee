@@ -10,9 +10,8 @@ Services started with Docker for integration and end-to-end tests. Principle: **
 | `synapse/` | Test-only Synapse configuration (no federation, rate limits lifted) |
 | `testenv/` | Go package that starts and stops the environment and creates users; integration tests |
 | `cmd/testenv/` | Command for manual work: `up`, `status`, `user`, `down` |
-| `compose.telegram.yml`, `telegram/` | mautrix-telegram, patched to use Telegram's **test** environment ([ADR 0005](../docs/ADR/0005-telegram-test-environment.md)) |
-| `telegramtest/` | Telegram test-environment client and the Telegram end-to-end tests |
-| `cmd/tgsession/` | One-time login of the Telegram test account, to create its session |
+| `compose.telegram.yml`, `telegram/` | Official mautrix-telegram image and its per-run configuration templates ([ADR 0006](../docs/ADR/0006-telegram-e2e-with-test-bots.md)) |
+| `telegramtest/` | Bot API client and the Telegram end-to-end tests |
 
 Requirements: Docker with the Compose plugin (Docker Desktop on Windows and macOS), Go (version in `go.mod`).
 
@@ -29,25 +28,24 @@ Without Docker the integration tests are skipped; set `MUSUBEE_REQUIRE_INTEGRATI
 
 ## Telegram end-to-end tests
 
-They run the bridge against Telegram's **test environment** (separate from production Telegram):
+They run the official mautrix-telegram bridge with Synapse, on production Telegram, using two **dedicated test bots** and no user account ([ADR 0006](../docs/ADR/0006-telegram-e2e-with-test-bots.md)):
 
 ```
-go test -tags=telegram -v ./infra/telegramtest/      # builds the patched bridge (a few minutes the first time)
+go test -tags=telegram -v ./infra/telegramtest/
 ```
 
-`TestBridgeOffersQRLoginOnTestServers` needs nothing else. `TestMessageFlowsThroughTheBridge` (the T0.4 acceptance test) needs a test account and a test bot, created once:
+`TestBridgeOffersLogin` needs nothing else. `TestMessageFlowsThroughTheBridge` (the T0.4 acceptance test) needs, once:
 
-1. **Create the test account and save its session.** From the repository root: `go run ./infra/cmd/tgsession`. Enter your phone number (international format). The tool shows how Telegram says it sends the code (SMS, phone call, another app, payment required...); if nothing arrives, type `resend` after the delay it shows to get a phone call instead. If the number has no account on the test environment yet, the tool creates one (it asks for a first name). The session goes to `infra/.testenv/telegram/session.b64` (ignored by Git; it gives full access to the test account, keep it private). This account lives only on the test environment, not in your usual Telegram, and Telegram wipes it from time to time.
-   Alternatives with an official client: Telegram Web at `https://web.telegram.org/k/?test=1`; Telegram Desktop (Settings, then **Shift + Alt + right click** on "Add Account", **"Test Server"**); iOS (tap the Settings icon 10 times, Accounts, Login to another account, Test).
-2. **Create the test bot.** From that test account, talk to **@BotFather**, send `/newbot`, and keep the token it gives you.
-3. **Store the secrets** for CI (GitHub CLI, from the repository root):
+1. Two bots created with **@BotFather** (`/newbot`): the **bridge bot**, which the bridge logs in as, and the **peer bot**, which plays the remote party.
+2. A **private channel** (not a group: Telegram never delivers messages between bots in groups) with both bots as **administrators** allowed to post.
+3. The tokens as repository secrets (each command asks for the value):
    ```
-   gh secret set MUSUBEE_TG_SESSION < infra/.testenv/telegram/session.b64
-   gh secret set MUSUBEE_TG_BOT_TOKEN
+   gh secret set MUSUBEE_TG_BRIDGE_BOT_TOKEN
+   gh secret set MUSUBEE_TG_PEER_BOT_TOKEN
    ```
-   (the second command asks for the bot token). For local runs, set the same two environment variables.
+4. The channel ID: the test finds it in the peer bot's updates of the last 24 hours (post any message in the channel) and prints it; store it as a repository variable so later runs do not depend on that window: `gh variable set MUSUBEE_TG_CHAT_ID`.
 
-Optional: `MUSUBEE_TG_API_ID` and `MUSUBEE_TG_API_HASH` select your own application instead of the public test one.
+For local runs, export the same variables. Optional: `MUSUBEE_TG_API_ID` and `MUSUBEE_TG_API_HASH` select your own application instead of the public test one.
 
 ## Use the environment by hand
 
