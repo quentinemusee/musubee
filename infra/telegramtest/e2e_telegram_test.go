@@ -156,8 +156,9 @@ func TestMessageFlowsThroughTheBridge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("peer bot getMe: %v", err)
 	}
+	t.Logf("peer bot: @%s", peerUser.Username)
 	chatID := channelID(t, ctx, peer)
-	t.Logf("peer bot @%s, channel %d", peerUser.Username, chatID)
+	t.Logf("channel: %d", chatID)
 
 	// 1. Log the bridge in as the bridge bot.
 	alice := newMatrixUser(t, "alice")
