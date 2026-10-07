@@ -140,7 +140,7 @@ func TestRenderTelegramFiles(t *testing.T) {
 		wants []string
 	}{
 		{string(config), []string{
-			"api_id: 17349", "api_hash: abc123", "test_servers: true", "shared_secret: prov-secret",
+			"api_id: 17349", "api_hash: abc123", "shared_secret: prov-secret",
 			"username_template: telegram_{{.}}", "address: http://synapse:8008",
 			"as_token: as-tok", "hs_token: hs-tok",
 		}},
