@@ -37,7 +37,7 @@ T0.5 asks to choose the mobile end-to-end test tool between Maestro and Appium, 
 | The Android hello test passes on an API 30 emulator | **verified** (3 runs out of 3 locally, 10 to 21 s) | local runs, 2026-10-07 |
 | Appium starts the app before its UiAutomator2 server has settled, and the launcher can come back on top | **verified** (first runs failed with the launcher in front); the test now activates the app and waits for it | local runs |
 | The test refuses to run with two devices attached and no `MUSUBEE_ANDROID_UDID` | **verified** (with a phone and the emulator attached; nothing was installed on the phone) | local run |
-| The Android and iOS jobs pass on GitHub's runners | **unknown** until this pull request's CI | — |
+| The Android and iOS jobs pass on GitHub's runners | **verified**: Android 2/2 on the API 30 emulator (job 2 min 49 s); iOS 2/2 on an iPhone 17 Pro simulator with Xcode 26.6 (job 4 min 50 s, of which about 168 s to build WebDriverAgent) | CI, PR #8, 2026-10-07 |
 | Appium works on real iPhones for our needs (signing WebDriverAgent with the paid Apple account) | **assumed** (documented by the XCUITest driver); to verify with the device in E3.3 | — |
 
 ## Consequences
