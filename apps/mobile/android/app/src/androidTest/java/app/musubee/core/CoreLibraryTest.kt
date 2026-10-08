@@ -21,10 +21,9 @@ import org.junit.runner.RunWith
 import java.io.File
 
 /**
- * Drives the core through the binding of the current flavor (jni or
- * gomobile) on a device or emulator: requests, the echo round trip and
- * close. It also logs measurements under the tag "MusubeeBench" for
- * docs/ADR/0011 (adb logcat -s MusubeeBench).
+ * Drives the core through its JNI binding on a device or emulator: requests,
+ * the echo round trip and close. It also logs measurements under the tag
+ * "MusubeeBench" for docs/ADR/0011 (adb logcat -s MusubeeBench).
  */
 @RunWith(AndroidJUnit4::class)
 class CoreLibraryTest {
@@ -39,7 +38,7 @@ class CoreLibraryTest {
         val config = JSONObject().put("data_dir", dataDir.absolutePath).put("echo_delay_ms", 200)
         val start = SystemClock.elapsedRealtimeNanos()
         core = CoreLibrary.open(config.toString().toByteArray())
-        Log.i(BENCH_TAG, JSONObject().put("binding", CoreLibrary.BINDING).put("open_ms", (SystemClock.elapsedRealtimeNanos() - start) / 1e6).toString())
+        Log.i(BENCH_TAG, JSONObject().put("open_ms", (SystemClock.elapsedRealtimeNanos() - start) / 1e6).toString())
     }
 
     @After
@@ -123,7 +122,7 @@ class CoreLibraryTest {
      */
     @Test
     fun measurements() {
-        val result = JSONObject().put("binding", CoreLibrary.BINDING).put("pss_open_kib", pssKiB())
+        val result = JSONObject().put("pss_open_kib", pssKiB())
         val ping = JSONObject().put("id", 1).put("command", "ping")
             .put("params", JSONObject().put("payload", "x".repeat(1024))).toString().toByteArray()
         repeat(PING_WARMUP) { core.call(ping) }

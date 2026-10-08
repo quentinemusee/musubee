@@ -125,7 +125,7 @@ Security warnings and confirmations before destructive actions are never removed
 
 ## 8. Developer environment
 
-Main developer on **Windows (PowerShell)**. Building the Go core with cgo on Windows (the shared library `core/ffi`, the race detector) requires a 64-bit C toolchain: **MSYS2, UCRT64 environment** (ADR 0010). Install MSYS2 (on the maintainer's machine: `D:\SDK\msys64`), then `pacman -S mingw-w64-ucrt-x86_64-gcc` from an MSYS2 shell. Its `ucrt64\bin` must come **before** any other `gcc` in `PATH`, or `CC` must point to its `gcc.exe`: the old 32-bit MinGW in `C:\MinGW` fails with "64-bit mode not compiled in", and Go enables cgo whenever it finds a `gcc`. Put it **before every directory that ships MinGW runtime DLLs** (`libgcc_s_seh-1.dll`, `libstdc++-6.dll`; for example an ESP-IDF or Rust `esp` toolchain): GCC's internal programs (`cc1`, `as`) find their DLLs through `PATH`, load the wrong ones and die silently, and Go only reports `runtime/cgo: ...cgo.exe: exit status 2` (seen on the maintainer's machine in T1.2). Without a working toolchain, use `CGO_ENABLED=0` (everything but `core/ffi` and `-race` still builds and tests). **iOS builds require a Mac** (or a macOS CI runner). Push notifications and the NSE on a real device require a **paid Apple Developer account** (someone close to the maintainer will use the app on an iPhone: they are the first iOS test user).
+Main developer on **Windows (PowerShell)**. Building the Go core with cgo on Windows (the shared library `core/ffi`, the race detector) requires a 64-bit C toolchain: **MSYS2, UCRT64 environment** (ADR 0010). Install MSYS2 (on the maintainer's machine: `D:\SDK\msys64`), then `pacman -S mingw-w64-ucrt-x86_64-gcc` from an MSYS2 shell. Its `ucrt64\bin` must come **before** any other `gcc` in `PATH`, or `CC` must point to its `gcc.exe`: the old 32-bit MinGW in `C:\MinGW` fails with "64-bit mode not compiled in", and Go enables cgo whenever it finds a `gcc`. Put it **before every directory that ships MinGW runtime DLLs** (`libgcc_s_seh-1.dll`, `libstdc++-6.dll`; for example an ESP-IDF or Rust `esp` toolchain): GCC's internal programs (`cc1`, `as`) find their DLLs through `PATH`, load the wrong ones and die silently, and Go only reports `runtime/cgo: ...cgo.exe: exit status 2` (seen on the maintainer's machine in T1.2). Without a working toolchain, use `CGO_ENABLED=0` (everything but `core/ffi` and `-race` still builds and tests). The Android app (T1.3) also needs **JDK 21** (on the maintainer's machine: `D:\SDK\jdk-21`; the system `java` may be older) and the Android SDK with **NDK 28.2.13676358**; Gradle builds the core for Android itself (`apps/mobile/README.md`). **iOS builds require a Mac** (or a macOS CI runner). Push notifications and the NSE on a real device require a **paid Apple Developer account** (someone close to the maintainer will use the app on an iPhone: they are the first iOS test user).
 
 ## 9. Commands (update this block in every task that adds some)
 
@@ -187,6 +187,16 @@ core race:          go test -race -count=1 ./core/...
 shared library:     go build -buildmode=c-shared -o musubee.dll ./core/ffi     (libmusubee.so on Linux)
 FFI round trip:     go test -count=1 -v -run TestSharedLibrary ./core/ffi/    (MUSUBEE_FFI_PINGS, MUSUBEE_FFI_ROUNDTRIPS: longer loops)
 no toolchain:       CGO_ENABLED=0 go test ./core/...                            (skips core/ffi)
+```
+
+Verified in T1.3 (Windows, Go 1.27.1, JDK 21, NDK 28.2.13676358, emulator API 30; see `apps/mobile/README.md` and ADR 0011):
+
+```
+mobile app tools:   cd apps/mobile && npm ci && npx cap sync android
+android build:      cd apps/mobile/android && ./gradlew :app:assembleDebug      (-Pmusubee.abis=x86_64: fewer ABIs)
+android tests:      ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest
+android app e2e:    cd apps/mobile/e2e && MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android:app
+android measures:   ANDROID_SERIAL=emulator-5554 ./measure-core.sh 5          (soak test: see apps/mobile/README.md)
 ```
 
 To be confirmed in the corresponding tasks (T1.5):

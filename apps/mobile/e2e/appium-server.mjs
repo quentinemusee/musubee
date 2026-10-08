@@ -58,7 +58,9 @@ export async function startAppium() {
     stream.on("data", (chunk) => logs.push(chunk.toString()));
   }
   try {
-    await waitForStatus(url, 60_000);
+    // The first start after "npm ci" builds Appium's driver cache, which
+    // took more than a minute on a Windows laptop.
+    await waitForStatus(url, 180_000);
   } catch (err) {
     child.kill();
     throw new Error(`${err.message}\n--- Appium output ---\n${logs.join("")}`);

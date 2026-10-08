@@ -2,7 +2,7 @@
 
 The Musubee core, written in Go. It runs **on the device** (a library embedded in Electron, Android and iOS) or **remotely** (hosted core).
 
-**Status: T1.1 and T1.2 spikes done.** `bridgev2` network connectors run in-process, without a homeserver ([ADR 0009](../docs/ADR/0009-bridgev2-in-process.md)), and the core builds as a C shared library driven from a C program ([ADR 0010](../docs/ADR/0010-core-shared-library.md)). No domain layer or versioned UI API yet (T1.4).
+**Status: T1.1 to T1.3 spikes done.** `bridgev2` network connectors run in-process, without a homeserver ([ADR 0009](../docs/ADR/0009-bridgev2-in-process.md)), the core builds as a C shared library driven from a C program ([ADR 0010](../docs/ADR/0010-core-shared-library.md)), and the same library runs in the Android app through JNI ([ADR 0011](../docs/ADR/0011-core-on-android.md)). No domain layer or versioned UI API yet (T1.4).
 
 Requires **Go 1.27.1 or later**: Go 1.27.0's `database/sql` can deadlock (golang/go#81043, see ADR 0009).
 
@@ -15,7 +15,7 @@ Requires **Go 1.27.1 or later**: Go 1.27.0's `database/sql` can deadlock (golang
 | `connector/echo` | Fake network for tests: one login flow, three contacts (instant echo, delayed echo, failed send) |
 | `storage/sqlite` | Opens the SQLite database (pure-Go `modernc.org/sqlite`, no cgo) |
 | `embedded` | The core as one object for an embedding app: JSON configuration, JSON commands, JSON event stream (T1.2 spike surface, replaced by the T1.4 contract) |
-| `ffi` | The C shared library (`musubee.h`) around `embedded`; the only package that needs cgo. `testdata/host.c` is the C host program of its tests |
+| `ffi` | The C shared library (`musubee.h`) around `embedded`; the only package that needs cgo. On Android it also holds the JNI entry points of the app (`jni_android.go`). `testdata/host.c` is the C host program of its tests |
 
 ## Responsibilities
 

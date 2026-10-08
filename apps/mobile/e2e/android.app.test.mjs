@@ -7,8 +7,8 @@
 // plugin, the foreground service, the JNI binding and the Go core.
 //
 // Requires a running Android emulator or device, chosen by
-// MUSUBEE_ANDROID_UDID (see android-device.mjs), and the debug APK of the
-// jni flavor (apps/mobile/README.md); MUSUBEE_ANDROID_APK overrides its path.
+// MUSUBEE_ANDROID_UDID (see android-device.mjs), and the debug APK
+// (apps/mobile/README.md); MUSUBEE_ANDROID_APK overrides its path.
 // Run: npm run test:android:app
 //
 // The page is read through UiAutomator2, which sees the accessibility tree
@@ -25,7 +25,7 @@ import { remoteOptions, startAppium } from "./appium-server.mjs";
 const APP = "app.musubee";
 const APK =
   process.env.MUSUBEE_ANDROID_APK ||
-  resolve(dirname(fileURLToPath(import.meta.url)), "../android/app/build/outputs/apk/jni/debug/app-jni-debug.apk");
+  resolve(dirname(fileURLToPath(import.meta.url)), "../android/app/build/outputs/apk/debug/app-debug.apk");
 
 let appium;
 let driver;

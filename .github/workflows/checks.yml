@@ -152,13 +152,16 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: apps/mobile/e2e/package-lock.json
+          cache-dependency-path: |
+            apps/mobile/package-lock.json
+            apps/mobile/e2e/package-lock.json
 
       # Installed packages let the audit read license files when a package
       # declares no license.
       - name: Install npm dependencies
-        working-directory: apps/mobile/e2e
-        run: npm ci --no-audit --no-fund --ignore-scripts
+        run: |
+          npm ci --no-audit --no-fund --ignore-scripts --prefix apps/mobile/e2e
+          npm ci --no-audit --no-fund --ignore-scripts --prefix apps/mobile
 
       - name: License audit
         run: go run ./scripts/licenseaudit -v
@@ -186,9 +189,15 @@ jobs:
         run: go test -tags=integration -race -count=1 -v ./infra/...
 
   android:
-    name: Android hello test (emulator, Appium)
+    name: Android app (emulator API ${{ matrix.api-level }}, instrumented and Appium tests)
+    strategy:
+      fail-fast: false
+      matrix:
+        # 30: Android 11. 35: Android 15, where foreground service types are
+        # enforced (ADR 0011).
+        api-level: [30, 35]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -198,11 +207,35 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: apps/mobile/e2e/package-lock.json
+          cache-dependency-path: |
+            apps/mobile/package-lock.json
+            apps/mobile/e2e/package-lock.json
 
-      - name: Install the mobile test tools
-        working-directory: apps/mobile/e2e
-        run: npm ci --no-audit --no-fund
+      # Gradle builds the Go core for Android with the NDK (ADR 0011).
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Install the Android NDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358" > /dev/null
+
+      - name: Install the mobile test tools and the app's npm packages
+        run: |
+          npm ci --no-audit --no-fund --prefix apps/mobile/e2e
+          npm ci --no-audit --no-fund --prefix apps/mobile
+
+      - name: Build the app (x86_64, for the emulator)
+        working-directory: apps/mobile/android
+        run: |
+          (cd .. && npx cap sync android)
+          ./gradlew --no-daemon -Pmusubee.abis=x86_64 :app:assembleDebug :app:assembleDebugAndroidTest
 
       # Hardware acceleration for the emulator on Linux runners.
       - name: Enable KVM
@@ -211,16 +244,20 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Hello test on the emulator
+      # Each script line runs in its own shell, from working-directory.
+      - name: Tests on the emulator (hello, instrumented, app end to end)
         uses: reactivecircus/android-emulator-runner@c9c93e6ba9c4194322e114c40970d5983d9a07cc # v2.38.0
         with:
-          api-level: 30
+          api-level: ${{ matrix.api-level }}
           arch: x86_64
           target: google_apis
           disable-animations: true
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
           working-directory: apps/mobile/e2e
-          script: MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android
+          script: |
+            MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android
+            cd ../android && ANDROID_SERIAL=emulator-5554 ./gradlew --no-daemon -Pmusubee.abis=x86_64 :app:connectedDebugAndroidTest
+            MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android:app
 
   ios:
     name: iOS hello test (simulator, Appium)

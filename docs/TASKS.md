@@ -57,6 +57,7 @@ Goal: prove that the Go core can run **on the device**. Each spike ends with an 
 **T1.3 — Core on Android**
 - Deliverable: AAR or library via the NDK (evaluate `gomobile bind` and the shared library, compare in an ADR), minimal Capacitor plugin, foreground service.
 - 📱 🧪 Test: send and receive on an emulator, then a real device; battery and memory measurements over 1 h.
+- Outcome: go with JNI entry points in the shared library (gomobile dropped), core in a `specialUse` foreground service; see ADR 0011. Verified on an API 30 emulator (and API 35 in CI) and on a Pixel 8 Pro (Android 17). Open points: Google Play's acceptance of `specialUse`, 17 ms round trips on the phone, and the idle battery cost (the one-hour soak ran during a call in another app).
 
 **T1.4 — Core ↔ UI API contract**
 - Deliverable: versioned schema (commands and event streams), TypeScript type generator, ADR comparing direct FFI and a local socket.
