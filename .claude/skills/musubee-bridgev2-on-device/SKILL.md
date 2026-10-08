@@ -28,6 +28,7 @@ Musubee's "on-device" mode runs each network's `bridgev2` connector inside the c
 9. **Ghosts shared by several portals race on their first update.** bridgev2 creates portals in parallel and `Ghost.UpdateInfoIfNecessary` reads the profile fields without a lock (still true on mautrix-go `main` in October 2026). The echo connector updates the user's own ghost before announcing its conversations (`updateSelfGhost`). A real connector must do the same for every ghost it knows will be shared, and pass the race detector.
 10. **No message content in logs** (`CLAUDE.md` §6.8). `TestMessageContentIsNotLogged` runs the bridged path at trace level with a positive control; extend it when you add a connector.
 11. **Stopping aborts in-flight work.** `Bridge.Stop` cancels the portal handlers' context without waiting for them (v0.31.0 and `main`, October 2026): a handler still running fails with `context canceled` after `Stop` returned, possibly after its Matrix event was stored but before its message mapping was saved (ADR 0010, point 8). Never rely on a graceful stop for consistency (mobile kills the process anyway): a connector must resynchronise after a restart, and its task must test a kill in the middle of a message. `core/embedded` tests accept late log lines only from aborted handlers.
+12. **A new room is visible before it is a portal.** `Portal.createMatrixRoomInLoop` creates the room through our `CreateRoom` (members joined, name set) and only then records its ID in `portalsByMXID` (`bridgev2/portal.go`, v0.31.0): a message sent in between fails with `ErrNoPortal` ("room is not a portal", retriable). `SendMessage` therefore waits, up to `Options.PortalWait` (5 s by default), for `GetPortalByMXID` before queueing the event; it stores the message as pending first. Keep that wait; `TestSendWaitsForThePortal` catches its removal. This race made `TestDelayedEcho` fail once in CI.
 
 ## Adding a real network connector
 
@@ -35,7 +36,8 @@ Musubee's "on-device" mode runs each network's `bridgev2` connector inside the c
 2. `Host.AddNetwork("<id>", connector)` before `Host.Start`. Bridge IDs are lowercase letters and digits; IDs that would clash with the user or another network's ghosts are refused.
 3. Check what the connector needs from the Matrix side (`grep` for `ErrDirectMediaNotEnabled`, `BatchSend`, `GetCapabilities` in its code) against invariant 8.
 4. Its own tables go into the shared database through `db.Child` with their own version table: verify they upgrade cleanly next to the others.
-5. Build the core with `CGO_ENABLED=0` for every target (the CI step "Pure-Go builds of the core"): a connector that needs cgo breaks the pure-Go promise and needs an ADR.
+5. Its send errors reach the user as message statuses: wrap them with `bridgev2.WrapErrorInStatus(...)` and a reason, a status (permanent or retriable) and `WithErrorAsMessage()`, as the echo connector does. A bare `error` becomes a retriable failure with no explanation.
+6. Build the core with `CGO_ENABLED=0` for every target (the CI step "Pure-Go builds of the core"): a connector that needs cgo breaks the pure-Go promise and needs an ADR.
 
 ## Upgrading mautrix-go
 
