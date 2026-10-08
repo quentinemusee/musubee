@@ -3,7 +3,7 @@
 
 module github.com/quentinemusee/musubee/infra
 
-go 1.27.0
+go 1.27.1
 
 require maunium.net/go/mautrix v0.31.0
 
