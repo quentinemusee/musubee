@@ -102,5 +102,5 @@ Prefix `musubee-`. To be created with `skill-creator`, **after** the correspondi
 3. `musubee-connection-modes`: "on-device" / "hosted bridge" modes and honest messages to the user.
 4. `musubee-ios-nse-budget`: memory and execution constraints of the notification extension (after T1.7).
 5. `musubee-merge-chats`: data model for merging.
-6. `musubee-realistic-test-env`: bringing up the full test environment (Synapse, dummybridge, Telegram test servers).
+6. `musubee-realistic-test-env`: bringing up the full test environment (Synapse and PostgreSQL, the in-house echo connector, the Telegram test bots of ADR 0006).
 7. `musubee-go-mobile-embedding`: integrating the Go core into Android/iOS/Electron (after T1.2, T1.3, T1.5).

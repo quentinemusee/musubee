@@ -13,7 +13,7 @@ Services started with Docker for integration and end-to-end tests. Principle: **
 | `compose.telegram.yml`, `telegram/` | Official mautrix-telegram image and its per-run configuration templates ([ADR 0006](../docs/ADR/0006-telegram-e2e-with-test-bots.md)) |
 | `telegramtest/` | Bot API client and the Telegram end-to-end tests |
 
-Requirements: Docker with the Compose plugin (Docker Desktop on Windows and macOS), Go (version in `go.mod`).
+Requirements: Docker with the Compose plugin (Docker Desktop on Windows and macOS), Go 1.27.1 or later (version in `go.mod`; 1.27.0 has a `database/sql` deadlock, see ADR 0009).
 
 ## Run the tests
 

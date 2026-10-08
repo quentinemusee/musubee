@@ -171,10 +171,18 @@ Verified in T0.6:
 dependency licenses: go run ./scripts/licenseaudit        (-v lists every dependency; run npm ci first)
 ```
 
-To be confirmed in the corresponding tasks (T1.1, T1.5):
+Verified in T1.1 (Windows, Go 1.27.1; see `core/README.md`). **Go 1.27.1 or later is required**: 1.27.0 has a `database/sql` deadlock (ADR 0009).
 
 ```
-core:   go test -race ./...        go vet ./...        golangci-lint run
+core tests:         go test -count=1 ./core/...        (race detector: CI only until T1.2)
+core vet / format:  go vet ./core/...        gofmt -l core
+core benchmark:     go test -run '^$' -bench RoundTrip -benchtime 2000x ./core/bridgehost/
+```
+
+To be confirmed in the corresponding tasks (T1.2, T1.5):
+
+```
+core:   golangci-lint run
 ui:     npm test                   npm run lint        npm run typecheck
 e2e:    see docs/TESTING.md
 ```
