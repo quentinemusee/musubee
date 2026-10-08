@@ -52,6 +52,7 @@ Goal: prove that the Go core can run **on the device**. Each spike ends with an 
 **T1.2 — Core as a shared library (Windows and Linux)**
 - Deliverable: core built as a shared library (cgo), called from a small host program; size and memory measurements. Document the C toolchain required on Windows.
 - 🧪 Test: round-trip call through FFI, without memory leaks (long-running loop test).
+- Outcome: go on Windows and Linux, see ADR 0010. C interface in `core/ffi/musubee.h`; Windows toolchain MSYS2 UCRT64; SQLite stays pure Go (`modernc.org/sqlite`).
 
 **T1.3 — Core on Android**
 - Deliverable: AAR or library via the NDK (evaluate `gomobile bind` and the shared library, compare in an ADR), minimal Capacitor plugin, foreground service.

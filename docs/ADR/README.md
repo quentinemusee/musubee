@@ -19,3 +19,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0007](0007-mobile-e2e-tool.md) | Mobile end-to-end test tool: Appium with WebdriverIO | accepted | T0.5 |
 | [0008](0008-dependency-license-audit.md) | Automated license audit of Go and npm dependencies | accepted | T0.6 |
 | [0009](0009-bridgev2-in-process.md) | Running bridgev2 connectors in-process, without a homeserver | accepted | T1.1 |
+| [0010](0010-core-shared-library.md) | The core as a C shared library (Windows and Linux) | accepted | T1.2 |

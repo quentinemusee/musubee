@@ -27,6 +27,7 @@ Musubee's "on-device" mode runs each network's `bridgev2` connector inside the c
 8. **Unsupported features fail loudly**: direct media, batch send (backfill), encrypted media from the network. When a real connector needs one, implement it with a test; never return fake success.
 9. **Ghosts shared by several portals race on their first update.** bridgev2 creates portals in parallel and `Ghost.UpdateInfoIfNecessary` reads the profile fields without a lock (still true on mautrix-go `main` in October 2026). The echo connector updates the user's own ghost before announcing its conversations (`updateSelfGhost`). A real connector must do the same for every ghost it knows will be shared, and pass the race detector.
 10. **No message content in logs** (`CLAUDE.md` §6.8). `TestMessageContentIsNotLogged` runs the bridged path at trace level with a positive control; extend it when you add a connector.
+11. **Stopping aborts in-flight work.** `Bridge.Stop` cancels the portal handlers' context without waiting for them (v0.31.0 and `main`, October 2026): a handler still running fails with `context canceled` after `Stop` returned, possibly after its Matrix event was stored but before its message mapping was saved (ADR 0010, point 8). Never rely on a graceful stop for consistency (mobile kills the process anyway): a connector must resynchronise after a restart, and its task must test a kill in the middle of a message. `core/embedded` tests accept late log lines only from aborted handlers.
 
 ## Adding a real network connector
 

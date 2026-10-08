@@ -76,6 +76,7 @@ This ADR records the decision summarized in `CLAUDE.md` §2 and checks its justi
 ## Revisions
 
 - 2026-10-07 (T0.3): mautrix-go's latest release is now **v0.31.0** (2026-09-16, GitHub API); the "0.28.1 (June 2026)" row above was correct when written. The decision is unchanged.
+- 2026-10-08 (T1.2): SQLite driver settled: pure-Go `modernc.org/sqlite`, measured against `mattn/go-sqlite3` (ADR 0010). The core builds as a shared library on Windows and Linux (ADR 0010); Android and iOS remain open (T1.3, T1.7).
 
 ## Sources
 

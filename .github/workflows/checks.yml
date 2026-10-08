@@ -109,9 +109,18 @@ jobs:
       - name: Unit tests (race detector)
         run: go test -race -count=1 ./core/... ./infra/... ./scripts/licenseaudit/...
 
+      # The core built with -buildmode=c-shared and driven from a C program
+      # (docs/ADR/0010-core-shared-library.md). Also part of the race run
+      # above; run again here with -v for the size and memory measurements.
+      - name: Core as a C shared library
+        env:
+          CGO_ENABLED: "1"
+        run: go test -count=1 -v -run TestSharedLibrary ./core/ffi/
+
       # The core must stay pure Go (docs/ADR/0009-bridgev2-in-process.md):
       # building it with cgo disabled for every target fails if a cgo
-      # dependency slips in.
+      # dependency slips in. Only core/ffi, the C interface, needs cgo: it
+      # has no files to build without it.
       - name: Pure-Go builds of the core (no cgo)
         if: runner.os == 'Linux'
         env:
