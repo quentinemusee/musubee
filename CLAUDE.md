@@ -125,7 +125,7 @@ Security warnings and confirmations before destructive actions are never removed
 
 ## 8. Developer environment
 
-Main developer on **Windows (PowerShell)**. Building the Go core with cgo on Windows requires a C toolchain (for example MSYS2/MinGW-w64): to be checked and documented in T1.2. **iOS builds require a Mac** (or a macOS CI runner). Push notifications and the NSE on a real device require a **paid Apple Developer account** (someone close to the maintainer will use the app on an iPhone: they are the first iOS test user).
+Main developer on **Windows (PowerShell)**. Building the Go core with cgo on Windows (the shared library `core/ffi`, the race detector) requires a 64-bit C toolchain: **MSYS2, UCRT64 environment** (ADR 0010). Install MSYS2 (on the maintainer's machine: `D:\SDK\msys64`), then `pacman -S mingw-w64-ucrt-x86_64-gcc` from an MSYS2 shell. Its `ucrt64\bin` must come **before** any other `gcc` in `PATH`, or `CC` must point to its `gcc.exe`: the old 32-bit MinGW in `C:\MinGW` fails with "64-bit mode not compiled in", and Go enables cgo whenever it finds a `gcc`. Without a working toolchain, use `CGO_ENABLED=0` (everything but `core/ffi` and `-race` still builds and tests). **iOS builds require a Mac** (or a macOS CI runner). Push notifications and the NSE on a real device require a **paid Apple Developer account** (someone close to the maintainer will use the app on an iPhone: they are the first iOS test user).
 
 ## 9. Commands (update this block in every task that adds some)
 
@@ -155,7 +155,7 @@ Verified in T0.4 (see `infra/README.md` for the test bots):
 telegram e2e:       go test -tags=telegram -v ./infra/telegramtest/   (needs Docker and network; message test needs the bot tokens)
 ```
 
-`go test -race` needs a 64-bit C toolchain (cgo); on the maintainer's Windows machine it is not available until T1.2, so race tests run in CI.
+`go test -race` needs a 64-bit C toolchain (cgo): see §8 (MSYS2 UCRT64 on Windows since T1.2).
 
 Verified in T0.5 (see `apps/mobile/e2e/README.md`):
 
@@ -174,13 +174,22 @@ dependency licenses: go run ./scripts/licenseaudit        (-v lists every depend
 Verified in T1.1 (Windows, Go 1.27.1; see `core/README.md`). **Go 1.27.1 or later is required**: 1.27.0 has a `database/sql` deadlock (ADR 0009).
 
 ```
-core tests:         go test -count=1 ./core/...        (race detector: CI only until T1.2)
+core tests:         go test -count=1 ./core/...
 core vet / format:  go vet ./core/...        gofmt -l core
 core benchmark:     go test -run '^$' -bench RoundTrip -benchtime 2000x ./core/bridgehost/
 core race (Docker): docker run --rm -v <repo>:/src -w /src golang:1.27.1 go test -race ./core/...
 ```
 
-To be confirmed in the corresponding tasks (T1.2, T1.5):
+Verified in T1.2 (Windows with MSYS2 UCRT64 GCC 16.2.0, and the `golang:1.27.1` container; see ADR 0010). In Git Bash, put the toolchain first for the command: `PATH="/d/SDK/msys64/ucrt64/bin:$PATH"`.
+
+```
+core race:          go test -race -count=1 ./core/...
+shared library:     go build -buildmode=c-shared -o musubee.dll ./core/ffi     (libmusubee.so on Linux)
+FFI round trip:     go test -count=1 -v -run TestSharedLibrary ./core/ffi/    (MUSUBEE_FFI_PINGS, MUSUBEE_FFI_ROUNDTRIPS: longer loops)
+no toolchain:       CGO_ENABLED=0 go test ./core/...                            (skips core/ffi)
+```
+
+To be confirmed in the corresponding tasks (T1.5):
 
 ```
 core:   golangci-lint run
