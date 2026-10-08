@@ -27,6 +27,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/dbutil"
+	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/status"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
@@ -46,7 +47,10 @@ type Options struct {
 	ServerName string
 	// UserLocalpart is the localpart of the device's user ("me" if empty).
 	UserLocalpart string
-	Log           zerolog.Logger
+	// PortalWait bounds how long SendMessage waits for a new room to become
+	// a portal (DefaultPortalWait if zero; see waitForPortal).
+	PortalWait time.Duration
+	Log        zerolog.Logger
 }
 
 // Server stores the rooms of every network and serves the application.
@@ -54,6 +58,7 @@ type Server struct {
 	store      *store
 	serverName string
 	userID     id.UserID
+	portalWait time.Duration
 	log        zerolog.Logger
 
 	upgradeLock sync.Mutex
@@ -73,10 +78,14 @@ func New(db *dbutil.Database, opts Options) *Server {
 	if opts.UserLocalpart == "" {
 		opts.UserLocalpart = "me"
 	}
+	if opts.PortalWait <= 0 {
+		opts.PortalWait = DefaultPortalWait
+	}
 	return &Server{
 		store:       newStore(db),
 		serverName:  opts.ServerName,
 		userID:      id.NewUserID(opts.UserLocalpart, opts.ServerName),
+		portalWait:  opts.PortalWait,
 		log:         opts.Log,
 		connectors:  make(map[string]*Connector),
 		subscribers: make(map[*subscriber]struct{}),
@@ -244,6 +253,16 @@ func (s *Server) SendMessage(ctx context.Context, roomID id.RoomID, content *eve
 	bridged := *evt
 	parsed := *content
 	bridged.Content = event.Content{Parsed: &parsed}
+	// The message is stored and pending first, so the application shows it
+	// at once, even when the room is not a portal yet.
+	if err = waitForPortal(ctx, conn.br, roomID, s.portalWait); err != nil {
+		// The caller gave up (or the lookup failed): the message is stored,
+		// so it must not stay pending.
+		if failErr := s.failIfPending(context.WithoutCancel(ctx), roomID, evt.ID, err); failErr != nil {
+			return "", errors.Join(err, failErr)
+		}
+		return "", err
+	}
 	// With a portal event buffer, this returns once the event is queued (it
 	// blocks while the portal's queue is full).
 	result := conn.br.QueueMatrixEvent(conn.br.Log.WithContext(ctx), &bridged)
@@ -256,6 +275,34 @@ func (s *Server) SendMessage(ctx context.Context, roomID id.RoomID, content *eve
 		}
 	}
 	return evt.ID, nil
+}
+
+// DefaultPortalWait is the default of Options.PortalWait.
+const DefaultPortalWait = 5 * time.Second
+
+// waitForPortal waits until bridgev2 knows roomID as a portal. bridgev2
+// creates a portal's room through the connector (CreateRoom) and only then
+// records the room ID as the portal's: the room, its name and its members are
+// visible here a moment before a message sent to it can be bridged, and a
+// message sent in between would fail with "room is not a portal". A room that
+// does not become a portal within maxWait is left to bridgev2, which reports
+// that failure as the message status.
+func waitForPortal(ctx context.Context, br *bridgev2.Bridge, roomID id.RoomID, maxWait time.Duration) error {
+	deadline := time.Now().Add(maxWait)
+	for {
+		portal, err := br.GetPortalByMXID(ctx, roomID)
+		if err != nil {
+			return fmt.Errorf("looking up the portal of %s: %w", roomID, err)
+		}
+		if portal != nil || time.Now().After(deadline) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
 }
 
 // failIfPending marks a message as failed unless the bridge already reported

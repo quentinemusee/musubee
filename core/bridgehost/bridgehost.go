@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/dbutil"
@@ -29,7 +30,9 @@ type Options struct {
 	DatabasePath string
 	// UserLocalpart is the localpart of the device's user ("me" if empty).
 	UserLocalpart string
-	Log           zerolog.Logger
+	// PortalWait is localmatrix.Options.PortalWait.
+	PortalWait time.Duration
+	Log        zerolog.Logger
 }
 
 // Host owns the database, the local Matrix server and the bridges.
@@ -52,6 +55,7 @@ func New(opts Options) (*Host, error) {
 		DB: db,
 		Matrix: localmatrix.New(db, localmatrix.Options{
 			UserLocalpart: opts.UserLocalpart,
+			PortalWait:    opts.PortalWait,
 			Log:           opts.Log.With().Str("component", "localmatrix").Logger(),
 		}),
 		log:     opts.Log,

@@ -97,6 +97,7 @@ These figures are for the in-process path only (no real network). Memory on a ph
 - `localmatrix` is Matrix-shaped internally (room and event IDs) but stays inside the core: the domain layer (T1.4) maps it to `Conversation`, `Message`, `Person` and `Account`, and no Matrix type reaches the UI (`CLAUDE.md` §2).
 - We follow mautrix-go releases deliberately: a new version can change the interfaces (the build breaks) or their behaviour (the end-to-end tests should catch it). Read the changelog before upgrading.
 - Upstream: the bridge state queue leak is already fixed on mautrix-go `main` (not reported by us). Reported with the maintainer's permission on 2026-10-08: the remaining read race in `Ghost.UpdateInfoIfNecessary` (mautrix/go#598), and `dbutil.WithFSPath` joining `embed.FS` paths with `filepath.Join`, which breaks on Windows (mautrix/go-util#46; we use `fs.Sub` instead).
+- `bridgev2` creates a portal's room through our `CreateRoom` before it records the room as the portal's (`createMatrixRoomInLoop`): for a moment the room exists but a message sent to it fails with `ErrNoPortal`. Found in CI during T1.2 (`TestDelayedEcho`, once); `Server.SendMessage` now waits, within a bound, until `bridgev2` knows the portal.
 - When upgrading past v0.31.0: remove the bridge state queue workaround in `Host.Stop`, keep the ghost workaround until the read race is fixed upstream.
 - Revisit if: `bridgev2` gains an official non-homeserver mode, or the interfaces grow enough that maintaining `localmatrix` costs more than option C.
 

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/bridgev2/status"
@@ -67,11 +68,16 @@ func startHost(t testing.TB, path string, bridgeIDs ...networkid.BridgeID) *harn
 
 func startHostWithLogLevel(t testing.TB, level zerolog.Level, path string, bridgeIDs ...networkid.BridgeID) *harness {
 	t.Helper()
+	return startHostWithOptions(t, level, bridgehost.Options{DatabasePath: path}, bridgeIDs...)
+}
+
+// startHostWithOptions is startHostWithLogLevel with more options; the
+// logger is set here.
+func startHostWithOptions(t testing.TB, level zerolog.Level, opts bridgehost.Options, bridgeIDs ...networkid.BridgeID) *harness {
+	t.Helper()
 	logs := &syncBuffer{}
-	host, err := bridgehost.New(bridgehost.Options{
-		DatabasePath: path,
-		Log:          zerolog.New(logs).Level(level),
-	})
+	opts.Log = zerolog.New(logs).Level(level)
+	host, err := bridgehost.New(opts)
 	if err != nil {
 		t.Fatalf("creating the host: %v", err)
 	}
@@ -97,6 +103,26 @@ func (h *harness) stop() {
 	if err := h.host.Stop(); err != nil {
 		h.t.Errorf("stopping the host: %v", err)
 	}
+	if h.t.Failed() {
+		h.logProblems()
+	}
+}
+
+// logProblems prints the warnings and errors the host logged, to diagnose a
+// failure seen only in CI. Only these levels: trace lines may hold message
+// content, which must not reach CI logs (CLAUDE.md 6.8).
+func (h *harness) logProblems() {
+	const maxLines = 50
+	var problems []string
+	for line := range strings.Lines(h.logs.String()) {
+		if strings.Contains(line, `"level":"warn"`) || strings.Contains(line, `"level":"error"`) {
+			problems = append(problems, line)
+		}
+	}
+	if len(problems) > maxLines {
+		problems = problems[:maxLines]
+	}
+	h.t.Logf("%d warning and error lines logged by the host:\n%s", len(problems), strings.Join(problems, ""))
 }
 
 // waitFor polls cond until it returns true, an error, or the timeout.
@@ -365,6 +391,37 @@ func TestFailedSendIsReported(t *testing.T) {
 	}
 	if n := h.bridgedMessageCount(echoBridge, login.ID, echo.ContactUnreachable); n != 0 {
 		t.Errorf("bridgev2 message table has %d rows for the conversation, want 0", n)
+	}
+}
+
+// TestSendWaitsForThePortal sends a message to a room of the bridge that is
+// not a portal (yet): bridgev2 records a new room as a portal only after
+// creating it, so SendMessage waits for that, within a bound, before handing
+// the message over. Here the room never becomes a portal: the message is
+// stored at once and fails after the wait, with a status.
+func TestSendWaitsForThePortal(t *testing.T) {
+	const portalWait = 300 * time.Millisecond
+	h := startHostWithOptions(t, zerolog.TraceLevel, bridgehost.Options{
+		DatabasePath: filepath.Join(t.TempDir(), "core.db"),
+		PortalWait:   portalWait,
+	}, echoBridge)
+	h.login(echoBridge, "alice")
+	roomID, err := h.host.Bridge(echoBridge).Bot.CreateRoom(t.Context(), &mautrix.ReqCreateRoom{
+		Name:   "Not a portal",
+		Invite: []id.UserID{h.host.Matrix.UserID()},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	start := time.Now()
+	eventID := h.send(roomID, "anyone?")
+	if elapsed := time.Since(start); elapsed < portalWait {
+		t.Errorf("SendMessage returned after %s, want at least the portal wait (%s)", elapsed, portalWait)
+	}
+	h.waitForStatus(eventID, event.MessageStatusRetriable)
+	if messages, err := h.messages(roomID); err != nil || len(messages) != 1 {
+		t.Errorf("timeline = %d messages (%v), want the message sent", len(messages), err)
 	}
 }
 
