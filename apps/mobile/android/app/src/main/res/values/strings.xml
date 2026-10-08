@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+SPDX-FileCopyrightText: 2017-present Drifty Co. (Ionic), 2026 Quentin Raimbaud
+SPDX-License-Identifier: MIT AND AGPL-3.0-or-later
+-->
+<resources>
+    <string name="app_name">Musubee</string>
+    <string name="title_activity_main">Musubee</string>
+    <string name="package_name">app.musubee</string>
+    <string name="custom_url_scheme">app.musubee</string>
+</resources>

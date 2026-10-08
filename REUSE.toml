@@ -4,10 +4,10 @@
 # REUSE annotations for files that do not carry their own SPDX header.
 # Specification: https://reuse.software/spec-3.3/
 #
-# Rule: only documentation (Markdown, NOTICE) and generated or JSON data and
-# configuration files, which cannot carry comments, go here. Source code (Go, TypeScript, Kotlin,
-# Swift, scripts...) MUST carry its own header; scripts/license_check.py
-# fails otherwise. A header inside a file takes precedence ("closest").
+# Rule: only documentation (Markdown, NOTICE), generated or JSON data and
+# configuration files, which cannot carry comments, and third-party files kept
+# unmodified go here. Source code (Go, TypeScript, Kotlin, Swift, scripts...)
+# MUST carry its own header; scripts/license_check.py fails otherwise. A header inside a file takes precedence ("closest").
 version = 1
 
 [[annotations]]
@@ -19,7 +19,7 @@ SPDX-License-Identifier = "AGPL-3.0-or-later"
 # Claude Code project settings, the skills lock file and npm manifests
 # (JSON, no comments).
 [[annotations]]
-path = [".claude/settings.json", "skills-lock.json", "**/package.json", "**/package-lock.json", "scripts/license-policy.json"]
+path = [".claude/settings.json", "skills-lock.json", "**/package.json", "**/package-lock.json", "scripts/license-policy.json", "apps/mobile/capacitor.config.json"]
 precedence = "closest"
 SPDX-FileCopyrightText = "2026 Quentin Raimbaud"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
@@ -30,3 +30,34 @@ path = ["**/go.sum", "go.work.sum"]
 precedence = "closest"
 SPDX-FileCopyrightText = "2026 Quentin Raimbaud"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+# Android project template of the Capacitor CLI 8.5.3 (npx cap add android),
+# kept unmodified, and the two files that "npx cap sync" regenerates from it.
+# Files of the template that we changed carry their own header.
+[[annotations]]
+path = [
+    "apps/mobile/android/.gitignore",
+    "apps/mobile/android/app/.gitignore",
+    "apps/mobile/android/app/proguard-rules.pro",
+    "apps/mobile/android/app/src/main/res/drawable*/**",
+    "apps/mobile/android/app/src/main/res/mipmap*/**",
+    "apps/mobile/android/app/src/main/res/layout/activity_main.xml",
+    "apps/mobile/android/app/src/main/res/values/ic_launcher_background.xml",
+    "apps/mobile/android/app/src/main/res/values/styles.xml",
+    "apps/mobile/android/app/src/main/res/xml/file_paths.xml",
+    "apps/mobile/android/gradle.properties",
+    "apps/mobile/android/settings.gradle",
+    "apps/mobile/android/capacitor.settings.gradle",
+    "apps/mobile/android/app/capacitor.build.gradle",
+]
+precedence = "closest"
+SPDX-FileCopyrightText = "2017-present Drifty Co. (Ionic)"
+SPDX-License-Identifier = "MIT"
+
+# Gradle wrapper (from the same template). gradlew and gradlew.bat carry
+# their own header.
+[[annotations]]
+path = ["apps/mobile/android/gradle/wrapper/gradle-wrapper.jar", "apps/mobile/android/gradle/wrapper/gradle-wrapper.properties"]
+precedence = "closest"
+SPDX-FileCopyrightText = "2015 the original authors (Gradle)"
+SPDX-License-Identifier = "Apache-2.0"
