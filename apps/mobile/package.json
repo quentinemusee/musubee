@@ -1,0 +1,20 @@
+{
+  "name": "musubee-mobile",
+  "private": true,
+  "description": "Musubee mobile shell (Capacitor). See apps/mobile/README.md.",
+  "license": "AGPL-3.0-or-later",
+  "engines": {
+    "node": ">=24",
+    "npm": ">=11"
+  },
+  "scripts": {
+    "sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}

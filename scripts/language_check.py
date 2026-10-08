@@ -13,7 +13,9 @@ This check fails when a tracked text file, or a file path, contains French:
 
 A line can opt out with the pragma "language-check: ignore" (for example a
 test fixture that must contain French). License texts in LICENSES/ and
-LICENSE are skipped, and so are binary files.
+LICENSE are skipped, and so are binary files and the third-party files kept
+unmodified listed in SKIPPED_FILES (the Gradle wrapper script quotes shell
+syntax between guillemets).
 
 Usage:
     python scripts/language_check.py            # check this repository
@@ -54,7 +56,7 @@ WORD = re.compile(r"[A-Za-z]+")
 MIN_FRENCH_WORDS = 2
 
 SKIPPED_PREFIXES = ("LICENSES/",)
-SKIPPED_FILES = frozenset({"LICENSE"})
+SKIPPED_FILES = frozenset({"LICENSE", "apps/mobile/android/gradlew"})
 
 
 def list_files(root: Path) -> list[str]:

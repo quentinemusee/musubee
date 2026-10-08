@@ -10,6 +10,7 @@
   },
   "scripts": {
     "test:android": "node --test android.hello.test.mjs",
+    "test:android:app": "node --test android.app.test.mjs",
     "test:ios": "node --test ios.hello.test.mjs"
   },
   "devDependencies": {

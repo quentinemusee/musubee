@@ -1,0 +1,38 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: 2026 Quentin Raimbaud
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<!-- Test page of the native core plugin (T1.3), replaced by the real UI
+     later. Its labels are what the Appium test (apps/mobile/e2e) looks for. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Musubee</title>
+    <style>
+      :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+      body { margin: 0; padding: max(16px, env(safe-area-inset-top)) 16px 16px; }
+      h1 { font-size: 1.25rem; margin: 0 0 12px; }
+      form, .row { display: flex; gap: 8px; margin-bottom: 12px; }
+      input { flex: 1; min-width: 0; font-size: 1rem; padding: 8px; }
+      button { font-size: 1rem; padding: 8px 12px; }
+      #status { margin-bottom: 12px; }
+      #log { list-style: none; padding: 0; margin: 0; font-size: 0.9rem; }
+      #log li { padding: 4px 0; border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent); overflow-wrap: anywhere; }
+    </style>
+  </head>
+  <body>
+    <h1>Musubee core test</h1>
+    <p id="status" role="status">Not logged in</p>
+    <div class="row">
+      <button id="login" type="button">Log in</button>
+    </div>
+    <form id="composer">
+      <input id="text" name="text" placeholder="Message" aria-label="Message" autocomplete="off" disabled />
+      <button id="send" type="submit" disabled>Send</button>
+    </form>
+    <ul id="log" aria-label="Events"></ul>
+    <script src="app.js"></script>
+  </body>
+</html>

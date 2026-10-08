@@ -64,6 +64,37 @@ versions in core/go.mod and go.work):
   MIT. Its NOTICE file reads: "Copyright 2011-2016 Canonical Ltd. Licensed
   under the Apache License, Version 2.0".
 
+Android app (apps/mobile; exact versions in apps/mobile/package-lock.json,
+apps/mobile/android/variables.gradle and the Gradle runtime classpath,
+"./gradlew :app:dependencies --configuration jniReleaseRuntimeClasspath"):
+
+- Capacitor 8.5.3 (@capacitor/android, @capacitor/core),
+  https://github.com/ionic-team/capacitor. Copyright (c) 2017-present
+  Drifty Co. MIT. The Android project in apps/mobile/android started from
+  the template of @capacitor/cli 8.5.3 (same copyright, MIT; see
+  REUSE.toml).
+- Apache Cordova Android framework 14.0.1 (org.apache.cordova:framework,
+  a dependency of Capacitor), https://cordova.apache.org. Copyright The
+  Apache Software Foundation. Apache-2.0.
+- AndroidX libraries (androidx.*: activity 1.11.0, appcompat 1.7.1,
+  coordinatorlayout 1.3.0, core 1.17.0, core-splashscreen 1.2.0, fragment
+  1.8.9, webkit 1.14.0, and their AndroidX dependencies),
+  https://developer.android.com/jetpack/androidx. Copyright The Android
+  Open Source Project. Apache-2.0.
+- Kotlin standard library 2.2.20 and kotlinx.coroutines 1.8.1,
+  https://kotlinlang.org. Copyright JetBrains s.r.o. and Kotlin
+  Programming Language contributors. Apache-2.0.
+- org.jetbrains:annotations 23.0.0 (Copyright JetBrains s.r.o.),
+  org.jspecify:jspecify 1.0.0 (Copyright The JSpecify Authors),
+  com.google.guava:listenablefuture 1.0 (Copyright The Guava Authors).
+  Apache-2.0.
+- Gradle wrapper (gradlew, gradlew.bat, gradle/wrapper/), used to build,
+  not shipped in the app. Copyright 2015 the original authors. Apache-2.0.
+- golang.org/x/mobile (pseudo-version 20260908204917-8b95e45f8d3e),
+  https://go.googlesource.com/mobile: gomobile and gobind, and the Go
+  support code they link into the "gomobile" build flavor. Copyright 2014
+  The Go Authors. BSD-3-Clause.
+
 ========================================================================
 Third-party material included in this repository (not code)
 ========================================================================

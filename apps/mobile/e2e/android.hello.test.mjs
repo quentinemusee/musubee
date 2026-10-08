@@ -3,50 +3,18 @@
 
 // "Hello test" for Android (T0.5): proves that the Android toolchain works
 // end to end (emulator or device, Appium, UiAutomator2 driver) by opening
-// the system Settings app. Musubee's own app replaces it from T1.3 on.
+// the system Settings app, independently of Musubee's own app
+// (android.app.test.mjs).
 //
-// Requires a running Android emulator or connected device. Set
-// MUSUBEE_ANDROID_UDID (see "adb devices") to choose it; without it the test
-// uses the only device attached and refuses to guess when there are several,
-// so that it never touches a personal phone by accident.
+// Requires a running Android emulator or connected device, chosen by
+// MUSUBEE_ANDROID_UDID (see android-device.mjs).
 // Run: npm run test:android
 
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { join } from "node:path";
 import { remote } from "webdriverio";
+import { androidTimeouts, targetDevice } from "./android-device.mjs";
 import { remoteOptions, startAppium } from "./appium-server.mjs";
-
-function adbPath() {
-  const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
-  return sdk ? join(sdk, "platform-tools", "adb") : "adb";
-}
-
-/** Parses "adb devices" output into the serials of ready devices. */
-export function readyDevices(output) {
-  return output
-    .split(/\r?\n/)
-    .slice(1)
-    .map((line) => line.trim().split(/\s+/))
-    .filter(([serial, state]) => serial && state === "device")
-    .map(([serial]) => serial);
-}
-
-function targetDevice() {
-  if (process.env.MUSUBEE_ANDROID_UDID) {
-    return process.env.MUSUBEE_ANDROID_UDID;
-  }
-  const devices = readyDevices(execFileSync(adbPath(), ["devices"], { encoding: "utf8" }));
-  if (devices.length === 1) {
-    return devices[0];
-  }
-  throw new Error(
-    devices.length === 0
-      ? "no Android device or emulator is ready (adb devices)"
-      : `several Android devices are attached (${devices.join(", ")}): set MUSUBEE_ANDROID_UDID to the emulator to use`,
-  );
-}
 
 let appium;
 let driver;
@@ -64,10 +32,7 @@ before(async () => {
       "appium:appPackage": "com.android.settings",
       "appium:appActivity": ".Settings",
       "appium:noReset": true,
-      "appium:newCommandTimeout": 300,
-      "appium:adbExecTimeout": 120_000,
-      "appium:uiautomator2ServerInstallTimeout": 180_000,
-      "appium:uiautomator2ServerLaunchTimeout": 180_000,
+      ...androidTimeouts,
     },
   });
 });
