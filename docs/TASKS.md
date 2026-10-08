@@ -70,6 +70,7 @@ Goal: prove that the Go core can run **on the device**. Each spike ends with an 
 **T1.6 — Telegram on the device**
 - Deliverable: Telegram connector in "on-device" mode inside the core, against the test servers.
 - 🧪 Test: automated E2E on Windows and emulated Android.
+- 📱 Battery: one hour on a real phone left idle (screen off, no call or other app in use), connected to Telegram, to measure the idle cost of the service that T1.3 could not isolate (ADR 0011).
 
 **T1.7 — iOS NSE memory budget** 🍎 💶 📱
 - Deliverable: core (or lighter crypto) built for iOS arm64 (evaluate `gomobile bind` to an xcframework), integrated into a test NSE; measurement of real memory on an iPhone (tools: `debugging-instruments`, `ios-memgraph-analysis`).
