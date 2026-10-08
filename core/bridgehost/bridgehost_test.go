@@ -179,6 +179,15 @@ func (h *harness) room(bridgeID networkid.BridgeID, loginID networkid.UserLoginI
 	return roomID
 }
 
+// allRooms waits for the room of every echo contact of a login: the
+// connector announces them together, but bridgev2 creates them in parallel.
+func (h *harness) allRooms(bridgeID networkid.BridgeID, loginID networkid.UserLoginID) {
+	h.t.Helper()
+	for _, contact := range echo.Contacts {
+		h.room(bridgeID, loginID, contact.ID)
+	}
+}
+
 func (h *harness) send(roomID id.RoomID, text string) id.EventID {
 	h.t.Helper()
 	eventID, err := h.host.Matrix.SendMessage(h.t.Context(), roomID, &event.MessageEventContent{
@@ -393,12 +402,14 @@ func TestRestartKeepsHistoryAndLogin(t *testing.T) {
 	ghost := h.host.Bridge(echoBridge).Matrix.FormatGhostMXID(echo.ContactInstant)
 	h.waitForStatus(h.send(roomID, "before restart"), event.MessageStatusSuccess)
 	h.waitForMessageFrom(roomID, ghost, "before restart")
+	h.allRooms(echoBridge, login.ID)
 	h.stop()
 
 	h = startHost(t, path, echoBridge)
 	// The state stored by the first process was cleared on start: this waits
-	// for the login to reconnect.
+	// for the login to reconnect, which announces every conversation again.
 	h.waitConnected(echoBridge, login.ID)
+	h.allRooms(echoBridge, login.ID)
 	rooms, err := h.host.Matrix.Rooms(t.Context())
 	if err != nil || len(rooms) != len(echo.Contacts) {
 		t.Fatalf("rooms after restart = %d (%v), want %d (no duplicates)", len(rooms), err, len(echo.Contacts))
@@ -443,6 +454,8 @@ func TestTwoNetworksShareOneProcess(t *testing.T) {
 			}
 		}
 	}
+	h.allRooms("echoa", loginA.ID)
+	h.allRooms("echob", loginB.ID)
 	rooms, err := h.host.Matrix.Rooms(t.Context())
 	if err != nil || len(rooms) != 2*len(echo.Contacts) {
 		t.Errorf("rooms = %d (%v), want %d", len(rooms), err, 2*len(echo.Contacts))

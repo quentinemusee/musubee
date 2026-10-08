@@ -63,6 +63,7 @@ func (c *client) Connect(ctx context.Context) {
 	c.lock.Unlock()
 
 	c.login.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
+	c.updateSelfGhost(ctx)
 	for _, contact := range Contacts {
 		c.login.QueueRemoteEvent(&simplevent.ChatResync{
 			EventMeta: simplevent.EventMeta{
@@ -73,6 +74,21 @@ func (c *client) Connect(ctx context.Context) {
 			ChatInfo: c.chatInfo(contact),
 		})
 	}
+}
+
+// updateSelfGhost fills in the profile of the user's own ghost before the
+// conversations are announced. Every conversation lists that ghost, bridgev2
+// creates the conversations in parallel, and in mautrix-go v0.31.0
+// Ghost.UpdateInfoIfNecessary reads and writes the ghost's fields without a
+// lock: the first update of a ghost shared by several conversations is a data
+// race (docs/ADR/0009). Once the profile is set, the portals only read it.
+func (c *client) updateSelfGhost(ctx context.Context) {
+	ghost, err := c.connector.br.GetGhostByID(ctx, c.selfID())
+	if err != nil {
+		c.login.Log.Err(err).Msg("Failed to get the user's own ghost")
+		return
+	}
+	ghost.UpdateInfoIfNecessary(ctx, c.login, bridgev2.RemoteEventUnknown)
 }
 
 // Disconnect drops the pending delayed echoes, like a real network would
