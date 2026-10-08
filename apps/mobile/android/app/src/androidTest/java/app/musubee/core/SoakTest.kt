@@ -18,17 +18,25 @@ import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
 /**
  * Long run of the foreground service (docs/ADR/0011): one message and its
- * echo every 30 seconds, and every minute one JSON sample of memory and CPU
- * time under the log tag "MusubeeSoak". Skipped unless the instrumentation
- * argument musubee.soak.minutes is set:
+ * echo every 30 seconds of awake time, and about every minute one JSON
+ * sample of memory and CPU time, logged under the tag "MusubeeSoak" and
+ * appended to files/soak.jsonl in the app's data. Skipped unless the
+ * instrumentation argument musubee.soak.minutes is set:
  *
- *     adb shell am instrument -w -e musubee.soak.minutes 60 \
+ *     adb shell am instrument -e musubee.soak.minutes 60 \
  *       -e class app.musubee.core.SoakTest app.musubee.test/androidx.test.runner.AndroidJUnitRunner
+ *     adb shell run-as app.musubee cat files/soak.jsonl
+ *
+ * Without -w, the run does not depend on the adb connection: the phone can
+ * be unplugged to measure its battery. The test holds no wake lock, so a
+ * phone with its screen off suspends between messages, as it would with the
+ * real app; samples carry both the elapsed and the awake (uptime) time.
  */
 @RunWith(AndroidJUnit4::class)
 class SoakTest {
@@ -46,10 +54,11 @@ class SoakTest {
         return resp.getJSONObject("result")
     }
 
+    /** Waits for the echo; the deadline counts awake time only (uptime). */
     private fun waitEcho(text: String) {
-        val deadline = SystemClock.elapsedRealtime() + ECHO_TIMEOUT_MILLIS
+        val deadline = SystemClock.uptimeMillis() + ECHO_TIMEOUT_MILLIS
         while (true) {
-            val remaining = deadline - SystemClock.elapsedRealtime()
+            val remaining = deadline - SystemClock.uptimeMillis()
             assertTrue("no echo of $text within $ECHO_TIMEOUT_MILLIS ms", remaining > 0)
             val event = events.poll(remaining, TimeUnit.MILLISECONDS) ?: continue
             if (event.optString("type") == "message" && !event.optBoolean("from_me") &&
@@ -60,10 +69,11 @@ class SoakTest {
         }
     }
 
-    private fun sample(service: CoreService, minute: Int, messages: Int): JSONObject {
+    private fun sample(service: CoreService, start: Long, startUptime: Long, messages: Int): JSONObject {
         val stats = request(service, "stats")
         return JSONObject()
-            .put("minute", minute)
+            .put("elapsed_s", (SystemClock.elapsedRealtime() - start) / 1000)
+            .put("awake_s", (SystemClock.uptimeMillis() - startUptime) / 1000)
             .put("messages", messages)
             .put("pss_kib", Debug.getPss())
             .put("native_heap_kib", Debug.getNativeHeapAllocatedSize() / 1024)
@@ -79,6 +89,11 @@ class SoakTest {
         assumeTrue("set -e $MINUTES_ARGUMENT N to run the soak test", minutes > 0)
 
         val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val output = File(context.filesDir, "soak.jsonl").apply { delete() }
+        val record = { sample: JSONObject ->
+            Log.i(SOAK_TAG, sample.toString())
+            output.appendText(sample.toString() + "\n")
+        }
         val intent = Intent(context, CoreService::class.java)
         ContextCompat.startForegroundService(context, intent)
         val service = (serviceRule.bindService(intent) as CoreService.LocalBinder).service
@@ -89,19 +104,24 @@ class SoakTest {
             val roomId = (0 until rooms.length()).map { rooms.getJSONObject(it) }
                 .first { it.getString("name") == "Instant Echo" }.getString("room_id")
             val start = SystemClock.elapsedRealtime()
+            val startUptime = SystemClock.uptimeMillis()
+            val end = start + minutes * 60_000L
+            var nextSample = start + SAMPLE_INTERVAL_MILLIS
             var messages = 0
-            Log.i(SOAK_TAG, sample(service, 0, 0).toString())
-            for (minute in 1..minutes) {
-                repeat(MESSAGES_PER_MINUTE) {
-                    val text = "soak ${++messages}"
-                    request(service, "send", JSONObject().put("room_id", roomId).put("text", text))
-                    waitEcho(text)
-                    // Next message on the 30-second grid, whatever the echo took.
-                    val next = start + messages * MESSAGE_INTERVAL_MILLIS
-                    SystemClock.sleep((next - SystemClock.elapsedRealtime()).coerceAtLeast(0))
+            record(sample(service, start, startUptime, 0))
+            while (SystemClock.elapsedRealtime() < end) {
+                val text = "soak ${++messages}"
+                request(service, "send", JSONObject().put("room_id", roomId).put("text", text))
+                waitEcho(text)
+                if (SystemClock.elapsedRealtime() >= nextSample) {
+                    record(sample(service, start, startUptime, messages))
+                    nextSample += SAMPLE_INTERVAL_MILLIS *
+                        (1 + (SystemClock.elapsedRealtime() - nextSample) / SAMPLE_INTERVAL_MILLIS)
                 }
-                Log.i(SOAK_TAG, sample(service, minute, messages).toString())
+                // Awake time: a suspended phone stretches the interval.
+                SystemClock.sleep(MESSAGE_INTERVAL_MILLIS)
             }
+            record(sample(service, start, startUptime, messages))
         } finally {
             service.removeListener(listener)
             context.stopService(intent)
@@ -111,8 +131,8 @@ class SoakTest {
     companion object {
         private const val SOAK_TAG = "MusubeeSoak"
         private const val MINUTES_ARGUMENT = "musubee.soak.minutes"
-        private const val MESSAGES_PER_MINUTE = 2
         private const val MESSAGE_INTERVAL_MILLIS = 30_000L
+        private const val SAMPLE_INTERVAL_MILLIS = 60_000L
         private const val ECHO_TIMEOUT_MILLIS = 15_000L
     }
 }

@@ -44,21 +44,10 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
-    // T1.3 compares two ways of embedding the core (docs/ADR/0011): the C
-    // shared library with its JNI entry points (core/ffi), and gomobile bind
-    // (core/mobile). Each flavor has its own app.musubee.core.CoreLibrary.
-    flavorDimensions = ['binding']
-    productFlavors {
-        jni {
-            dimension 'binding'
-        }
-        gomobile {
-            dimension 'binding'
-            applicationIdSuffix '.gomobile'
-        }
-    }
+    // The core: the C shared library of core/ffi with its JNI entry points
+    // (docs/ADR/0011), built below.
     sourceSets {
-        jni {
+        main {
             jniLibs.srcDir layout.buildDirectory.dir('musubee-core/jniLibs')
         }
     }
@@ -70,8 +59,8 @@ android {
     }
     packaging {
         jniLibs {
-            // Go libraries are stripped at link time (-s -w).
-            keepDebugSymbols += ['**/libmusubee.so', '**/libgojni.so']
+            // The Go library is stripped at link time (-s -w).
+            keepDebugSymbols += ['**/libmusubee.so']
         }
     }
 }
@@ -102,7 +91,7 @@ def coreSources = fileTree(coreDir) {
     exclude '**/*_test.go', '**/testdata/**'
 }
 
-// Variant A: the C shared library and its JNI entry points, one per ABI.
+// The C shared library and its JNI entry points, one per ABI.
 def buildCoreTasks = selectedAbis.collect { abi ->
     def target = coreAbis[abi]
     if (target == null) {
@@ -129,41 +118,9 @@ def buildCoreTasks = selectedAbis.collect { abi ->
     }
 }
 
-// Variant B: gomobile bind, an AAR with every selected ABI.
-def gomobileAar = layout.buildDirectory.file('musubee-gomobile/musubee.aar')
-def gomobileBin = layout.buildDirectory.dir('musubee-gomobile/bin')
-def installGomobile = tasks.register('installGomobile', Exec) {
-    description = 'Builds gomobile and gobind at the versions pinned in core/go.mod.'
-    outputs.dir(gomobileBin)
-    inputs.files(new File(coreDir, 'go.mod'), new File(coreDir, 'go.sum'))
-    workingDir coreDir
-    environment 'GOBIN', gomobileBin.get().asFile.absolutePath
-    commandLine goCommand, 'install', 'golang.org/x/mobile/cmd/gomobile', 'golang.org/x/mobile/cmd/gobind'
-}
-def bindGomobile = tasks.register('bindGomobile', Exec) {
-    description = 'Builds the Go core as an AAR with gomobile bind.'
-    dependsOn installGomobile
-    inputs.files(coreSources)
-    inputs.property('abis', selectedAbis)
-    outputs.file(gomobileAar)
-    workingDir coreDir
-    def bin = gomobileBin.get().asFile
-    def exe = org.gradle.internal.os.OperatingSystem.current().isWindows() ? '.exe' : ''
-    // gomobile runs gobind from PATH.
-    environment 'PATH', bin.absolutePath + File.pathSeparator + System.getenv('PATH')
-    environment 'ANDROID_HOME', android.sdkDirectory.absolutePath
-    environment 'ANDROID_NDK_HOME', android.ndkDirectory.absolutePath
-    commandLine new File(bin, "gomobile${exe}").absolutePath, 'bind',
-        '-target=' + selectedAbis.collect { "android/${coreAbis[it].goarch}" }.join(','),
-        "-androidapi=${coreMinSdk}", '-javapkg=app.musubee.gomobile', '-trimpath', '-ldflags=-s -w',
-        '-o', gomobileAar.get().asFile.absolutePath, './mobile'
-}
-
-afterEvaluate {
-    android.applicationVariants.configureEach { variant ->
-        def coreTasks = variant.flavorName == 'gomobile' ? [bindGomobile] : buildCoreTasks
-        variant.preBuildProvider.configure { dependsOn(coreTasks) }
-    }
+// preBuild is created by the Android plugin later on: match it lazily.
+tasks.matching { it.name == 'preBuild' }.configureEach {
+    dependsOn(buildCoreTasks)
 }
 
 dependencies {
@@ -173,7 +130,6 @@ dependencies {
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation "androidx.core:core-ktx:$androidxCoreVersion"
     implementation project(':capacitor-android')
-    gomobileImplementation files(gomobileAar)
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test:runner:$androidxTestRunnerVersion"
     androidTestImplementation "androidx.test:rules:$androidxTestRulesVersion"
