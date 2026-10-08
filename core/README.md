@@ -34,7 +34,7 @@ gofmt -l core
 go test -run '^$' -bench RoundTrip -benchtime 2000x ./core/bridgehost/   (round trip and heap, see ADR 0009)
 ```
 
-`go test -race` needs cgo and a 64-bit C toolchain, not available on the maintainer's Windows machine until T1.2: CI runs it on Linux, macOS and Windows. CI also builds the core with `CGO_ENABLED=0` for Linux, Windows, macOS, Android and iOS. `golangci-lint` is not set up yet.
+`go test -race` needs cgo and a 64-bit C toolchain, not available on the maintainer's Windows machine until T1.2: run it in a Linux container (`docker run --rm -v <repo>:/src -w /src golang:1.27.1 go test -race ./core/...`). CI runs it on Linux, macOS and Windows. CI also builds the core with `CGO_ENABLED=0` for Linux, Windows, macOS, Android and iOS. `golangci-lint` is not set up yet.
 
 ## Skills to re-read before coding
 
