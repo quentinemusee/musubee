@@ -211,7 +211,7 @@ The Go side does not grow. PSS gains 1.3 MiB between minutes 10 and 35, which is
 | Why round trips take 17 ms on the Pixel | **unknown** | to investigate with the storage design |
 | Over one hour on a phone, the core's memory does not grow | **verified** for the echo network | Measurements, soak on the Pixel 8 Pro |
 | Each message costs the app about 90 ms of CPU and 1.2 µAh on the Pixel | **verified** as Android's model-based estimate, per app, not affected by the call in another app | Measurements, soak on the Pixel 8 Pro |
-| The idle cost of the service over an hour on a quiet phone | **unknown**: the soak ran during a 45-minute call in another app | to measure on an idle phone |
+| The idle cost of the service over an hour on a quiet phone | **unknown**: the soak ran during a 45-minute call in another app | to measure in T1.6, on an idle phone connected to Telegram |
 | The battery cost stays small with a real network connection (radio wake-ups) | **unknown** | T1.6 |
 | The core survives being killed by the system and restarted by `START_STICKY` | **unknown** | resynchronisation work, see ADR 0010 point 8 |
 
