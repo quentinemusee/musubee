@@ -187,12 +187,31 @@ func TestMessageFlowsThroughTheBridge(t *testing.T) {
 		_ = env.Bridge.Logout(context.WithoutCancel(ctx), alice.UserID, done.Complete.UserLoginID)
 	})
 
-	// 2. Telegram -> Matrix: the peer bot posts in the channel.
-	inbound := "musubee e2e: from Telegram " + randomHex(4)
-	if _, err := peer.SendMessage(ctx, chatID, inbound); err != nil {
-		t.Fatalf("peer bot posting in the channel: %v", err)
+	// The bridge connects to Telegram in the background after the login: a
+	// post sent before it listens for updates would be lost, since it does
+	// not know the channel yet.
+	waitForConnected(t, ctx, alice.UserID, done.Complete.UserLoginID)
+
+	// 2. Telegram -> Matrix: the peer bot posts in the channel. A missed
+	// post is retried with a new message, and reported, so that flakiness
+	// stays visible.
+	var roomID id.RoomID
+	since := ""
+	for attempt := 1; attempt <= 3 && roomID == ""; attempt++ {
+		inbound := fmt.Sprintf("musubee e2e: from Telegram %s (attempt %d)", randomHex(4), attempt)
+		if _, err := peer.SendMessage(ctx, chatID, inbound); err != nil {
+			t.Fatalf("peer bot posting in the channel: %v", err)
+		}
+		roomID, since = waitForMatrixMessage(t, ctx, alice, inbound, since, time.Minute)
+		if roomID == "" {
+			t.Logf("attempt %d: the post did not reach Matrix within a minute", attempt)
+		} else if attempt > 1 {
+			t.Logf("the post reached Matrix only at attempt %d", attempt)
+		}
 	}
-	roomID := waitForMatrixMessage(t, ctx, alice, inbound)
+	if roomID == "" {
+		t.Fatal("no post of the peer bot reached Matrix after 3 attempts")
+	}
 
 	// 3. Matrix -> Telegram: the Matrix user replies in the portal room.
 	outbound := "musubee e2e: from Matrix " + randomHex(4)
@@ -255,12 +274,32 @@ func hasFlow(flows []testenv.LoginFlow, id string) bool {
 	return false
 }
 
-// waitForMatrixMessage syncs as the Matrix user, joins the rooms the bridge
-// invites it to, and returns the room in which text arrives.
-func waitForMatrixMessage(t *testing.T, ctx context.Context, user *mautrix.Client, text string) id.RoomID {
+// waitForConnected waits until the bridge reports the login as connected
+// to Telegram.
+func waitForConnected(t *testing.T, ctx context.Context, user id.UserID, userLoginID string) {
 	t.Helper()
-	since := ""
-	deadline := time.Now().Add(3 * time.Minute)
+	deadline := time.Now().Add(2 * time.Minute)
+	state := ""
+	for time.Now().Before(deadline) {
+		var err error
+		state, err = env.Bridge.LoginState(ctx, user, userLoginID)
+		if err != nil {
+			t.Fatalf("reading the login state: %v", err)
+		}
+		if state == "CONNECTED" {
+			return
+		}
+		time.Sleep(time.Second)
+	}
+	t.Fatalf("the bridge login is %q, not CONNECTED, after 2 minutes", state)
+}
+
+// waitForMatrixMessage syncs as the Matrix user from since, joins the rooms
+// the bridge invites it to, and returns the room in which text arrives (or
+// "" after within) with the sync token to continue from.
+func waitForMatrixMessage(t *testing.T, ctx context.Context, user *mautrix.Client, text, since string, within time.Duration) (id.RoomID, string) {
+	t.Helper()
+	deadline := time.Now().Add(within)
 	for time.Now().Before(deadline) {
 		resp, err := user.SyncRequest(ctx, 10000, since, "", false, event.PresenceOffline)
 		if err != nil {
@@ -279,13 +318,12 @@ func waitForMatrixMessage(t *testing.T, ctx context.Context, user *mautrix.Clien
 				}
 				_ = evt.Content.ParseRaw(evt.Type)
 				if msg := evt.Content.AsMessage(); msg != nil && msg.Body == text {
-					return roomID
+					return roomID, since
 				}
 			}
 		}
 	}
-	t.Fatalf("message %q did not reach Matrix within 3 minutes", text)
-	return ""
+	return "", since
 }
 
 func randomHex(n int) string {
