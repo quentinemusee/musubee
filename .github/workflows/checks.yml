@@ -3,10 +3,11 @@
 #
 # Repository checks: SPDX headers (REUSE 3.3), English-only content, the
 # install scripts (.ps1 / .bat / .sh in dry-run mode), and the tests of all
-# these checks; Go formatting, vet and unit tests (race detector); the
-# license audit of every Go and npm dependency (scripts/licenseaudit); the
-# and the integration tests against a real Synapse + PostgreSQL (Linux only,
-# Docker). The Telegram end-to-end test has its own workflow (telegram.yml).
+# these checks; Go formatting, vet and unit tests (race detector) of the
+# core, the test infrastructure and the tooling, and pure-Go (no cgo) builds
+# of the core for every target OS; the license audit of every Go and npm
+# dependency (scripts/licenseaudit); and the integration tests against a
+# real Synapse + PostgreSQL (Linux only, Docker). The Telegram end-to-end test has its own workflow (telegram.yml).
 # Desktop checks run on Linux, Windows and macOS; mobile "hello tests" run on
 # an Android emulator (Linux) and an iOS simulator (macOS), see
 # apps/mobile/e2e/ and docs/ADR/0007-mobile-e2e-tool.md.
@@ -85,24 +86,41 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: infra/go.mod
-          cache-dependency-path: infra/go.sum
+          cache-dependency-path: |
+            core/go.sum
+            infra/go.sum
+            scripts/licenseaudit/go.sum
 
       - name: Formatting (gofmt)
         shell: bash
         run: |
-          unformatted=$(gofmt -l infra scripts)
+          unformatted=$(gofmt -l core infra scripts)
           if [ -n "$unformatted" ]; then
             echo "Run gofmt on:"; echo "$unformatted"; exit 1
           fi
 
       - name: go vet
         run: |
+          go vet ./core/...
           go vet -tags=integration ./infra/...
           go vet -tags=telegram ./infra/...
           go vet ./scripts/licenseaudit/...
 
       - name: Unit tests (race detector)
-        run: go test -race -count=1 ./infra/... ./scripts/licenseaudit/...
+        run: go test -race -count=1 ./core/... ./infra/... ./scripts/licenseaudit/...
+
+      # The core must stay pure Go (docs/ADR/0009-bridgev2-in-process.md):
+      # building it with cgo disabled for every target fails if a cgo
+      # dependency slips in.
+      - name: Pure-Go builds of the core (no cgo)
+        if: runner.os == 'Linux'
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          for target in linux/amd64 windows/amd64 darwin/arm64 android/arm64 ios/arm64; do
+            echo "== $target"
+            GOOS=${target%/*} GOARCH=${target#*/} go build ./core/...
+          done
 
   licenses:
     name: Dependency license audit (Go and npm)
@@ -117,6 +135,7 @@ jobs:
         with:
           go-version-file: infra/go.mod
           cache-dependency-path: |
+            core/go.sum
             infra/go.sum
             scripts/licenseaudit/go.sum
 
