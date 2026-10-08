@@ -179,7 +179,11 @@ func (c *client) GetCapabilities(context.Context, *bridgev2.Portal) *event.RoomF
 func (c *client) HandleMatrixMessage(_ context.Context, msg *bridgev2.MatrixMessage) (*bridgev2.MatrixMessageResponse, error) {
 	contact, ok := findContact(networkid.UserID(msg.Portal.ID))
 	if !ok {
-		return nil, fmt.Errorf("unknown conversation %q", msg.Portal.ID)
+		return nil, bridgev2.WrapErrorInStatus(fmt.Errorf("unknown conversation %q", msg.Portal.ID)).
+			WithStatus(event.MessageStatusFail).
+			WithErrorAsMessage().
+			WithIsCertain(true).
+			WithSendNotice(false)
 	}
 	if contact.ID == ContactUnreachable {
 		return nil, bridgev2.WrapErrorInStatus(ErrUnreachable).
@@ -212,8 +216,13 @@ func newMessageID() networkid.MessageID {
 }
 
 // errDisconnected is returned when a message is sent while the client is
-// disconnected.
-var errDisconnected = errors.New("the echo network client is disconnected")
+// disconnected. Like every error a connector returns, it carries a reason
+// and a message: a bare error reaches the app as a retriable failure with
+// no explanation.
+var errDisconnected = bridgev2.WrapErrorInStatus(errors.New("the echo network client is disconnected")).
+	WithErrorReason(event.MessageStatusNetworkError).
+	WithErrorAsMessage().
+	WithSendNotice(false)
 
 func (c *client) scheduleEcho(contact Contact, content *event.MessageEventContent, delay time.Duration) error {
 	c.lock.Lock()
