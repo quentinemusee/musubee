@@ -177,6 +177,7 @@ Verified in T1.1 (Windows, Go 1.27.1; see `core/README.md`). **Go 1.27.1 or late
 core tests:         go test -count=1 ./core/...        (race detector: CI only until T1.2)
 core vet / format:  go vet ./core/...        gofmt -l core
 core benchmark:     go test -run '^$' -bench RoundTrip -benchtime 2000x ./core/bridgehost/
+core race (Docker): docker run --rm -v <repo>:/src -w /src golang:1.27.1 go test -race ./core/...
 ```
 
 To be confirmed in the corresponding tasks (T1.2, T1.5):

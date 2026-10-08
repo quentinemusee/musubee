@@ -25,7 +25,8 @@ Musubee's "on-device" mode runs each network's `bridgev2` connector inside the c
 6. **Commands are off**: the command prefix is a string no message starts with, and the user has no `Commands` permission. An empty prefix would turn every message into a command.
 7. **Room IDs are deterministic** (`GenerateDeterministicRoomID`) and `AutoJoinInvites` is advertised: restarting does not duplicate rooms, and ghosts are members as soon as the room exists.
 8. **Unsupported features fail loudly**: direct media, batch send (backfill), encrypted media from the network. When a real connector needs one, implement it with a test; never return fake success.
-9. **No message content in logs** (`CLAUDE.md` §6.8). `TestMessageContentIsNotLogged` runs the bridged path at trace level with a positive control; extend it when you add a connector.
+9. **Ghosts shared by several portals race on their first update.** bridgev2 creates portals in parallel and `Ghost.UpdateInfoIfNecessary` reads the profile fields without a lock (still true on mautrix-go `main` in October 2026). The echo connector updates the user's own ghost before announcing its conversations (`updateSelfGhost`). A real connector must do the same for every ghost it knows will be shared, and pass the race detector.
+10. **No message content in logs** (`CLAUDE.md` §6.8). `TestMessageContentIsNotLogged` runs the bridged path at trace level with a positive control; extend it when you add a connector.
 
 ## Adding a real network connector
 
@@ -37,11 +38,12 @@ Musubee's "on-device" mode runs each network's `bridgev2` connector inside the c
 
 ## Upgrading mautrix-go
 
-Read the changelog, then: `go build ./core/...` (the `var _ bridgev2.MatrixConnector = …` assertions break on interface changes), `go test -count=3 ./core/...`, the benchmark, and re-check the invariants above against the new `bridge.go` (`StartConnectors`, `stop`) and `bridgestate.go`: if upstream now destroys bridge state queues on stop, remove our workaround.
+Read the changelog (after v0.31.0, `main` already destroys bridge state queues on stop and locks `Ghost.UpdateInfo`), then: `go build ./core/...` (the `var _ bridgev2.MatrixConnector = …` assertions break on interface changes), `go test -count=3 ./core/...`, the benchmark, and re-check the invariants above against the new `bridge.go` (`StartConnectors`, `stop`) and `bridgestate.go`: if upstream now destroys bridge state queues on stop, remove our workaround.
 
 ## Testing
 
 - Real SQLite in `t.TempDir()`, the real `bridgev2`, the echo connector: no mocks (`CLAUDE.md` §6.2). Helpers in `core/bridgehost/bridgehost_test.go` (`startHost`, `login`, `room`, `send`, `waitForStatus`, `waitForMessageFrom`).
 - Wait on conditions (`waitFor`), never on sleeps: everything after `QueueMatrixEvent` is asynchronous.
 - A flaky "no echo" is a bug, not noise: dump the goroutines (`runtime.Stack(buf, true)`) at the timeout and look for a goroutine stuck in `database/sql` or in `portal.queueEvent`.
-- Commands: `go test -count=1 ./core/...`, `go vet ./core/...`, `gofmt -l core`, `go test -run '^$' -bench RoundTrip -benchtime 2000x ./core/bridgehost/`. The race detector needs cgo: it runs in CI.
+- Count rooms or messages only after waiting for all of them (`allRooms`): the connector announces conversations together, bridgev2 creates them in parallel, and the race detector slows everything down.
+- Commands: `go test -count=1 ./core/...`, `go vet ./core/...`, `gofmt -l core`, `go test -run '^$' -bench RoundTrip -benchtime 2000x ./core/bridgehost/`. The race detector needs cgo: on Windows without a C toolchain, run it in a Linux container (`docker run --rm -v <repo>:/src -w /src golang:1.27.1 go test -race ./core/...`); CI runs it on three OSes.
