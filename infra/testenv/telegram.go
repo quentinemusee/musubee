@@ -230,6 +230,28 @@ func (b *Bridge) SubmitInput(ctx context.Context, user id.UserID, step *LoginSte
 	return &next, err
 }
 
+// LoginState returns the bridge state of one of a user's logins (for example
+// "CONNECTING" or "CONNECTED"), as reported by the provisioning whoami call.
+func (b *Bridge) LoginState(ctx context.Context, user id.UserID, userLoginID string) (string, error) {
+	var resp struct {
+		Logins []struct {
+			ID    string `json:"id"`
+			State struct {
+				StateEvent string `json:"state_event"`
+			} `json:"state"`
+		} `json:"logins"`
+	}
+	if err := b.call(ctx, http.MethodGet, "/v3/whoami", user, nil, &resp); err != nil {
+		return "", err
+	}
+	for _, login := range resp.Logins {
+		if login.ID == userLoginID {
+			return login.State.StateEvent, nil
+		}
+	}
+	return "", fmt.Errorf("login %s not found for %s", userLoginID, user)
+}
+
 // CancelLogin abandons a login in progress.
 func (b *Bridge) CancelLogin(ctx context.Context, user id.UserID, loginID string) error {
 	return b.call(ctx, http.MethodPost, "/v3/login/cancel/"+url.PathEscape(loginID), user, map[string]any{}, nil)
