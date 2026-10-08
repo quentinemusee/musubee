@@ -25,16 +25,58 @@ import (
 	"github.com/quentinemusee/musubee/core/embedded"
 )
 
+// The cores opened through this library, by handle. The C exports below
+// and the JNI exports of jni_android.go share them.
 var (
 	coresLock  sync.Mutex
-	cores      = make(map[C.musubee_handle]*embedded.Core)
-	lastHandle C.musubee_handle
+	cores      = make(map[uint64]*embedded.Core)
+	lastHandle uint64
 )
 
-func lookup(handle C.musubee_handle) *embedded.Core {
+func lookup(handle uint64) *embedded.Core {
 	coresLock.Lock()
 	defer coresLock.Unlock()
 	return cores[handle]
+}
+
+// openCore opens a core and returns its handle, never 0.
+func openCore(config []byte) (uint64, error) {
+	core, err := embedded.Open(config)
+	if err != nil {
+		return 0, err
+	}
+	coresLock.Lock()
+	defer coresLock.Unlock()
+	lastHandle++
+	cores[lastHandle] = core
+	return lastHandle, nil
+}
+
+// closedHandleError is the error response to a request on a handle that
+// is not (or no longer) open.
+const closedHandleError = "invalid or closed handle"
+
+// closedEvent is the event read from a closed core.
+var closedEvent = []byte(`{"type":"closed"}`)
+
+// nextEvent waits for the next event of a core; see embedded.Core.NextEvent.
+func nextEvent(handle uint64, timeoutMS int32) ([]byte, bool) {
+	core := lookup(handle)
+	if core == nil {
+		return closedEvent, true
+	}
+	return core.NextEvent(time.Duration(max(timeoutMS, 0)) * time.Millisecond)
+}
+
+// closeCore closes a core and forgets its handle.
+func closeCore(handle uint64) {
+	coresLock.Lock()
+	core := cores[handle]
+	delete(cores, handle)
+	coresLock.Unlock()
+	if core != nil {
+		_ = core.Close()
+	}
 }
 
 // goBytes copies a C input buffer: the library keeps no reference to the
@@ -77,18 +119,14 @@ func musubee_open(config *C.musubee_const_byte, configLen C.size_t, errOut *C.mu
 			}
 		}
 	}()
-	core, err := embedded.Open(goBytes(config, configLen))
+	h, err := openCore(goBytes(config, configLen))
 	if err != nil {
 		if errOut != nil {
 			*errOut = cBuffer([]byte(err.Error()))
 		}
 		return 0
 	}
-	coresLock.Lock()
-	defer coresLock.Unlock()
-	lastHandle++
-	cores[lastHandle] = core
-	return lastHandle
+	return C.musubee_handle(h)
 }
 
 //export musubee_call
@@ -98,9 +136,9 @@ func musubee_call(handle C.musubee_handle, request *C.musubee_const_byte, reques
 			resp = errorResponse(fmt.Sprint("panic: ", r))
 		}
 	}()
-	core := lookup(handle)
+	core := lookup(uint64(handle))
 	if core == nil {
-		return errorResponse("invalid or closed handle")
+		return errorResponse(closedHandleError)
 	}
 	return cBuffer(core.Call(goBytes(request, requestLen)))
 }
@@ -112,11 +150,7 @@ func musubee_next_event(handle C.musubee_handle, timeoutMS C.int32_t) (evt C.mus
 			evt = errorResponse(fmt.Sprint("panic: ", r))
 		}
 	}()
-	core := lookup(handle)
-	if core == nil {
-		return cBuffer([]byte(`{"type":"closed"}`))
-	}
-	data, ok := core.NextEvent(time.Duration(max(timeoutMS, 0)) * time.Millisecond)
+	data, ok := nextEvent(uint64(handle), int32(timeoutMS))
 	if !ok {
 		return C.musubee_buffer{}
 	}
@@ -126,13 +160,7 @@ func musubee_next_event(handle C.musubee_handle, timeoutMS C.int32_t) (evt C.mus
 //export musubee_close
 func musubee_close(handle C.musubee_handle) {
 	defer func() { _ = recover() }()
-	coresLock.Lock()
-	core := cores[handle]
-	delete(cores, handle)
-	coresLock.Unlock()
-	if core != nil {
-		_ = core.Close()
-	}
+	closeCore(uint64(handle))
 }
 
 //export musubee_free
