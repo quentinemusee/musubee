@@ -71,6 +71,7 @@ Windows: Windows 11, Intel Core i7-9750H, MSYS2 UCRT64 GCC 16.2.0. Linux: Docker
 | Ping through FFI (1 KiB payload, JSON both ways) | 14.3 to 16.7 µs per call | 8.1 to 8.9 µs per call | same |
 | Leak check: 1,000,000 pings | +0.7 MiB memory, Go heap +0.0 MiB | — | `MUSUBEE_FFI_PINGS=1000000 MUSUBEE_FFI_ROUNDTRIPS=5000 go test -run TestSharedLibrary/RoundTrip -v ./core/ffi/` |
 | Leak check: 100,000 pings (default test) | +0.2 to +0.8 MiB | +0.9 to +1.5 MiB | `TestSharedLibrary` |
+| Same test on the CI runners (`windows-latest`, `ubuntu-latest`) | ping 13.3 µs, +0.2 MiB; round trip mean 7.5 ms (max 208 ms) | ping 8.9 µs, -0.9 MiB; round trip mean 2.3 ms | CI job "Go unit tests", step "Core as a C shared library" |
 | Power of the leak check: the host skips `musubee_free` | +109.9 MiB over 100,000 pings | +103.1 MiB | `TestSharedLibrary/LeakIsDetected` |
 | Round trip from C: send → echo connector → echo event read by `musubee_next_event` | mean 3.3 to 4.0 ms (5,000 runs: max 97 ms) | mean 2.9 to 3.4 ms | `TestSharedLibrary` |
 | Memory over 5,000 round trips | +3.0 MiB; Go heap 1.6 MiB after, 7 goroutines | +1.2 to +1.9 MiB over 1,000 | same |
@@ -85,7 +86,7 @@ Windows: Windows 11, Intel Core i7-9750H, MSYS2 UCRT64 GCC 16.2.0. Linux: Docker
 |---|---|---|
 | The core builds as a C shared library and is driven from a C program on Windows and Linux: requests, events, failures, close, calls on a closed handle | **verified** | `core/ffi/ffi_test.go` with `testdata/host.c`, local runs (Windows, Linux container) |
 | No leak on the FFI path: memory flat over 1,000,000 calls, and the measurement detects a leak of the response buffers | **verified** on Windows (1,000,000) and Linux (100,000) | Measurements |
-| The same build works on macOS (`libmusubee.dylib`, found through `@rpath`) | **assumed** until the CI job on `macos-latest` passes; no local Mac | `.github/workflows/checks.yml` |
+| The same build works on macOS (`libmusubee.dylib`, found through `@rpath`) | **verified** in CI on `macos-latest` (2026-10-08): 17.5 MiB default build, ping 5.7 µs, round trip 2.1 ms, memory flat over 100,000 pings, leak detected without `musubee_free` (+132.7 MiB). Not run on a local Mac | CI job "Go unit tests (macos-latest)", PR quentinemusee/musubee#14 |
 | The library has no runtime dependency beyond the OS (`KERNEL32`, UCRT on Windows 10+, glibc on Linux) | **verified** for these builds; a Linux build against an older glibc than the users' is a packaging question (T1.5 / T1.8) | `objdump -p`, `ldd` |
 | The mattn slowdown on Windows comes from the timer resolution in SQLite's busy handler | **verified** by experiment (`timeBeginPeriod(1)` removes it); the call path inside SQLite (`sqliteDefaultBusyCallback`, `winSleep`) is **assumed** from SQLite's design, not read for this ADR | Measurements |
 | The 41.8 MiB of private bytes before `musubee_open` on Windows is the Go runtime's initial reservation | **assumed**: not broken down; Linux shows 4.8 MiB resident. To check if desktop memory matters (T1.5) | — |
