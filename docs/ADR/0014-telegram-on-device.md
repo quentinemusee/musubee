@@ -117,13 +117,33 @@ The Go heap stays small; the process's resident memory (the 56 MB library mapped
 
 ### Battery
 
-**Pending**: one hour on a real phone left idle, connected to Telegram (`docs/TASKS.md`, T1.6). To be added here.
+Measured on 2026-10-09, 21:31 to 22:31, on the maintainer's Pixel 8 Pro (Android 17), on LTE (good signal), unplugged, screen off, nothing else in use. The debug build of the app (arm64-v8a) was logged in to the maintainer's own Telegram account with the phone number flow, through the test page; its foreground service ran the whole hour in the same process. Figures from `dumpsys batterystats` (reset at the start; its power figures are estimates from the device's power profile), `/proc/<pid>/stat` and the app's own event list.
+
+| Measure | Value |
+|---|---|
+| Time on battery / screen off / deep Doze | 59 min 48 s / 59 min 36 s / 57 min 47 s |
+| Whole phone: discharge | 68 mAh (62 % → 60 %), 1.5 % of the battery |
+| Musubee's estimated share | **4.99 mAh** (8.6 % of the 57.8 mAh attributed), 4th behind Google Play services (10.5), Google Messages (9.4) and the system (9.0) |
+| ...of which mobile radio / CPU | 4.90 / 0.08 mAh |
+| CPU time of the process | 2.45 s in the hour (1.33 s user, 1.12 s system) |
+| Mobile radio | 2 min 9 s active, 3 activations, 7 wake-ups of the processor; 24 KB received, 21 KB sent |
+| Wake locks held by the app | none |
+| Memory (PSS, WebView included) | 234 MB → 238 MB |
+| Account state changes | 14 times `transient_disconnect` then `connected` again; connected at the end |
+
+**What it shows.** The idle cost is low (about 5 mAh per hour, mostly the radio), but **the Telegram connection does not stay up during deep Doze**: it dropped and came back 14 times in the hour, and the core logged once `waitSession: connection dead` (at 21:44, 13 minutes in). The likely cause (assumed, not proven): the service holds no wake lock, so when the screen is off the processor sleeps, gotd's timers (MTProto pings) do not run, the server or the client declares the connection dead, and the connector reconnects at the next wake-up (a Doze maintenance window, or a packet from the network). A foreground service keeps network access in Doze, but not a running processor. Two consequences:
+
+- The low figure is the cost of a connection that is **not** held all the time. Holding it (a partial wake lock, or an alarm to ping on time) would cost more: not measured.
+- Messages that arrive while the connection is down reach the core only at the next reconnection, so their delay during deep Doze can reach minutes: not measured (no message was sent to the account during the hour).
+
+Real-time delivery on an idle phone needs a push channel that wakes the app (FCM or UnifiedPush, epic E2.6), as Telegram's own app does. The core's job is then to reconnect quickly when woken, which it already does.
 
 ## Known gaps
 
 - **Telegram session keys are stored in plaintext.** mautrix-telegram keeps the MTProto authorization key in the login's metadata (`UserLoginMetadata.Session.AuthKey`), which `bridgev2` stores as JSON in the `user_login` table of `core.db`. The file is in the app's private data directory, but `CLAUDE.md` §6.8 asks for keys in the OS secure storage. Anyone who can read `core.db` can use the session. To fix before a public release: encrypt `core.db` (SQLCipher-like, with a key from the OS keystore) or the metadata column. This is a security debt, recorded here and in `docs/TASKS.md`.
 - **Stickers**: PNG and JPEG stickers cannot be sent (WebP stand-in); animated stickers are sent and received unconverted.
-- **Only the bot flow is tested automatically.** Logging in with a phone number or a QR code needs a real user account, which CI must not use (`CLAUDE.md` §6.3). The login fields (`phone_number`, `2fa_code`, `password`) and the QR display already exist in the API; a manual test with the maintainer's own account belongs to the battery test.
+- **Only the bot flow is tested automatically.** Logging in with a phone number or a QR code needs a real user account, which CI must not use (`CLAUDE.md` §6.3). The phone number flow worked by hand, with the maintainer's own account, for the battery test; the QR code flow has not been run.
+- **The connection does not survive deep Doze** on Android (see Battery): real-time delivery on an idle phone needs push (E2.6).
 - **Bot tokens and messages in test logs**: the tests never print them, GitHub masks the secrets in logs, and the desktop test records no Playwright trace (a trace would contain the typed token).
 
 ## State of knowledge
@@ -137,17 +157,18 @@ The Go heap stays small; the process's resident memory (the 56 MB library mapped
 - Without the application credentials, Telegram is not offered; with invalid ones, the login fails with Telegram's error ("The api_id/api_hash combination is invalid", seen on an API 30 emulator).
 - Licenses: mautrix-telegram and every new dependency are AGPL-compatible (`scripts/licenseaudit`, NOTICE).
 - Sizes, as in the table above.
+- Battery, on a Pixel 8 Pro idle for an hour, logged in with the maintainer's own account by phone number (so the phone flow works too): about 5 mAh per hour for the app, 2.45 s of CPU, and 14 disconnections and reconnections during deep Doze (see Battery).
 
 **Assumed**:
 
-- Logging in with a phone number or a QR code works as it does in mautrix-telegram's bridge: same code, not run here (needs a real user account).
-- The idle cost of a Telegram connection is modest: the core keeps one MTProto connection and the server pushes updates. To be measured (battery test).
+- Logging in with a QR code works as it does in mautrix-telegram's bridge: same code, not run here.
+- Why the connection drops in deep Doze: the processor sleeps without a wake lock, so the MTProto pings do not run (see Battery).
 - The share of the size growth beyond the 12.2 MB of `tg`.
 
 **Unknown**:
 
 - Whether logging out ends the MTProto session on Telegram's side: the connector asks for it, but the tests cannot see it (a bot login logs the token out of the Bot API first anyway).
-- The battery cost of the idle connection on a real phone.
+- How late a message arrives while the phone is in deep Doze, and what holding the connection all the time would cost.
 - Whether the iOS notification extension can hold this code (T1.7): the size suggests a separate, much smaller build for the extension, or the hosted mode.
 - How Telegram treats a client application whose users log in from many devices with the same credentials over time (rate limits, `FLOOD_WAIT`): a bot can log in only so often, and the workflow logs in four times per run.
 
