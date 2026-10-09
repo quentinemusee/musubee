@@ -13,7 +13,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { remote } from "webdriverio";
-import { androidTimeouts, targetDevice } from "./android-device.mjs";
+import { androidTimeouts, dismissAnrDialog, targetDevice } from "./android-device.mjs";
 import { remoteOptions, startAppium } from "./appium-server.mjs";
 
 let appium;
@@ -48,7 +48,12 @@ test("the Settings app comes to the foreground", async () => {
   // Appium starts the app before its UiAutomator2 server has settled, and the
   // launcher can come back on top meanwhile: bring the app forward and wait.
   await driver.activateApp(SETTINGS);
-  await driver.waitUntil(async () => (await driver.getCurrentPackage()) === SETTINGS, {
+  await driver.waitUntil(async () => {
+    if (await dismissAnrDialog(driver)) {
+      await driver.activateApp(SETTINGS);
+    }
+    return (await driver.getCurrentPackage()) === SETTINGS;
+  }, {
     timeout: 60_000,
     interval: 1_000,
     timeoutMsg: "the Settings app did not reach the foreground within 60 s",
@@ -57,12 +62,16 @@ test("the Settings app comes to the foreground", async () => {
 
 test("its screen can be read through UiAutomator2", async () => {
   // On a slow emulator the app can be in front before its first screen is
-  // drawn, or a system dialog can cover it for a moment: wait for it.
+  // drawn, or a system dialog can cover it for a moment: wait for it, and
+  // close an "isn't responding" dialog of another app (the launcher on API 35).
   const found = await driver
-    .waitUntil(async () => (await driver.$$(`android=new UiSelector().packageName("${SETTINGS}")`)).length > 0, {
-      timeout: 30_000,
-      interval: 1_000,
-    })
+    .waitUntil(
+      async () => {
+        await dismissAnrDialog(driver);
+        return (await driver.$$(`android=new UiSelector().packageName("${SETTINGS}")`)).length > 0;
+      },
+      { timeout: 30_000, interval: 1_000 },
+    )
     .catch(() => false);
   const source = await driver.getPageSource();
   assert.ok(found, `no element of the Settings app found on screen within 30 s; screen:
