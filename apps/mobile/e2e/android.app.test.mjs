@@ -19,7 +19,7 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { remote } from "webdriverio";
-import { androidTimeouts, targetDevice } from "./android-device.mjs";
+import { androidTimeouts, dismissAnrDialog, targetDevice } from "./android-device.mjs";
 import { remoteOptions, startAppium } from "./appium-server.mjs";
 
 const APP = "app.musubee";
@@ -68,9 +68,17 @@ function byLabel(predicate) {
 const exactly = (label) => (attr) => `${attr}="${label}"`;
 const containing = (label) => (attr) => `contains(${attr}, "${label}")`;
 
+// Waits for an element, closing an "isn't responding" dialog of another app
+// that would cover the page (dismissAnrDialog).
 async function waitFor(predicate, what, timeout = 60_000) {
   const element = byLabel(predicate);
-  await element.waitForExist({ timeout, interval: 500, timeoutMsg: `${what} not shown within ${timeout / 1000} s` });
+  await driver.waitUntil(
+    async () => {
+      await dismissAnrDialog(driver, "Musubee");
+      return element.isExisting();
+    },
+    { timeout, interval: 500, timeoutMsg: `${what} not shown within ${timeout / 1000} s` },
+  );
   return element;
 }
 

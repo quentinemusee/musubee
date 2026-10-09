@@ -46,3 +46,26 @@ export const androidTimeouts = {
   "appium:uiautomator2ServerInstallTimeout": 180_000,
   "appium:uiautomator2ServerLaunchTimeout": 180_000,
 };
+
+/**
+ * Taps "Wait" on an "<app> isn't responding" system dialog, which a freshly
+ * booted CI emulator sometimes shows over every app for its launcher (seen
+ * on API 35). Returns whether it did. An ANR of the app under test
+ * (ownApp, its label) is a real failure: it throws instead of hiding it.
+ */
+export async function dismissAnrDialog(driver, ownApp) {
+  const wait = await driver.$('android=new UiSelector().resourceId("android:id/aerr_wait")');
+  if (!(await wait.isExisting())) {
+    return false;
+  }
+  const title = await driver
+    .$('android=new UiSelector().resourceId("android:id/alertTitle")')
+    .getText()
+    .catch(() => "");
+  if (ownApp && title.includes(ownApp)) {
+    throw new Error(`the app under test is not responding: ${title}`);
+  }
+  console.log(`dismissing a system dialog: ${title || "an app is not responding"}`);
+  await wait.click();
+  return true;
+}
