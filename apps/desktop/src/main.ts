@@ -68,8 +68,14 @@ function main(): void {
 
   if (process.env["MUSUBEE_E2E"] === "1") {
     // For the end-to-end tests (e2e/), which read it from the main process.
+    // call and onEvent let them measure the core without the renderer.
     Object.assign(globalThis, {
-      musubeeE2E: { corePid: () => core.pid, startupTimesMs: () => [...core.startupTimesMs] },
+      musubeeE2E: {
+        corePid: () => core.pid,
+        startupTimesMs: () => [...core.startupTimesMs],
+        call: (request: Parameters<CoreProcess["call"]>[0]) => core.call(request),
+        onEvent: (listener: (event: string) => void) => core.onEvent(listener),
+      },
     });
   }
 
