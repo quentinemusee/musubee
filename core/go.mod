@@ -8,6 +8,7 @@ go 1.27.1
 require (
 	github.com/mattn/go-sqlite3 v1.14.52
 	github.com/rs/zerolog v1.35.1
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	go.mau.fi/util v0.10.1
 	maunium.net/go/mautrix v0.31.0
 	modernc.org/sqlite v1.60.1

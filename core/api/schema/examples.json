@@ -1,0 +1,120 @@
+{
+  "description": "Shared examples of the core API schema, checked by the Go tests (core/api) and the TypeScript tests (ui/src/core-api) with two different JSON Schema validators. Every command (params and result) and every event has at least one valid example. Targets: Request, Response, Event (envelopes), command:NAME:params, command:NAME:result, event:TYPE (the data of the event).",
+  "valid": [
+    { "target": "Request", "value": { "id": 1, "command": "core.hello" } },
+    { "target": "Request", "value": { "id": 2, "command": "messages.send", "params": { "conversation_id": "c1", "text": "Hi" } } },
+    { "target": "Response", "value": { "id": 1, "result": { "api_version": "1.0", "core_version": "dev" } } },
+    { "target": "Response", "value": { "id": 3, "error": { "code": "not_found", "message": "no conversation c9" } } },
+    { "target": "Response", "value": { "id": 0, "error": { "code": "invalid_request", "message": "invalid request: unexpected end of JSON input" } } },
+    { "target": "Event", "value": { "type": "core.closed", "data": {} } },
+
+    { "target": "command:core.hello:params", "value": {} },
+    { "target": "command:core.hello:result", "value": { "api_version": "1.0", "core_version": "0.1.0" } },
+
+    { "target": "command:networks.list:params", "value": {} },
+    { "target": "command:networks.list:result", "value": { "networks": [
+      { "network_id": "echo", "name": "Echo", "login_flows": [
+        { "flow_id": "username", "name": "Username", "description": "Log in with any username" }
+      ] }
+    ] } },
+    { "target": "command:networks.list:result", "value": { "networks": [] } },
+
+    { "target": "command:accounts.list:params", "value": {} },
+    { "target": "command:accounts.list:result", "value": { "accounts": [
+      { "account_id": "a1", "network_id": "echo", "name": "alice", "state": "connected" },
+      { "account_id": "a2", "network_id": "telegram", "name": "+33600000000", "state": "bad_credentials", "error": "Session expired" }
+    ] } },
+
+    { "target": "command:login.start:params", "value": { "network_id": "echo", "flow_id": "username" } },
+    { "target": "command:login.start:result", "value": {
+      "process_id": "p1", "type": "user_input", "step_id": "app.musubee.echo.username", "instructions": "",
+      "fields": [ { "field_id": "username", "type": "username", "name": "Username", "description": "Any name" } ]
+    } },
+    { "target": "command:login.start:result", "value": {
+      "process_id": "p2", "type": "display_and_wait", "step_id": "telegram.qr", "instructions": "Scan the code with Telegram on your phone",
+      "display": { "type": "qr", "data": "tg://login?token=abc", "can_cancel": true }
+    } },
+
+    { "target": "command:login.submit:params", "value": { "process_id": "p1", "values": { "username": "alice" } } },
+    { "target": "command:login.submit:result", "value": { "process_id": "p1", "type": "complete", "step_id": "app.musubee.echo.complete", "instructions": "", "account_id": "a1" } },
+    { "target": "command:login.submit:result", "value": {
+      "process_id": "p3", "type": "user_input", "step_id": "telegram.phone", "instructions": "Enter your phone number",
+      "fields": [
+        { "field_id": "phone", "type": "phone_number", "name": "Phone number", "description": "With the country code", "pattern": "^\\+[0-9]{6,15}$" },
+        { "field_id": "dc", "type": "select", "name": "Server", "description": "", "default_value": "production", "options": ["production", "test"] }
+      ]
+    } },
+
+    { "target": "command:login.wait:params", "value": { "process_id": "p2" } },
+    { "target": "command:login.wait:result", "value": { "process_id": "p2", "type": "complete", "step_id": "telegram.complete", "instructions": "", "account_id": "a3" } },
+
+    { "target": "command:login.cancel:params", "value": { "process_id": "p2" } },
+    { "target": "command:login.cancel:result", "value": {} },
+
+    { "target": "command:conversations.list:params", "value": {} },
+    { "target": "command:conversations.list:params", "value": { "account_id": "a1" } },
+    { "target": "command:conversations.list:result", "value": { "conversations": [
+      { "conversation_id": "c1", "account_id": "a1", "network_id": "echo", "name": "Instant Echo", "kind": "direct" },
+      { "conversation_id": "c2", "account_id": "a1", "network_id": "echo", "name": "Family", "kind": "group" }
+    ] } },
+
+    { "target": "command:messages.list:params", "value": { "conversation_id": "c1" } },
+    { "target": "command:messages.list:params", "value": { "conversation_id": "c1", "before": "k42", "limit": 200 } },
+    { "target": "command:messages.list:result", "value": { "messages": [
+      { "message_id": "m1", "conversation_id": "c1", "from_me": true, "sender_name": "alice", "timestamp_ms": 1791496800000, "kind": "text", "text": "Hi", "status": "sent" },
+      { "message_id": "m2", "conversation_id": "c1", "from_me": false, "sender_name": "Instant Echo", "timestamp_ms": 1791496800120, "kind": "text", "text": "Hi", "status": "received" }
+    ], "before": "k41" } },
+    { "target": "command:messages.list:result", "value": { "messages": [] } },
+
+    { "target": "command:messages.send:params", "value": { "conversation_id": "c1", "text": "Hello 👋" } },
+    { "target": "command:messages.send:result", "value": { "message": {
+      "message_id": "m3", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1791496801000, "kind": "text", "text": "Hello 👋", "status": "sending"
+    } } },
+
+    { "target": "command:debug.ping:params", "value": { "payload": "x" } },
+    { "target": "command:debug.ping:result", "value": { "payload": "x" } },
+    { "target": "command:debug.stats:params", "value": {} },
+    { "target": "command:debug.stats:result", "value": { "heap_alloc_bytes": 1258291, "heap_sys_bytes": 11141120, "goroutines": 9 } },
+
+    { "target": "event:account.updated", "value": { "account": { "account_id": "a1", "network_id": "echo", "name": "alice", "state": "connecting" } } },
+    { "target": "event:conversation.updated", "value": { "conversation": { "conversation_id": "c1", "account_id": "a1", "network_id": "echo", "name": "Instant Echo", "kind": "direct" } } },
+    { "target": "event:message.added", "value": { "message": {
+      "message_id": "m4", "conversation_id": "c1", "from_me": false, "sender_name": "Bot", "timestamp_ms": 1791496802000, "kind": "unsupported", "text": "A sticker", "status": "received"
+    } } },
+    { "target": "event:message.updated", "value": { "message": {
+      "message_id": "m3", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1791496801000, "kind": "text", "text": "Hello 👋", "status": "failed", "error": "The contact refused the message"
+    } } },
+    { "target": "event:resync.required", "value": {} },
+    { "target": "event:core.closed", "value": {} }
+  ],
+  "invalid": [
+    { "target": "Request", "why": "id is required", "value": { "command": "core.hello" } },
+    { "target": "Request", "why": "id is an integer", "value": { "id": "1", "command": "core.hello" } },
+    { "target": "Response", "why": "both result and error", "value": { "id": 1, "result": {}, "error": { "code": "internal", "message": "" } } },
+    { "target": "Response", "why": "neither result nor error", "value": { "id": 1 } },
+    { "target": "Response", "why": "unknown error code", "value": { "id": 1, "error": { "code": "oops", "message": "" } } },
+    { "target": "Event", "why": "data is required", "value": { "type": "core.closed" } },
+    { "target": "command:core.hello:result", "why": "api_version is major.minor", "value": { "api_version": "1", "core_version": "dev" } },
+    { "target": "command:core.hello:params", "why": "no params", "value": { "verbose": true } },
+    { "target": "command:accounts.list:result", "why": "unknown state", "value": { "accounts": [ { "account_id": "a1", "network_id": "echo", "name": "", "state": "online" } ] } },
+    { "target": "command:accounts.list:result", "why": "accounts is required", "value": {} },
+    { "target": "command:accounts.list:result", "why": "accounts is an array, not null", "value": { "accounts": null } },
+    { "target": "command:login.submit:params", "why": "values are strings", "value": { "process_id": "p1", "values": { "remember": true } } },
+    { "target": "command:login.start:result", "why": "user_input steps have fields", "value": { "process_id": "p1", "type": "user_input", "step_id": "s", "instructions": "" } },
+    { "target": "command:login.start:result", "why": "display_and_wait steps have a display", "value": { "process_id": "p1", "type": "display_and_wait", "step_id": "s", "instructions": "" } },
+    { "target": "command:login.submit:result", "why": "complete steps have an account", "value": { "process_id": "p1", "type": "complete", "step_id": "s", "instructions": "" } },
+    { "target": "command:login.start:result", "why": "cookie logins are not in version 1.0", "value": { "process_id": "p1", "type": "cookies", "step_id": "s", "instructions": "" } },
+    { "target": "command:messages.list:params", "why": "limit is at least 1", "value": { "conversation_id": "c1", "limit": 0 } },
+    { "target": "command:messages.list:params", "why": "limit is at most 200", "value": { "conversation_id": "c1", "limit": 201 } },
+    { "target": "command:messages.send:params", "why": "text is not empty", "value": { "conversation_id": "c1", "text": "" } },
+    { "target": "command:messages.send:result", "why": "status is required", "value": { "message": {
+      "message_id": "m3", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1, "kind": "text", "text": "x"
+    } } },
+    { "target": "event:message.added", "why": "no undocumented fields", "value": { "message": {
+      "message_id": "m3", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1, "kind": "text", "text": "x", "status": "sent", "room_id": "!abc:musubee.local"
+    } } },
+    { "target": "event:message.added", "why": "timestamps are integers", "value": { "message": {
+      "message_id": "m3", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1.5, "kind": "text", "text": "x", "status": "sent"
+    } } }
+  ]
+}

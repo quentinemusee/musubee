@@ -1,0 +1,659 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
+  "title": "Musubee core API",
+  "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
+  "x-musubee-api-version": "1.0",
+  "$defs": {
+    "Request": {
+      "description": "Envelope of a request sent to the core.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Chosen by the caller and copied into the response.",
+          "type": "integer"
+        },
+        "command": {
+          "description": "A property name of $defs/Commands.",
+          "type": "string"
+        },
+        "params": {
+          "description": "The params of the command; may be omitted when they are all optional.",
+          "type": "object"
+        }
+      },
+      "required": ["id", "command"],
+      "additionalProperties": false
+    },
+    "Response": {
+      "description": "Envelope of the core's answer to a request: exactly one of result and error. The id is 0 when the request could not be parsed.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "integer" },
+            "result": { "type": "object" }
+          },
+          "required": ["id", "result"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "integer" },
+            "error": { "$ref": "#/$defs/CoreError" }
+          },
+          "required": ["id", "error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Event": {
+      "description": "Envelope of an event sent by the core.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "description": "A property name of $defs/Events.",
+          "type": "string"
+        },
+        "data": {
+          "type": "object"
+        }
+      },
+      "required": ["type", "data"],
+      "additionalProperties": false
+    },
+
+    "Commands": {
+      "description": "Every command, by name, with the schema of its params and of its result.",
+      "type": "object",
+      "properties": {
+        "core.hello": {
+          "description": "Returns the versions of the API and of the core. A user interface calls it first and refuses a core whose major API version differs from its own.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/Empty" },
+            "result": { "$ref": "#/$defs/HelloResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "networks.list": {
+          "description": "Lists the networks this core can connect to.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/Empty" },
+            "result": { "$ref": "#/$defs/NetworksListResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "accounts.list": {
+          "description": "Lists the accounts the user added, on every network.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/Empty" },
+            "result": { "$ref": "#/$defs/AccountsListResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "login.start": {
+          "description": "Starts adding an account with one of the network's login flows, and returns the first step.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/LoginStartParams" },
+            "result": { "$ref": "#/$defs/LoginStep" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "login.submit": {
+          "description": "Submits the fields of a user_input step, and returns the next step.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/LoginSubmitParams" },
+            "result": { "$ref": "#/$defs/LoginStep" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "login.wait": {
+          "description": "Waits until a display_and_wait step is done (for example a QR code scanned on the phone), and returns the next step. Unlike other commands it has no time limit: login.cancel ends it.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/LoginProcessParams" },
+            "result": { "$ref": "#/$defs/LoginStep" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "login.cancel": {
+          "description": "Abandons a login process. Cancelling a finished or unknown process is not an error.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/LoginProcessParams" },
+            "result": { "$ref": "#/$defs/Empty" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "conversations.list": {
+          "description": "Lists the conversations of every account, or of one account.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/ConversationsListParams" },
+            "result": { "$ref": "#/$defs/ConversationsListResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "messages.list": {
+          "description": "Returns the latest messages of a conversation, or the ones before a cursor, oldest first.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/MessagesListParams" },
+            "result": { "$ref": "#/$defs/MessagesListResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "messages.send": {
+          "description": "Sends a text message. The message is stored at once with status sending; its delivery is reported later by message.updated events.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/MessagesSendParams" },
+            "result": { "$ref": "#/$defs/MessagesSendResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "debug.ping": {
+          "description": "Returns its payload unchanged. Used to measure the cost of a call.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/PingPayload" },
+            "result": { "$ref": "#/$defs/PingPayload" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "debug.stats": {
+          "description": "Returns the memory of the Go runtime after a garbage collection, for leak tests.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/Empty" },
+            "result": { "$ref": "#/$defs/StatsResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "Events": {
+      "description": "Every event, by type, with the schema of its data.",
+      "type": "object",
+      "properties": {
+        "account.updated": {
+          "description": "An account was added or its connection state changed.",
+          "$ref": "#/$defs/AccountEvent"
+        },
+        "conversation.updated": {
+          "description": "A conversation was created or its name or kind changed.",
+          "$ref": "#/$defs/ConversationEvent"
+        },
+        "message.added": {
+          "description": "A message was stored: received, or sent from this device.",
+          "$ref": "#/$defs/MessageEvent"
+        },
+        "message.updated": {
+          "description": "A stored message changed, for example its delivery status.",
+          "$ref": "#/$defs/MessageEvent"
+        },
+        "resync.required": {
+          "description": "The user interface read events too slowly and some were dropped: it must read the state again (accounts, conversations, messages).",
+          "$ref": "#/$defs/Empty"
+        },
+        "core.closed": {
+          "description": "The core was closed. It is the last event.",
+          "$ref": "#/$defs/Empty"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "Empty": {
+      "description": "No fields.",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "CoreError": {
+      "description": "Why a request failed.",
+      "type": "object",
+      "properties": {
+        "code": { "$ref": "#/$defs/ErrorCode" },
+        "message": {
+          "description": "For developers and logs; user interfaces show their own text for each code.",
+          "type": "string"
+        }
+      },
+      "required": ["code", "message"],
+      "additionalProperties": false
+    },
+    "ErrorCode": {
+      "description": "invalid_request: not a valid request envelope. unknown_command: no such command. invalid_params: the params do not match the command. not_found: an ID refers to nothing. unsupported: this core cannot do it (for example a login step type it does not know). timeout: the request took too long. cancelled: login.cancel ended the request. closed: the core is closed. network: the network failed or refused. internal: a bug or a local failure.",
+      "type": "string",
+      "enum": ["invalid_request", "unknown_command", "invalid_params", "not_found", "unsupported", "timeout", "cancelled", "closed", "network", "internal"]
+    },
+
+    "HelloResult": {
+      "type": "object",
+      "properties": {
+        "api_version": {
+          "description": "Version of this contract, \"major.minor\".",
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+$"
+        },
+        "core_version": {
+          "description": "Version of the core build, for display and bug reports.",
+          "type": "string"
+        }
+      },
+      "required": ["api_version", "core_version"],
+      "additionalProperties": false
+    },
+
+    "Network": {
+      "description": "A messaging network the core can connect to (Telegram, Signal...).",
+      "type": "object",
+      "properties": {
+        "network_id": { "type": "string" },
+        "name": {
+          "description": "Display name of the network.",
+          "type": "string"
+        },
+        "login_flows": {
+          "description": "Ways to add an account, in order of preference.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/LoginFlow" }
+        }
+      },
+      "required": ["network_id", "name", "login_flows"],
+      "additionalProperties": false
+    },
+    "LoginFlow": {
+      "type": "object",
+      "properties": {
+        "flow_id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["flow_id", "name", "description"],
+      "additionalProperties": false
+    },
+    "NetworksListResult": {
+      "type": "object",
+      "properties": {
+        "networks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Network" }
+        }
+      },
+      "required": ["networks"],
+      "additionalProperties": false
+    },
+
+    "Account": {
+      "description": "An account of the user on one network.",
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "description": "Opaque: user interfaces must not parse it.",
+          "type": "string"
+        },
+        "network_id": { "type": "string" },
+        "name": {
+          "description": "How the network names the account (phone number, username...). May be empty.",
+          "type": "string"
+        },
+        "state": { "$ref": "#/$defs/AccountState" },
+        "error": {
+          "description": "Explanation of the state for the user, when the network gave one.",
+          "type": "string"
+        }
+      },
+      "required": ["account_id", "network_id", "name", "state"],
+      "additionalProperties": false
+    },
+    "AccountState": {
+      "description": "connecting: starting or catching up. connected: working. transient_disconnect: temporarily unreachable, the core retries. bad_credentials: the user must log in again. logged_out: the account was logged out. unknown_error: failed for another reason.",
+      "type": "string",
+      "enum": ["connecting", "connected", "transient_disconnect", "bad_credentials", "logged_out", "unknown_error"]
+    },
+    "AccountsListResult": {
+      "type": "object",
+      "properties": {
+        "accounts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Account" }
+        }
+      },
+      "required": ["accounts"],
+      "additionalProperties": false
+    },
+    "AccountEvent": {
+      "type": "object",
+      "properties": {
+        "account": { "$ref": "#/$defs/Account" }
+      },
+      "required": ["account"],
+      "additionalProperties": false
+    },
+
+    "LoginStartParams": {
+      "type": "object",
+      "properties": {
+        "network_id": { "type": "string" },
+        "flow_id": { "type": "string" }
+      },
+      "required": ["network_id", "flow_id"],
+      "additionalProperties": false
+    },
+    "LoginSubmitParams": {
+      "type": "object",
+      "properties": {
+        "process_id": { "type": "string" },
+        "values": {
+          "description": "The value of every field of the step, by field ID.",
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "required": ["process_id", "values"],
+      "additionalProperties": false
+    },
+    "LoginProcessParams": {
+      "type": "object",
+      "properties": {
+        "process_id": { "type": "string" }
+      },
+      "required": ["process_id"],
+      "additionalProperties": false
+    },
+    "LoginStep": {
+      "description": "One step of a login process. user_input: show the fields and call login.submit. display_and_wait: show the display and call login.wait. complete: the account is added (account_id).",
+      "type": "object",
+      "properties": {
+        "process_id": {
+          "description": "Identifies the login process in later login.* calls. Opaque.",
+          "type": "string"
+        },
+        "type": { "$ref": "#/$defs/LoginStepType" },
+        "step_id": {
+          "description": "Stable ID of this kind of step for the network (for example a 2FA password step), for user interfaces that customize some steps.",
+          "type": "string"
+        },
+        "instructions": {
+          "description": "Text to show to the user, from the network. May be empty.",
+          "type": "string"
+        },
+        "fields": {
+          "description": "For user_input steps.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/LoginField" }
+        },
+        "display": { "$ref": "#/$defs/LoginDisplay" },
+        "account_id": {
+          "description": "For complete steps: the account that was added.",
+          "type": "string"
+        }
+      },
+      "required": ["process_id", "type", "step_id", "instructions"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "user_input" } } },
+          "then": { "required": ["fields"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "display_and_wait" } } },
+          "then": { "required": ["display"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "complete" } } },
+          "then": { "required": ["account_id"] }
+        }
+      ]
+    },
+    "LoginStepType": {
+      "type": "string",
+      "enum": ["user_input", "display_and_wait", "complete"]
+    },
+    "LoginField": {
+      "type": "object",
+      "properties": {
+        "field_id": {
+          "description": "Key of the value in login.submit.",
+          "type": "string"
+        },
+        "type": { "$ref": "#/$defs/LoginFieldType" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "default_value": { "type": "string" },
+        "pattern": {
+          "description": "A regular expression the value should match, for checking it before submitting.",
+          "type": "string"
+        },
+        "options": {
+          "description": "For select fields: the allowed values.",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["field_id", "type", "name", "description"],
+      "additionalProperties": false
+    },
+    "LoginFieldType": {
+      "description": "A hint for the input control to show.",
+      "type": "string",
+      "enum": ["username", "password", "phone_number", "email", "2fa_code", "token", "url", "domain", "select", "captcha_code"]
+    },
+    "LoginDisplay": {
+      "type": "object",
+      "properties": {
+        "type": { "$ref": "#/$defs/LoginDisplayType" },
+        "data": {
+          "description": "The text to encode as a QR code, the emoji or the code to show. Absent for nothing.",
+          "type": "string"
+        },
+        "can_cancel": {
+          "description": "Whether the user interface may offer to go back (login.cancel).",
+          "type": "boolean"
+        }
+      },
+      "required": ["type", "can_cancel"],
+      "additionalProperties": false
+    },
+    "LoginDisplayType": {
+      "type": "string",
+      "enum": ["qr", "emoji", "code", "nothing"]
+    },
+
+    "Conversation": {
+      "type": "object",
+      "properties": {
+        "conversation_id": {
+          "description": "Opaque: user interfaces must not parse it.",
+          "type": "string"
+        },
+        "account_id": { "type": "string" },
+        "network_id": { "type": "string" },
+        "name": { "type": "string" },
+        "kind": { "$ref": "#/$defs/ConversationKind" }
+      },
+      "required": ["conversation_id", "account_id", "network_id", "name", "kind"],
+      "additionalProperties": false
+    },
+    "ConversationKind": {
+      "type": "string",
+      "enum": ["direct", "group"]
+    },
+    "ConversationsListParams": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "description": "Only the conversations of this account.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ConversationsListResult": {
+      "type": "object",
+      "properties": {
+        "conversations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Conversation" }
+        }
+      },
+      "required": ["conversations"],
+      "additionalProperties": false
+    },
+    "ConversationEvent": {
+      "type": "object",
+      "properties": {
+        "conversation": { "$ref": "#/$defs/Conversation" }
+      },
+      "required": ["conversation"],
+      "additionalProperties": false
+    },
+
+    "Message": {
+      "type": "object",
+      "properties": {
+        "message_id": {
+          "description": "Opaque: user interfaces must not parse it.",
+          "type": "string"
+        },
+        "conversation_id": { "type": "string" },
+        "from_me": {
+          "description": "Sent by the user, from this device or another one.",
+          "type": "boolean"
+        },
+        "sender_name": {
+          "description": "Display name of the sender. May be empty.",
+          "type": "string"
+        },
+        "timestamp_ms": {
+          "description": "When the message was sent, in milliseconds since the Unix epoch.",
+          "type": "integer"
+        },
+        "kind": { "$ref": "#/$defs/MessageKind" },
+        "text": {
+          "description": "The text of the message; for unsupported kinds, a fallback description.",
+          "type": "string"
+        },
+        "status": { "$ref": "#/$defs/MessageStatus" },
+        "error": {
+          "description": "For failed messages: why, for the user, when the network said.",
+          "type": "string"
+        }
+      },
+      "required": ["message_id", "conversation_id", "from_me", "sender_name", "timestamp_ms", "kind", "text", "status"],
+      "additionalProperties": false
+    },
+    "MessageKind": {
+      "description": "text: a normal message. notice: an automated message. emote: an action (\"/me waves\"). unsupported: a kind this version cannot show; text holds a fallback.",
+      "type": "string",
+      "enum": ["text", "notice", "emote", "unsupported"]
+    },
+    "MessageStatus": {
+      "description": "received: from someone else. sending, sent and failed: the delivery of a message from the user.",
+      "type": "string",
+      "enum": ["received", "sending", "sent", "failed"]
+    },
+    "MessagesListParams": {
+      "type": "object",
+      "properties": {
+        "conversation_id": { "type": "string" },
+        "before": {
+          "description": "A cursor from a previous result: return the messages before it. Absent: the latest messages.",
+          "type": "string"
+        },
+        "limit": {
+          "description": "At most this many messages (default 50, at most 200).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "required": ["conversation_id"],
+      "additionalProperties": false
+    },
+    "MessagesListResult": {
+      "type": "object",
+      "properties": {
+        "messages": {
+          "description": "Oldest first.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/Message" }
+        },
+        "before": {
+          "description": "Cursor for the older messages; absent when there are none.",
+          "type": "string"
+        }
+      },
+      "required": ["messages"],
+      "additionalProperties": false
+    },
+    "MessagesSendParams": {
+      "type": "object",
+      "properties": {
+        "conversation_id": { "type": "string" },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["conversation_id", "text"],
+      "additionalProperties": false
+    },
+    "MessagesSendResult": {
+      "type": "object",
+      "properties": {
+        "message": { "$ref": "#/$defs/Message" }
+      },
+      "required": ["message"],
+      "additionalProperties": false
+    },
+    "MessageEvent": {
+      "type": "object",
+      "properties": {
+        "message": { "$ref": "#/$defs/Message" }
+      },
+      "required": ["message"],
+      "additionalProperties": false
+    },
+
+    "PingPayload": {
+      "type": "object",
+      "properties": {
+        "payload": { "type": "string" }
+      },
+      "required": ["payload"],
+      "additionalProperties": false
+    },
+    "StatsResult": {
+      "type": "object",
+      "properties": {
+        "heap_alloc_bytes": { "type": "integer" },
+        "heap_sys_bytes": { "type": "integer" },
+        "goroutines": { "type": "integer" }
+      },
+      "required": ["heap_alloc_bytes", "heap_sys_bytes", "goroutines"],
+      "additionalProperties": false
+    }
+  }
+}
