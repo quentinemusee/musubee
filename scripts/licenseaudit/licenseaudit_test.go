@@ -140,6 +140,29 @@ func TestDetectLicenses(t *testing.T) {
 	}
 }
 
+// A module replaced by a directory of the repository is the repository's
+// code; any other module needs a license file.
+func TestGoDependencyLicense(t *testing.T) {
+	root := t.TempDir()
+	inside := filepath.Join(root, "core", "replace", "webp")
+	writeFile(t, filepath.Join(inside, "go.mod"), "module go.mau.fi/webp\n")
+	if dep := goDependency(root, "go.mau.fi/webp", "", inside, "go.mod"); dep.License != RepositoryLicense || !strings.Contains(dep.Source, "core/replace/webp") {
+		t.Errorf("replaced module: %+v", dep)
+	}
+
+	// A sibling directory whose name starts with the root's is outside.
+	outside := root + "-cache"
+	writeFile(t, filepath.Join(outside, "LICENSE"), mitText)
+	t.Cleanup(func() { _ = os.RemoveAll(outside) })
+	if dep := goDependency(root, "example.com/mit", "v1.0.0", outside, "go.mod"); dep.License != "MIT" {
+		t.Errorf("module with a license file: %+v", dep)
+	}
+	none := t.TempDir()
+	if dep := goDependency(root, "example.com/none", "v1.0.0", none, "go.mod"); dep.License != "" {
+		t.Errorf("module without a license: %+v", dep)
+	}
+}
+
 func TestNPMDependencies(t *testing.T) {
 	// The npm registry is replaced by a local fake (pure unit test): it knows
 	// the license of "ghost", a package not installed on this platform.

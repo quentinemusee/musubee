@@ -27,6 +27,7 @@ import (
 	"github.com/quentinemusee/musubee/core/api"
 	"github.com/quentinemusee/musubee/core/bridgehost"
 	"github.com/quentinemusee/musubee/core/connector/echo"
+	"github.com/quentinemusee/musubee/core/connector/telegram"
 	"github.com/quentinemusee/musubee/core/localmatrix"
 )
 
@@ -34,8 +35,11 @@ import (
 // builds set it with -ldflags "-X .../core/embedded.Version=...".
 var Version = "dev"
 
-// echoBridge is the bridge ID of the echo network.
-const echoBridge networkid.BridgeID = "echo"
+// The bridge IDs of the networks.
+const (
+	echoBridge     networkid.BridgeID = "echo"
+	telegramBridge networkid.BridgeID = "telegram"
+)
 
 // eventQueueSize bounds the events waiting for the application. When the
 // application stops reading, the oldest events are not kept forever: the
@@ -50,6 +54,17 @@ type Config struct {
 	LogLevel string `json:"log_level,omitempty"`
 	// EchoDelayMS is the delay of the echo network's delayed contact.
 	EchoDelayMS int `json:"echo_delay_ms,omitempty"`
+	// Telegram enables the Telegram network. Without it, the core does not
+	// offer Telegram.
+	Telegram *TelegramConfig `json:"telegram,omitempty"`
+}
+
+// TelegramConfig identifies the application to Telegram
+// (https://my.telegram.org). The embedding application gets it from its
+// build or its environment, never from the repository, and never logs it.
+type TelegramConfig struct {
+	APIID   int    `json:"api_id"`
+	APIHash string `json:"api_hash"`
 }
 
 // Core is one running core.
@@ -126,6 +141,16 @@ func (c *Core) start(cfg Config) error {
 		return err
 	}
 	c.networks = append(c.networks, echoBridge)
+	if cfg.Telegram != nil {
+		tg, err := telegram.New(telegram.Config{APIID: cfg.Telegram.APIID, APIHash: cfg.Telegram.APIHash})
+		if err != nil {
+			return fmt.Errorf("invalid configuration: %w", err)
+		}
+		if _, err = host.AddNetwork(telegramBridge, tg); err != nil {
+			return err
+		}
+		c.networks = append(c.networks, telegramBridge)
+	}
 	// Subscribe before starting, so that no event of the start is missed.
 	updates, unsubscribe := host.Matrix.Subscribe(eventQueueSize)
 	c.unsubscribe = unsubscribe

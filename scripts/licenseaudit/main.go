@@ -58,7 +58,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "licenseaudit:", err)
 		return 2
 	}
-	goDeps, err := GoDependencies(modules)
+	goDeps, err := GoDependencies(*root, modules)
 	if err != nil {
 		fmt.Fprintln(stderr, "licenseaudit:", err)
 		return 2

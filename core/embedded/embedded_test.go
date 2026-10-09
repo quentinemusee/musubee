@@ -240,7 +240,9 @@ func conversationNamed(t *testing.T, c *Core, name string) api.Conversation {
 }
 
 func TestOpenRejectsInvalidConfig(t *testing.T) {
-	for _, cfg := range []string{``, `{}`, `{"data_dir":`, `{"data_dir":"x","log_level":"loud"}`} {
+	dir := strings.ReplaceAll(t.TempDir(), `\`, `/`)
+	for _, cfg := range []string{``, `{}`, `{"data_dir":`, `{"data_dir":"x","log_level":"loud"}`,
+		`{"data_dir":"` + dir + `","telegram":{"api_id":1}}`, `{"data_dir":"` + dir + `","telegram":{"api_hash":"x"}}`} {
 		if c, err := Open([]byte(cfg)); err == nil {
 			_ = c.Close()
 			t.Errorf("Open(%q) succeeded, want an error", cfg)
@@ -305,6 +307,33 @@ func TestNetworksList(t *testing.T) {
 	if len(networks) != 1 || networks[0].NetworkID != "echo" || networks[0].Name != "Echo" || len(networks[0].LoginFlows) != 2 {
 		t.Fatalf("networks = %+v", networks)
 	}
+}
+
+// With application credentials, the core also offers Telegram, without its
+// manual login flow. Nothing connects to Telegram before a login.
+func TestTelegramIsOfferedWithCredentials(t *testing.T) {
+	// Fake credentials: Telegram is never contacted here.
+	cfg, err := json.Marshal(Config{DataDir: t.TempDir(), Telegram: &TelegramConfig{APIID: 1, APIHash: "0123456789abcdef0123456789abcdef"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := Open(cfg)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = c.Close() })
+	networks := call[api.NetworksListResult](t, c, api.CommandNetworksList, nil).Networks
+	if len(networks) != 2 || networks[1].NetworkID != "telegram" || networks[1].Name != "Telegram" {
+		t.Fatalf("networks = %+v", networks)
+	}
+	var flows []string
+	for _, flow := range networks[1].LoginFlows {
+		flows = append(flows, flow.FlowID)
+	}
+	if strings.Join(flows, ",") != "phone,qr,bot" {
+		t.Errorf("telegram flows = %v", flows)
+	}
+	callFails(t, c, api.CommandLoginStart, api.LoginStartParams{NetworkID: "telegram", FlowID: "manual"}, api.ErrorCodeNotFound)
 }
 
 func TestLoginWithUsername(t *testing.T) {

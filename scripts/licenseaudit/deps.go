@@ -39,9 +39,18 @@ type Dependency struct {
 // core/storage/sqlite), which replaces the default one.
 var GoTagSets = []string{"integration,telegram", "integration,telegram,musubee_cgo_sqlite"}
 
+// RepositoryLicense is the license of the code of this repository (REUSE
+// checks that every file says so, see scripts/license_check.py).
+const RepositoryLicense = "AGPL-3.0-or-later"
+
 // GoDependencies lists the modules compiled into the packages and tests of
-// each Go module, with the licenses detected in the module cache.
-func GoDependencies(moduleDirs []string) ([]Dependency, error) {
+// each Go module, with the licenses detected in the module cache. A module
+// replaced by a directory of the repository (root) is the repository's code.
+func GoDependencies(root string, moduleDirs []string) ([]Dependency, error) {
+	root, err := filepath.Abs(root)
+	if err != nil {
+		return nil, err
+	}
 	type key struct{ path, version string }
 	seen := map[key]Dependency{}
 	for _, dir := range moduleDirs {
@@ -68,15 +77,7 @@ func GoDependencies(moduleDirs []string) ([]Dependency, error) {
 			if _, ok := seen[k]; ok {
 				continue
 			}
-			ids := DetectLicenses(fields[2])
-			dep := Dependency{Ecosystem: "go", Name: fields[0], Version: fields[1], From: filepath.Join(dir, "go.mod")}
-			if len(ids) > 0 {
-				dep.License = strings.Join(ids, " AND ")
-				dep.Source = "license file"
-			} else {
-				dep.Source = "no recognizable license file"
-			}
-			seen[k] = dep
+			seen[k] = goDependency(root, fields[0], fields[1], fields[2], filepath.Join(dir, "go.mod"))
 		}
 	}
 	deps := make([]Dependency, 0, len(seen))
@@ -85,6 +86,24 @@ func GoDependencies(moduleDirs []string) ([]Dependency, error) {
 	}
 	sortDeps(deps)
 	return deps, nil
+}
+
+// goDependency returns a Go module with its license: the repository's when
+// the module's directory is in the repository, else from its license files.
+func goDependency(root, path, version, moduleDir, from string) Dependency {
+	dep := Dependency{Ecosystem: "go", Name: path, Version: version, From: from}
+	if rel, err := filepath.Rel(root, moduleDir); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		dep.License = RepositoryLicense
+		dep.Source = "replaced by " + filepath.ToSlash(rel) + " in this repository"
+		return dep
+	}
+	if ids := DetectLicenses(moduleDir); len(ids) > 0 {
+		dep.License = strings.Join(ids, " AND ")
+		dep.Source = "license file"
+	} else {
+		dep.Source = "no recognizable license file"
+	}
+	return dep
 }
 
 type lockFile struct {
