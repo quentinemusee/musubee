@@ -130,6 +130,8 @@ export function AddAccount({ onDone, canCancel }: Props) {
 
 const INPUT_TYPES: Record<string, string> = {
   password: "password",
+  // A token is a password: never shown, never kept by the system.
+  token: "password",
   email: "email",
   phone_number: "tel",
   url: "url",
@@ -179,7 +181,7 @@ function Field({ field, value, onChange }: { field: LoginField; value: string; o
           type={INPUT_TYPES[field.type] ?? "text"}
           value={value}
           required
-          autoComplete={field.type === "password" ? "current-password" : "off"}
+          autoComplete={field.type === "password" ? "current-password" : field.type === "token" ? "new-password" : "off"}
           {...(field.pattern ? { pattern: field.pattern } : {})}
           onChange={(event) => onChange(event.target.value)}
         />

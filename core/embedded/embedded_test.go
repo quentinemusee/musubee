@@ -601,6 +601,37 @@ func TestReopenKeepsTheLogin(t *testing.T) {
 	waitConversations(t, c, 3)
 }
 
+// Logging out removes the account and its conversations, reports the
+// logged_out state, and survives a reopening.
+func TestLogout(t *testing.T) {
+	dir := t.TempDir()
+	c := openDir(t, dir)
+	account := login(t, c)
+	call[api.Empty](t, c, api.CommandAccountsLogout, api.AccountsLogoutParams{AccountID: account})
+	if accounts := call[api.AccountsListResult](t, c, api.CommandAccountsList, nil).Accounts; len(accounts) != 0 {
+		t.Errorf("accounts after logout = %+v", accounts)
+	}
+	if convs := call[api.ConversationsListResult](t, c, api.CommandConversationsList, nil).Conversations; len(convs) != 0 {
+		t.Errorf("conversations after logout = %+v", convs)
+	}
+	waitEvent(t, c, "logged_out state", func(e rawEvent) bool {
+		a := decode[api.AccountEvent](t, e.Data).Account
+		return e.Type == api.EventAccountUpdated && a.AccountID == account && a.State == api.AccountStateLoggedOut
+	})
+	callFails(t, c, api.CommandAccountsLogout, api.AccountsLogoutParams{AccountID: account}, api.ErrorCodeNotFound)
+	callFails(t, c, api.CommandAccountsLogout, api.AccountsLogoutParams{AccountID: "nope"}, api.ErrorCodeNotFound)
+	if err := c.Close(); err != nil {
+		t.Fatal(err)
+	}
+	c = openDir(t, dir)
+	if accounts := call[api.AccountsListResult](t, c, api.CommandAccountsList, nil).Accounts; len(accounts) != 0 {
+		t.Errorf("accounts after reopening = %+v", accounts)
+	}
+	if convs := call[api.ConversationsListResult](t, c, api.CommandConversationsList, nil).Conversations; len(convs) != 0 {
+		t.Errorf("conversations after reopening = %+v", convs)
+	}
+}
+
 // TestSlowReaderGetsResync checks that the core never blocks on an
 // application that stops reading events.
 func TestSlowReaderGetsResync(t *testing.T) {

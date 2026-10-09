@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.0"
+const APIVersion = "1.1"
 
 // Command names.
 const (
@@ -19,6 +19,10 @@ const (
 	CommandNetworksList = "networks.list"
 	// Lists the accounts the user added, on every network.
 	CommandAccountsList = "accounts.list"
+	// Logs an account out of its network and removes it from this device, with
+	// the conversations only it reached. The account first appears once more, in
+	// an account.updated event with the state logged_out. Since API 1.1.
+	CommandAccountsLogout = "accounts.logout"
 	// Starts adding an account with one of the network's login flows, and returns
 	// the first step.
 	CommandLoginStart = "login.start"
@@ -68,6 +72,7 @@ var Commands = []CommandSpec{
 	{Name: CommandCoreHello, Params: reflect.TypeFor[Empty](), Result: reflect.TypeFor[HelloResult]()},
 	{Name: CommandNetworksList, Params: reflect.TypeFor[Empty](), Result: reflect.TypeFor[NetworksListResult]()},
 	{Name: CommandAccountsList, Params: reflect.TypeFor[Empty](), Result: reflect.TypeFor[AccountsListResult]()},
+	{Name: CommandAccountsLogout, Params: reflect.TypeFor[AccountsLogoutParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandLoginStart, Params: reflect.TypeFor[LoginStartParams](), Result: reflect.TypeFor[LoginStep]()},
 	{Name: CommandLoginSubmit, Params: reflect.TypeFor[LoginSubmitParams](), Result: reflect.TypeFor[LoginStep]()},
 	{Name: CommandLoginWait, Params: reflect.TypeFor[LoginProcessParams](), Result: reflect.TypeFor[LoginStep]()},
@@ -186,6 +191,11 @@ type AccountsListResult struct {
 // AccountEvent is $defs/AccountEvent of the schema.
 type AccountEvent struct {
 	Account Account `json:"account"`
+}
+
+// AccountsLogoutParams is $defs/AccountsLogoutParams of the schema.
+type AccountsLogoutParams struct {
+	AccountID string `json:"account_id"`
 }
 
 // LoginStartParams is $defs/LoginStartParams of the schema.

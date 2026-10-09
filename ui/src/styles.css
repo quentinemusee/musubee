@@ -93,6 +93,21 @@ button.secondary {
   color: var(--color-accent);
 }
 
+button.danger {
+  border-color: var(--color-error);
+  background: var(--color-error);
+  color: var(--color-surface);
+}
+
+button.link {
+  align-self: flex-start;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-muted);
+  padding: 2px 0;
+  font-size: 13px;
+}
+
 button:disabled {
   opacity: 0.5;
   cursor: default;
@@ -200,6 +215,22 @@ ol {
 
 .account-state {
   color: var(--color-muted);
+  font-size: 13px;
+}
+
+.account-actions legend {
+  padding: 4px 0 0;
+}
+
+.account-actions {
+  margin: 0;
+  border: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 4px;
   font-size: 13px;
 }
 

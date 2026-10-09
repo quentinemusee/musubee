@@ -90,6 +90,24 @@ func (h *Host) AddNetwork(bridgeID networkid.BridgeID, network bridgev2.NetworkC
 		// goroutine, so sending returns before the network answers, and
 		// the outcome arrives as a message status.
 		PortalEventBuffer: 64,
+		// Logging out removes the account's conversations from the device;
+		// bridgev2 keeps those another login of the user still reaches.
+		// Bad credentials keep them, for the user to log in again.
+		CleanupOnLogout: bridgeconfig.CleanupOnLogouts{
+			Enabled: true,
+			Manual: bridgeconfig.CleanupOnLogout{
+				Private:        bridgeconfig.CleanupActionDelete,
+				Relayed:        bridgeconfig.CleanupActionDelete,
+				SharedNoUsers:  bridgeconfig.CleanupActionDelete,
+				SharedHasUsers: bridgeconfig.CleanupActionDelete,
+			},
+			BadCredentials: bridgeconfig.CleanupOnLogout{
+				Private:        bridgeconfig.CleanupActionNothing,
+				Relayed:        bridgeconfig.CleanupActionNothing,
+				SharedNoUsers:  bridgeconfig.CleanupActionNothing,
+				SharedHasUsers: bridgeconfig.CleanupActionNothing,
+			},
+		},
 		Permissions: bridgeconfig.PermissionConfig{
 			h.Matrix.UserID().String(): &bridgeconfig.Permissions{
 				SendEvents:   true,
