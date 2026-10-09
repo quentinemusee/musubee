@@ -360,6 +360,12 @@ func (in *Intent) SetProfile(ctx context.Context, data any) error {
 // CreateRoom creates a room. Invited users join immediately, as advertised by
 // the AutoJoinInvites capability. The room ID is the deterministic one that
 // bridgev2 passes, when there is one.
+//
+// A deterministic room that the same bridge created already is reused: it
+// is left behind when the core closes between the creation of a portal's
+// room and the saving of the portal, and bridgev2 creates the room again
+// with the same ID when the portal comes back. The request's state is then
+// applied to the existing room, and the members who left join again.
 func (in *Intent) CreateRoom(ctx context.Context, req *mautrix.ReqCreateRoom) (id.RoomID, error) {
 	roomID := req.BeeperLocalRoomID
 	if roomID == "" {
@@ -367,34 +373,52 @@ func (in *Intent) CreateRoom(ctx context.Context, req *mautrix.ReqCreateRoom) (i
 	}
 	members := append(append([]id.UserID{}, req.Invite...), req.BeeperInitialMembers...)
 	err := in.server.transact(ctx, func(ctx context.Context, store func(*event.Event) error) error {
-		if _, err := in.server.store.getRoom(ctx, roomID); err == nil {
+		existing, err := in.server.store.getRoom(ctx, roomID)
+		switch {
+		case err == nil && (req.BeeperLocalRoomID == "" || existing.BridgeID != in.conn.bridgeID):
 			return fmt.Errorf("room %s already exists", roomID)
-		} else if !errors.Is(err, ErrNotFound) {
+		case err != nil && !errors.Is(err, ErrNotFound):
 			return err
 		}
-		err := in.server.store.createRoom(ctx, &Room{
-			ID: roomID, BridgeID: in.conn.bridgeID, Creator: in.mxid, IsDirect: req.IsDirect, CreatedAt: time.Now(),
-		})
-		if err != nil {
-			return err
-		}
+		reused := err == nil
 		emptyKey := ""
 		state := func(eventType event.Type, stateKey string, content event.Content) error {
 			return store(in.newEvent(roomID, eventType, &stateKey, content, time.Time{}))
 		}
-		creation := map[string]any{}
-		for key, value := range req.CreationContent {
-			creation[key] = value
+		// join adds a member, unless already joined.
+		join := func(member id.UserID, isDirect bool) error {
+			if reused {
+				current, err := in.server.store.getState(ctx, roomID, event.StateMember, string(member))
+				if err != nil {
+					return err
+				}
+				if current != nil && current.Content.AsMember().Membership == event.MembershipJoin {
+					return nil
+				}
+			}
+			evt, err := in.memberEvent(ctx, roomID, member, event.MembershipJoin, isDirect)
+			if err != nil {
+				return err
+			}
+			return store(evt)
 		}
-		creation["creator"] = in.mxid
-		if err = state(event.StateCreate, emptyKey, event.Content{Raw: creation}); err != nil {
-			return err
+		if !reused {
+			err = in.server.store.createRoom(ctx, &Room{
+				ID: roomID, BridgeID: in.conn.bridgeID, Creator: in.mxid, IsDirect: req.IsDirect, CreatedAt: time.Now(),
+			})
+			if err != nil {
+				return err
+			}
+			creation := map[string]any{}
+			for key, value := range req.CreationContent {
+				creation[key] = value
+			}
+			creation["creator"] = in.mxid
+			if err = state(event.StateCreate, emptyKey, event.Content{Raw: creation}); err != nil {
+				return err
+			}
 		}
-		join, err := in.memberEvent(ctx, roomID, in.mxid, event.MembershipJoin, false)
-		if err != nil {
-			return err
-		}
-		if err = store(join); err != nil {
+		if err = join(in.mxid, false); err != nil {
 			return err
 		}
 		powerLevels := req.PowerLevelOverride
@@ -436,11 +460,7 @@ func (in *Intent) CreateRoom(ctx context.Context, req *mautrix.ReqCreateRoom) (i
 				continue
 			}
 			joined[member] = true
-			evt, err := in.memberEvent(ctx, roomID, member, event.MembershipJoin, req.IsDirect)
-			if err != nil {
-				return err
-			}
-			if err = store(evt); err != nil {
+			if err = join(member, req.IsDirect); err != nil {
 				return err
 			}
 		}

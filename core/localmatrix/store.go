@@ -220,6 +220,30 @@ func (s *store) timeline(ctx context.Context, roomID id.RoomID, after int64, lim
 	return events, rows.Err()
 }
 
+// messagesBefore returns the message events (m.room.message) of a room
+// stored before the given stream order, or the latest ones when before is 0,
+// newest first.
+func (s *store) messagesBefore(ctx context.Context, roomID id.RoomID, before int64, limit int) ([]*event.Event, error) {
+	rows, err := s.db.Query(ctx,
+		`SELECT `+eventColumns+` FROM local_event
+		 WHERE room_id=$1 AND event_type=$2 AND state_key IS NULL AND ($3=0 OR stream_order<$3)
+		 ORDER BY stream_order DESC LIMIT $4`,
+		roomID, event.EventMessage.Type, before, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var events []*event.Event
+	for rows.Next() {
+		evt, err := scanEvent(rows)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, evt)
+	}
+	return events, rows.Err()
+}
+
 func (s *store) getState(ctx context.Context, roomID id.RoomID, eventType event.Type, stateKey string) (*event.Event, error) {
 	evt, err := scanEvent(s.db.QueryRow(ctx,
 		`SELECT `+eventColumns+` FROM local_event

@@ -160,9 +160,44 @@ func TestCreateRoom(t *testing.T) {
 		t.Errorf("join rules = %v (%v), want invite", joinRules, err)
 	}
 
-	// bridgev2 must never create the same portal room twice.
-	if _, err = conn.BotIntent().CreateRoom(ctx, &mautrix.ReqCreateRoom{BeeperLocalRoomID: roomID}); err == nil {
-		t.Error("creating an existing room succeeded")
+	// A room left behind by an interrupted portal creation is reused when
+	// bridgev2 creates the portal again: the new state applies, and nobody
+	// joins twice.
+	memberEvents := func() int {
+		events, err := server.Timeline(ctx, roomID, 0, 1000)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n := 0
+		for _, evt := range events {
+			if evt.Type == event.StateMember {
+				n++
+			}
+		}
+		return n
+	}
+	joinsBefore := memberEvents()
+	again, err := conn.BotIntent().CreateRoom(ctx, &mautrix.ReqCreateRoom{
+		Name:                 "Ghost again",
+		IsDirect:             true,
+		BeeperLocalRoomID:    roomID,
+		BeeperInitialMembers: []id.UserID{server.UserID(), ghost},
+	})
+	if err != nil || again != roomID {
+		t.Fatalf("creating the room again = %s, %v; want the same room", again, err)
+	}
+	if name, err := server.State(ctx, roomID, event.StateRoomName, ""); err != nil || name == nil || name.Content.AsRoomName().Name != "Ghost again" {
+		t.Errorf("room name after the new creation = %v (%v)", name, err)
+	}
+	if joinsAfter := memberEvents(); joinsAfter != joinsBefore {
+		t.Errorf("member events: %d, then %d after the new creation; want no new join", joinsBefore, joinsAfter)
+	}
+
+	// Room IDs are not shared between bridges, nor taken by a creation
+	// without a deterministic ID.
+	other := newConnector(t, server, "other")
+	if _, err = other.BotIntent().CreateRoom(ctx, &mautrix.ReqCreateRoom{BeeperLocalRoomID: roomID}); err == nil {
+		t.Error("another bridge took over an existing room")
 	}
 }
 
@@ -221,6 +256,53 @@ func TestTimelineAndRedaction(t *testing.T) {
 	kept, err := intent.GetEvent(ctx, roomID, sent[2])
 	if err != nil || kept.Content.AsMessage().Body != "third" {
 		t.Errorf("the redaction erased another message: %v (%v)", kept, err)
+	}
+}
+
+func TestMessagesBeforeAndEvent(t *testing.T) {
+	server := newServer(t, localmatrix.Options{})
+	conn := newConnector(t, server, "echo")
+	ctx := t.Context()
+	roomID := createDM(t, server, conn, "alice")
+	intent := conn.GhostIntent("alice")
+
+	var sent []id.EventID
+	for _, body := range []string{"1", "2", "3", "4", "5"} {
+		resp, err := intent.SendMessage(ctx, roomID, event.EventMessage, &event.Content{
+			Parsed: &event.MessageEventContent{MsgType: event.MsgText, Body: body},
+		}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sent = append(sent, resp.EventID)
+	}
+	// The room's state events (creation, members, name) are not messages.
+	latest, err := server.MessagesBefore(ctx, roomID, 0, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(latest) != 2 || latest[0].ID != sent[4] || latest[1].ID != sent[3] {
+		t.Fatalf("latest two = %v, want 5 then 4", latest)
+	}
+	older, err := server.MessagesBefore(ctx, roomID, latest[1].Unsigned.BeeperHSOrder, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(older) != 3 || older[0].ID != sent[2] || older[2].ID != sent[0] {
+		t.Fatalf("older = %v, want 3, 2, 1", older)
+	}
+	for _, evt := range append(latest, older...) {
+		if evt.Type != event.EventMessage {
+			t.Errorf("MessagesBefore returned a %s event", evt.Type.Type)
+		}
+	}
+
+	evt, err := server.Event(ctx, roomID, sent[1])
+	if err != nil || evt.Content.AsMessage().Body != "2" {
+		t.Errorf("Event = %v (%v), want the message 2", evt, err)
+	}
+	if _, err = server.Event(ctx, roomID, "$nope"); !errors.Is(err, localmatrix.ErrNotFound) {
+		t.Errorf("Event of an unknown ID: %v, want ErrNotFound", err)
 	}
 }
 
