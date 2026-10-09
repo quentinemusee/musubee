@@ -137,9 +137,14 @@ jobs:
         env:
           CGO_ENABLED: "0"
         run: |
+          # Library packages only: the commands (core/api/apigen,
+          # core/api/transportbench) are development tools, and an iOS
+          # executable needs cgo to link. Listed once for the host: with
+          # GOOS=ios, go list refuses a pattern that matches a command.
+          packages=$(go list -f '{{if ne .Name "main"}}{{.ImportPath}}{{end}}' ./core/...)
           for target in linux/amd64 windows/amd64 darwin/arm64 ios/arm64; do
             echo "== $target"
-            GOOS=${target%/*} GOARCH=${target#*/} go build ./core/...
+            GOOS=${target%/*} GOARCH=${target#*/} go build $packages
           done
 
   licenses:
