@@ -33,9 +33,11 @@ type Dependency struct {
 	From string
 }
 
-// GoTags are the build tags whose dependencies are audited, so that test-only
-// code (integration, telegram) is covered as well.
-var GoTags = "integration,telegram"
+// GoTagSets are the sets of build tags whose dependencies are audited:
+// test-only code (integration, telegram) is covered as well, and so is the
+// SQLite driver of Android builds (musubee_cgo_sqlite, see
+// core/storage/sqlite), which replaces the default one.
+var GoTagSets = []string{"integration,telegram", "integration,telegram,musubee_cgo_sqlite"}
 
 // GoDependencies lists the modules compiled into the packages and tests of
 // each Go module, with the licenses detected in the module cache.
@@ -43,14 +45,18 @@ func GoDependencies(moduleDirs []string) ([]Dependency, error) {
 	type key struct{ path, version string }
 	seen := map[key]Dependency{}
 	for _, dir := range moduleDirs {
-		cmd := exec.Command("go", "list", "-deps", "-test", "-tags="+GoTags,
-			"-f", "{{with .Module}}{{if not .Main}}{{.Path}}\t{{.Version}}\t{{.Dir}}{{end}}{{end}}", "./...")
-		cmd.Dir = dir
-		var stderr bytes.Buffer
-		cmd.Stderr = &stderr
-		out, err := cmd.Output()
-		if err != nil {
-			return nil, fmt.Errorf("go list in %s: %w: %s", dir, err, strings.TrimSpace(stderr.String()))
+		var out []byte
+		for _, tags := range GoTagSets {
+			cmd := exec.Command("go", "list", "-deps", "-test", "-tags="+tags,
+				"-f", "{{with .Module}}{{if not .Main}}{{.Path}}\t{{.Version}}\t{{.Dir}}{{end}}{{end}}", "./...")
+			cmd.Dir = dir
+			var stderr bytes.Buffer
+			cmd.Stderr = &stderr
+			tagged, err := cmd.Output()
+			if err != nil {
+				return nil, fmt.Errorf("go list -tags=%s in %s: %w: %s", tags, dir, err, strings.TrimSpace(stderr.String()))
+			}
+			out = append(out, tagged...)
 		}
 		scanner := bufio.NewScanner(bytes.NewReader(out))
 		for scanner.Scan() {

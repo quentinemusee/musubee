@@ -102,6 +102,7 @@ jobs:
       - name: go vet
         run: |
           go vet ./core/...
+          go vet -tags=musubee_cgo_sqlite ./core/...
           go vet -tags=integration ./infra/...
           go vet -tags=telegram ./infra/...
           go vet ./scripts/licenseaudit/...
@@ -117,16 +118,26 @@ jobs:
           CGO_ENABLED: "1"
         run: go test -count=1 -v -run TestSharedLibrary ./core/ffi/
 
+      # Android builds use github.com/mattn/go-sqlite3 instead of
+      # modernc.org/sqlite (docs/ADR/0011-core-on-android.md); the
+      # musubee_cgo_sqlite tag selects that driver here, so the whole core
+      # is tested with both.
+      - name: Unit tests with the SQLite driver of Android
+        env:
+          CGO_ENABLED: "1"
+        run: go test -tags=musubee_cgo_sqlite -count=1 ./core/...
+
       # The core must stay pure Go (docs/ADR/0009-bridgev2-in-process.md):
       # building it with cgo disabled for every target fails if a cgo
       # dependency slips in. Only core/ffi, the C interface, needs cgo: it
-      # has no files to build without it.
+      # has no files to build without it. Android is not in the list: it
+      # uses a cgo SQLite driver (docs/ADR/0011-core-on-android.md).
       - name: Pure-Go builds of the core (no cgo)
         if: runner.os == 'Linux'
         env:
           CGO_ENABLED: "0"
         run: |
-          for target in linux/amd64 windows/amd64 darwin/arm64 android/arm64 ios/arm64; do
+          for target in linux/amd64 windows/amd64 darwin/arm64 ios/arm64; do
             echo "== $target"
             GOOS=${target%/*} GOARCH=${target#*/} go build ./core/...
           done

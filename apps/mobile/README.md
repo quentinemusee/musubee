@@ -31,7 +31,7 @@ apps/mobile/
 - JDK 21 (`JAVA_HOME`).
 - Android SDK (`ANDROID_HOME`, or `sdk.dir` in `android/local.properties`, which Git ignores) with platform 36 and **NDK 28.2.13676358**: `sdkmanager "ndk;28.2.13676358"`.
 
-Gradle builds the core itself: one `go build -buildmode=c-shared ./core/ffi` per ABI with the NDK's clang (tasks `buildCore-<abi>`). ABIs: `arm64-v8a`, `x86_64`, `x86`; `-Pmusubee.abis=x86_64` builds fewer.
+Gradle builds the core itself: one `go build -buildmode=c-shared ./core/ffi` per ABI with the NDK's clang (tasks `buildCore-<abi>`). ABIs: `arm64-v8a`, `x86_64`, `x86`; `-Pmusubee.abis=x86_64` builds fewer. On Android the core uses the C build of SQLite (`mattn/go-sqlite3`), compiled by the same clang: the pure-Go one is killed by Android's seccomp filter on x86_64 (ADR 0011 point 7).
 
 ### Build and test
 
