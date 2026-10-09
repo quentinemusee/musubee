@@ -16,10 +16,10 @@ precedence = "closest"
 SPDX-FileCopyrightText = "2026 Quentin Raimbaud"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
-# Claude Code project settings, the skills lock file and npm manifests
-# (JSON, no comments).
+# Claude Code project settings, the skills lock file, npm manifests and
+# linter settings (JSON, no comments).
 [[annotations]]
-path = [".claude/settings.json", "skills-lock.json", "**/package.json", "**/package-lock.json", "scripts/license-policy.json", "apps/mobile/capacitor.config.json"]
+path = [".claude/settings.json", "skills-lock.json", "**/package.json", "**/package-lock.json", "**/.oxlintrc.json", "scripts/license-policy.json", "apps/mobile/capacitor.config.json"]
 precedence = "closest"
 SPDX-FileCopyrightText = "2026 Quentin Raimbaud"
 SPDX-License-Identifier = "AGPL-3.0-or-later"

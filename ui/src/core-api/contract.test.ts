@@ -54,9 +54,10 @@ const ajv = new Ajv2020({ strict: true, strictRequired: false, allErrors: true }
 ajv.addKeyword("x-musubee-api-version");
 ajv.addSchema(schema);
 
+const escape = (token: string) => token.replaceAll("~", "~0").replaceAll("/", "~1");
+
 // The JSON pointer of a target; the same syntax as core/api/apitest.
 function pointer(target: string): string {
-  const escape = (token: string) => token.replaceAll("~", "~0").replaceAll("/", "~1");
   const parts = target.split(":");
   if (parts.length === 1) {
     return `/$defs/${escape(target)}`;
@@ -101,8 +102,8 @@ describe("the generated types", () => {
   });
 
   test("list every command and event of the schema", () => {
-    expect([...COMMAND_NAMES].sort()).toEqual(Object.keys(schema.$defs.Commands.properties).sort());
-    expect([...EVENT_TYPES].sort()).toEqual(Object.keys(schema.$defs.Events.properties).sort());
+    expect(COMMAND_NAMES.toSorted()).toEqual(Object.keys(schema.$defs.Commands.properties).toSorted());
+    expect(EVENT_TYPES.toSorted()).toEqual(Object.keys(schema.$defs.Events.properties).toSorted());
   });
 
   const message: Message = {

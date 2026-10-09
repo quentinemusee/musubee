@@ -1,0 +1,324 @@
+/* SPDX-FileCopyrightText: 2026 Quentin Raimbaud */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+/* Design tokens: themes will redefine these (E2.7). */
+:root {
+  --color-bg: #f7f7f8;
+  --color-surface: #ffffff;
+  --color-text: #1c1c22;
+  --color-muted: #5f6070;
+  --color-border: #d9d9e0;
+  --color-accent: #4b45c6;
+  --color-accent-text: #ffffff;
+  --color-mine: #e7e6fb;
+  --color-theirs: #ffffff;
+  --color-error: #a3262f;
+  --color-error-bg: #fde8ea;
+  --radius: 10px;
+  --space: 8px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #15151a;
+    --color-surface: #1e1e25;
+    --color-text: #ececf1;
+    --color-muted: #a3a3b3;
+    --color-border: #34343f;
+    --color-accent: #8e89ff;
+    --color-accent-text: #15151a;
+    --color-mine: #2d2b55;
+    --color-theirs: #24242c;
+    --color-error: #ff8a93;
+    --color-error-bg: #3a1b20;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: 15px/1.4 var(--font);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 var(--space);
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: 18px;
+}
+
+h2 {
+  font-size: 15px;
+}
+
+h3 {
+  font-size: 14px;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--color-accent);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+input,
+select {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  padding: 6px 10px;
+  min-width: 0;
+}
+
+ul,
+ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app-header {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--space) * 2);
+  padding: var(--space) calc(var(--space) * 2);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.app-header h1 {
+  margin: 0;
+}
+
+.status {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space);
+  padding: var(--space) calc(var(--space) * 2);
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space) * 2);
+  width: 280px;
+  padding: calc(var(--space) * 2);
+  border-right: 1px solid var(--color-border);
+  overflow-y: auto;
+}
+
+.app-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  padding: calc(var(--space) * 2);
+}
+
+.empty,
+.hint {
+  color: var(--color-muted);
+}
+
+.accounts li {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+}
+
+.account-state {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.conversation {
+  width: 100%;
+  text-align: left;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text);
+}
+
+.conversation[aria-current="true"] {
+  background: var(--color-mine);
+}
+
+.thread {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.messages {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space);
+  overflow-y: auto;
+  padding: var(--space) 0;
+}
+
+.message {
+  display: flex;
+  flex-direction: column;
+  align-self: flex-start;
+  max-width: 70%;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-theirs);
+  overflow-wrap: anywhere;
+}
+
+.message[data-from-me="true"] {
+  align-self: flex-end;
+  background: var(--color-mine);
+}
+
+.message[data-status="failed"] .delivery {
+  color: var(--color-error);
+}
+
+.sender {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.text[data-kind="notice"],
+.text[data-kind="unsupported"] {
+  font-style: italic;
+  color: var(--color-muted);
+}
+
+.meta {
+  display: flex;
+  gap: var(--space);
+  justify-content: flex-end;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.composer {
+  display: flex;
+  gap: var(--space);
+  padding-top: var(--space);
+  border-top: 1px solid var(--color-border);
+}
+
+.composer input {
+  flex: 1;
+}
+
+.add-account {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space) * 2);
+  max-width: 480px;
+}
+
+.networks {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space) * 2);
+}
+
+.networks li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space);
+  align-items: center;
+}
+
+.networks h3 {
+  width: 100%;
+}
+
+.step-form,
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+}
+
+.form-error {
+  color: var(--color-error);
+}
+
+.login-code {
+  font-size: 28px;
+  letter-spacing: 0.2em;
+  font-variant-numeric: tabular-nums;
+}
