@@ -210,10 +210,17 @@ api benchmark:      go test -run '^$' -bench RoundTrip -benchtime 2000x ./core/e
 transports:         cd scripts/transportbench && npm ci && node bench.mjs   (needs the C toolchain; MUSUBEE_BENCH_PINGS, _ROUNDTRIPS, _ONLY)
 ```
 
-To be confirmed in the corresponding tasks (T1.5):
+Verified in T1.5 (Windows, Go 1.27.1, Node 24.20, golangci-lint 2.14.0; CI on Linux, Windows and macOS; see ADR 0013, `apps/desktop/README.md`):
 
 ```
-core:   golangci-lint run
-ui:     npm run lint
-e2e:    see docs/TESTING.md
+go lint:            golangci-lint run ./core/... ./infra/... ./scripts/licenseaudit/...   (.golangci.yml)
+ui lint / build:    cd ui && npm run lint && npm run build
+desktop tools:      cd apps/desktop && npm ci                       (after cd ui && npm ci)
+desktop checks:     npm test        npm run typecheck        npm run lint
+desktop build:      npm run build                                   (core, interface, main process)
+desktop app:        npm start
+desktop e2e:        npm run test:e2e                                (opens real windows; Linux: xvfb-run, see the README)
+core program:       go build -o musubee-core.exe ./core/cmd/musubee-core
 ```
+
+golangci-lint is installed with `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0` (on the maintainer's machine: `GOBIN=D:\SDK\golangci-lint`).

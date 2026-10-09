@@ -2,7 +2,7 @@
 
 The Musubee core, written in Go. It runs **on the device** (a library embedded in Electron, Android and iOS) or **remotely** (hosted core).
 
-**Status: T1.1 to T1.4 done.** `bridgev2` network connectors run in-process, without a homeserver ([ADR 0009](../docs/ADR/0009-bridgev2-in-process.md)), the core builds as a C shared library driven from a C program ([ADR 0010](../docs/ADR/0010-core-shared-library.md)), and the same library runs in the Android app through JNI ([ADR 0011](../docs/ADR/0011-core-on-android.md)). The UI talks to it through a versioned contract: a JSON Schema with generated Go and TypeScript types ([ADR 0012](../docs/ADR/0012-core-api-contract.md)).
+**Status: T1.1 to T1.5 done.** `bridgev2` network connectors run in-process, without a homeserver ([ADR 0009](../docs/ADR/0009-bridgev2-in-process.md)), the core builds as a C shared library driven from a C program ([ADR 0010](../docs/ADR/0010-core-shared-library.md)), and the same library runs in the Android app through JNI ([ADR 0011](../docs/ADR/0011-core-on-android.md)). The UI talks to it through a versioned contract: a JSON Schema with generated Go and TypeScript types ([ADR 0012](../docs/ADR/0012-core-api-contract.md)). On the desktop, the core runs as its own program over stdio, supervised by the Electron app ([ADR 0013](../docs/ADR/0013-desktop-shell.md)).
 
 Requires **Go 1.27.1 or later**: Go 1.27.0's `database/sql` can deadlock (golang/go#81043, see ADR 0009).
 
@@ -17,7 +17,9 @@ Requires **Go 1.27.1 or later**: Go 1.27.0's `database/sql` can deadlock (golang
 | `api` | The core API contract: the JSON Schema (`schema/`), shared test examples, and the Go types generated from it (`types.gen.go`, by `go generate ./core/api`) |
 | `api/apitest` | Validates JSON documents against the schema, for the contract tests (test code only) |
 | `api/internal/codegen`, `api/apigen` | The generator of the Go and TypeScript types (`ui/src/core-api/types.gen.ts`) |
+| `api/stream` | Serves the API as newline-delimited JSON on a reader and a writer: requests run concurrently, events are interleaved, `core.closed` is the last line |
 | `api/transportbench` | Serves a core over stdio or loopback TCP, for the transport measurements of ADR 0012 (`scripts/transportbench`) |
+| `cmd/musubee-core` | The core as a program (`-data DIR`, `-log-level`), speaking `api/stream` on its standard input and output; it exits when its input ends. The desktop app's child process |
 | `embedded` | The core as one object for an embedding app: implements the API commands and the event stream on top of `bridgehost` and `localmatrix`; no Matrix type leaves it |
 | `ffi` | The C shared library (`musubee.h`) around `embedded`; with the SQLite driver of Android builds, the only code that needs cgo. On Android it also holds the JNI entry points of the app (`jni_android.go`). `testdata/host.c` is the C host program of its tests |
 
@@ -43,9 +45,11 @@ go build -buildmode=c-shared -o musubee.dll ./core/ffi                    (libmu
 go test -count=1 -v -run TestSharedLibrary ./core/ffi/                    (FFI round trip, size and memory, see ADR 0010)
 go generate ./core/api                                                    (Go and TypeScript types from the schema)
 go test -run '^$' -bench RoundTrip -benchtime 2000x ./core/embedded/      (round trip through the API, see ADR 0012)
+go build -o musubee-core.exe ./core/cmd/musubee-core                      (the desktop app's child process)
+golangci-lint run ./core/... ./infra/... ./scripts/licenseaudit/...      (configuration: .golangci.yml)
 ```
 
-`core/ffi` and `go test -race` need cgo and a 64-bit C toolchain: on Windows, MSYS2 UCRT64 GCC first in `PATH` (`CLAUDE.md` §8). Without one, `CGO_ENABLED=0 go test ./core/...` runs everything else; a Linux container also works (`docker run --rm -v <repo>:/src -w /src golang:1.27.1 go test -race ./core/...`). CI runs the race detector and the FFI test on Linux, macOS and Windows. CI also builds the core with `CGO_ENABLED=0` for Linux, Windows, macOS and iOS, and runs the whole suite a second time with the SQLite driver of Android builds (`-tags=musubee_cgo_sqlite`, needs cgo). `golangci-lint` is not set up yet.
+`core/ffi` and `go test -race` need cgo and a 64-bit C toolchain: on Windows, MSYS2 UCRT64 GCC first in `PATH` (`CLAUDE.md` §8). Without one, `CGO_ENABLED=0 go test ./core/...` runs everything else; a Linux container also works (`docker run --rm -v <repo>:/src -w /src golang:1.27.1 go test -race ./core/...`). CI runs the race detector and the FFI test on Linux, macOS and Windows. CI also builds the core with `CGO_ENABLED=0` for Linux, Windows, macOS and iOS, and runs the whole suite a second time with the SQLite driver of Android builds (`-tags=musubee_cgo_sqlite`, needs cgo). CI runs `golangci-lint` 2.14 (`.golangci.yml`: the standard linters plus gosec, errorlint, noctx and a few others), also with the `musubee_cgo_sqlite` tag.
 
 ## Skills to re-read before coding
 

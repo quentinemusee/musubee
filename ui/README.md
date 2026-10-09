@@ -2,7 +2,17 @@
 
 A single interface codebase for every platform, built with Vite and displayed by Electron (desktop) and Capacitor (mobile).
 
-**Status: the core API client only.** The interface itself arrives with the Electron shell (T1.5), see [`docs/TASKS.md`](../docs/TASKS.md). T1.4 created `package.json` for the contract tests: TypeScript, Vitest and Ajv, no runtime dependency yet.
+**Status: a minimal interface (T1.5).** Add an account on the echo network, list conversations, read and send messages, shown by the Electron app ([`apps/desktop`](../apps/desktop/)). Its state store is provisional: state management and the virtualized message list are decided later, in their own ADR (see [`docs/TASKS.md`](../docs/TASKS.md)).
+
+## Layout
+
+| Path | Role |
+|---|---|
+| `src/shell.ts` | `window.musubee`, what a shell (Electron, later Capacitor) gives the interface: `core.call`, `core.onEvent`, `core.onStatus` |
+| `src/store.ts` | `Store`: the interface's state, read from the core and kept up to date by its events; reloads everything after a (re)start of the core or `resync.required` |
+| `src/app/` | The React components: status line, accounts, conversation list, thread with its composer, the add-account flow |
+| `src/styles.css` | Design tokens (CSS custom properties), light and dark |
+| `index.html` | With a content security policy: no inline script or style, no network |
 
 ## Core API (`src/core-api`)
 
@@ -21,15 +31,15 @@ The contract between the UI and the Go core is the JSON Schema [`core/api/schema
 
 ## Commands
 
-Verified in T1.4 (Node 24, npm 11):
+Verified in T1.4 and T1.5 (Node 24, npm 11):
 
 ```
 npm ci
 npm test               (Vitest: contract and unit tests)
 npm run typecheck      (tsc --noEmit)
+npm run lint           (oxlint; typescript-eslint does not support TypeScript 7 yet, ADR 0013)
+npm run build          (Vite, into dist/; relative paths and no inlined assets, for the app:// protocol and its policy)
 ```
-
-To be added in T1.5: `npm run lint`, the Vite build.
 
 ## Skills to re-read before coding
 
