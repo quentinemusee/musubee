@@ -38,6 +38,10 @@ versions in core/go.mod and go.work):
 - modernc.org/libc v1.77.1, mathutil v1.7.1, memory v1.12.1,
   https://gitlab.com/cznic. Copyright (c) The Libc / mathutil / Memory
   Authors. BSD-3-Clause; libc contains code from musl libc (MIT).
+  Not in the Android builds, which use github.com/mattn/go-sqlite3.
+- github.com/mattn/go-sqlite3 v1.14.52, https://github.com/mattn/go-sqlite3
+  (Android builds only, see docs/ADR/0011). Copyright (c) 2014 Yasuhiro
+  Matsumoto. MIT; contains the SQLite 3.53.4 amalgamation (public domain).
 - github.com/rs/zerolog v1.35.1 (Copyright (c) 2017 Olivier Poitrey) and
   github.com/rs/xid v1.6.0 (Copyright (c) 2015 Olivier Poitrey). MIT.
 - github.com/tidwall/gjson v1.19.0, match v1.1.1, pretty v1.2.1,

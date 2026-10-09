@@ -81,7 +81,7 @@ The core runs in `CoreService`, a foreground service that the Capacitor plugin s
 
 1. **Android loads the core as `libmusubee.so`, the shared library of ADR 0010 with JNI entry points** (option A). `gomobile bind` is not used. The two are equivalent at run time (Measurements); A keeps one interface and one build tool for every platform.
 2. **ABIs: `arm64-v8a`, `x86_64` and `x86`.**
-   - `armeabi-v7a` (32-bit ARM) is left out for now. Each ABI adds about 18 MB to a universal APK, and new devices are 64-bit.
+   - `armeabi-v7a` (32-bit ARM) is left out for now. Each ABI adds about 16 MB to a universal APK, and new devices are 64-bit.
    - Revisit when we publish (Play App Bundles split per ABI), or if a test user has a 32-bit device.
    - `x86` is only for emulators; it can be dropped from release builds.
 3. **The core lives in a foreground service of type `specialUse`.** The subtype property explains that the service keeps the user's messaging accounts connected, so that messages arrive while the app is in the background.
@@ -97,6 +97,14 @@ The core runs in `CoreService`, a foreground service that the Capacitor plugin s
    - Capacitor's bridge logging is turned off (`"loggingBehavior": "none"` in `capacitor.config.json`): by default it would write every plugin result, messages included, to logcat in debug builds.
    - The test page writes nothing to the console.
 6. **No backup of the app data** (`allowBackup=false` and data-extraction rules excluding every domain): the core's database holds message history and, later, keys. To revisit together with key storage (OS keystore) and encrypted backups.
+
+7. **On Android, SQLite is `github.com/mattn/go-sqlite3` (cgo), not `modernc.org/sqlite`** *(added in T1.3, after the first CI run on x86_64 emulators)*.
+   - **The failure.** On the x86_64 emulators of the CI (API 30 and API 35), the instrumentation process died as soon as the core opened its database: `Fatal signal 31 (SIGSYS), code 1 (SYS_SECCOMP)`, "seccomp prevented call to disallowed x86_64 system call 6". Call 6 is `lstat`.
+   - **The cause.** On linux/amd64, which includes android/amd64, `modernc.org/libc` v1.77.1 (the latest release) is musl transpiled to Go, and musl makes the legacy system calls itself: `fstatat` calls `SYS_lstat` or `SYS_stat` for absolute paths (`_fstatat_kstat` in `ccgo_linux_amd64.go`). Android's seccomp filter for apps allows on x86_64 only what bionic uses (`newfstatat`, `faccessat`, `unlinkat`…) plus a short list of exceptions (`SECCOMP_ALLOWLIST_APP.TXT`): `lstat`, `stat` and `readlink` are not in it, and `access`, `unlink` and `rename` are allowed only on 32-bit ABIs. A forbidden call kills the process. arm64 has no legacy calls, so the Pixel was not affected; 32-bit x86 (our local emulator) uses other call numbers that the filter allows. `modernc.org/libc` does not list Android among its targets. The Go runtime met the same filter on Android and moved to `fstatat` (golang/go#27797).
+   - **Who it hits.** Every x86_64 Android device: the default emulator images, and Android apps on ChromeOS. Leaving x86_64 out, or testing it only on a 32-bit image, would ship a crash.
+   - **The fix.** `core/storage/sqlite` picks the driver with a build tag: `android` (or the `musubee_cgo_sqlite` tag, used to run the whole core test suite with mattn on a desktop, in CI) builds `driver_cgo.go`; every other build keeps modernc (`driver_modernc.go`). The Android library already needs cgo for its JNI entry points, and Gradle already passes the NDK's clang, so mattn's SQLite amalgamation compiles with no change to the build. mattn calls bionic, which uses the allowed calls. This is the fallback ADR 0010 planned ("mattn stays the fallback").
+   - **Same SQLite, same settings.** Both drivers bundle SQLite 3.53.4 and open it with the same pragmas (foreign keys, WAL, `synchronous=NORMAL`, 10 s busy timeout, immediate transactions), checked by `TestOpenSettings` with each driver.
+   - **Cost.** None measured: same speed on the emulator, about 3 MiB less memory and 2.3 to 2.5 MB less library per ABI (Measurements). mattn adds C code to the Android build; its license is MIT.
 
 ## Measurements
 
@@ -124,10 +132,26 @@ The binding comparison ran on the emulator; the Pixel then measured the chosen b
 | PSS at the end (median, max) | 61.9 MiB, 85.9 MiB | 61.9 MiB, 83.6 MiB |
 | Go heap in use at the end / reserved | 0.65 to 0.79 MiB / 7.2 MiB | 0.67 to 0.80 MiB / 7.1 MiB |
 | Goroutines at the end | 7 | 10 (gomobile's own) |
-| Library per ABI, stripped (`-trimpath -ldflags=-s -w`) | arm64-v8a 18.3 MB, x86_64 19.5 MB, x86 17.8 MB | same within 10 KB |
+| Library per ABI, stripped (`-trimpath -ldflags=-s -w`), with modernc | arm64-v8a 18.3 MB, x86_64 19.5 MB, x86 17.8 MB | same within 10 KB |
 | Debug APK, 3 ABIs | 59.8 MB | 59.8 MB |
 | Build of the core for 3 ABIs, empty Go cache | 184 s | 248 s |
 | Same, warm Go cache (Gradle `--rerun-tasks`) | 55 s | 95 s |
+
+The tables above and below were measured with `modernc.org/sqlite`, before point 7.
+
+**After the switch to mattn (point 7)**, same emulator, `measure-core.sh 5`, 2026-10-09:
+
+| Measurement | modernc (table above) | mattn |
+|---|---|---|
+| Ping, mean of the 15 loops (min to max) | 44.3 µs (38.2 to 51.7) | 42.8 µs (36.2 to 60.6) |
+| Round trip, mean of the 5 runs (min to max) | 3.89 ms (3.53 to 4.34) | 3.83 ms (3.18 to 4.36) |
+| Round trip, slowest of 100, per run | 21 to 83 ms | 16 to 29 ms |
+| PSS after `open` | 51.6 to 52.2 MiB | 48.2 to 48.9 MiB |
+| PSS at the end (median, max) | 61.9 MiB, 85.9 MiB | 73.9 MiB, 76.5 MiB |
+| Go heap in use at the end / reserved | 0.65 to 0.79 MiB / 7.2 MiB | 0.67 to 0.76 MiB / 7.1 to 7.2 MiB |
+| Library per ABI, stripped | arm64-v8a 18.3 MB, x86_64 19.5 MB, x86 17.8 MB | arm64-v8a 15.9 MB, x86_64 17.0 MB, x86 15.5 MB |
+
+The end PSS depends on when the Java collector last ran (Memory reading below): two runs ended at 53 MiB, three at 74 to 77 MiB. The Pixel 8 Pro was not measured again with mattn.
 
 **Memory reading.** In every run of both bindings, PSS climbs by about 23 MiB during the first ping loop and comes back to within about 2 MiB of its starting point by the third loop. For example, one JNI run: 56.9, 80.6, 66.6 then 58.9 MiB. The Go heap stays under 1 MiB throughout. The swings are the Java heap collecting 20,000 response arrays per loop, not a leak in the binding. One run in five ends higher (76 to 86 MiB) on both bindings, depending on when the Java collector ran.
 
@@ -213,16 +237,22 @@ The Go side does not grow. PSS gains 1.3 MiB between minutes 10 and 35, which is
 | Each message costs the app about 90 ms of CPU and 1.2 µAh on the Pixel | **verified** as Android's model-based estimate, per app, not affected by the call in another app | Measurements, soak on the Pixel 8 Pro |
 | The idle cost of the service over an hour on a quiet phone | **unknown**: the soak ran during a 45-minute call in another app | to measure in T1.6, on an idle phone connected to Telegram |
 | The battery cost stays small with a real network connection (radio wake-ups) | **unknown** | T1.6 |
+| `modernc.org/sqlite` is killed by seccomp on Android x86_64 | **verified** in CI on the API 30 and API 35 x86_64 emulators (logcat crash buffer, 2026-10-09), and by reading `modernc.org/libc` v1.77.1 | point 7 |
+| The core with mattn passes the instrumented tests on x86 and x86_64 | **verified** on the local x86 emulator (7 tests, 1 skipped: soak, 2026-10-09); x86_64: by the CI of this pull request | point 7 |
+| The core with mattn passes the whole Go test suite | **verified** on Windows (`go test -tags=musubee_cgo_sqlite ./core/...`); Linux and macOS: by the CI of this pull request | `.github/workflows/checks.yml` |
+| mattn behaves the same on a real arm64 phone | **assumed**: the same C SQLite as on the emulator, and arm64 was not affected by the crash; not measured again on the Pixel | — |
 | The core survives being killed by the system and restarted by `START_STICKY` | **unknown** | resynchronisation work, see ADR 0010 point 8 |
 
 ## Consequences
 
 - `core/ffi` is the only binding package. The `core/mobile` package and the `golang.org/x/mobile` tool dependency are removed.
+- Android builds use a second SQLite driver (point 7). CI runs the whole core test suite with it (`-tags=musubee_cgo_sqlite`), and the license audit covers both.
 - Building the Android app needs Go 1.27.1+, the Android SDK, NDK 28.2.13676358 and JDK 21. Gradle builds the core itself, so `gradlew :app:assembleDebug` needs no preparation step besides `npx cap sync android`.
 - **Watch:**
   - the 6-hour rule and the type rules change with each Android release;
   - Play's verdict on `specialUse`;
-  - the APK size: about 18 MB per ABI, so publish App Bundles.
+  - the APK size: about 16 MB per ABI, so publish App Bundles;
+  - `modernc.org/libc` on Android: if it gains Android support (no legacy calls on android/amd64), Android could go back to the pure-Go driver, which the desktop uses.
 - **iOS (later):** Swift imports C headers directly, so the same `musubee.h` can serve; whether `c-archive` or `c-shared` fits the app and the NSE is T1.7.
 - **Revisit if:**
   - the hand-written JNI grows with the T1.4 contract: a generator may then pay off;
@@ -240,3 +270,8 @@ Accessed 2026-10-08.
 - Capacitor native bridge (`nativePromise`, `addListener`): `@capacitor/android` 8.5.3, `capacitor/src/main/assets/native-bridge.js`
 - JNI specification, "JNI Functions": https://docs.oracle.com/en/java/javase/21/docs/specs/jni/functions.html
 - ADR 0010 (C shared library) and ADR 0009 (bridgev2 in-process)
+- Point 7, accessed 2026-10-09:
+  - `modernc.org/libc` v1.77.1, `ccgo_linux_amd64.go` (`_fstatat_kstat`) and `README.md` (supported targets), https://gitlab.com/cznic/libc
+  - bionic, `libc/SECCOMP_ALLOWLIST_APP.TXT`: https://android.googlesource.com/platform/bionic/+/refs/heads/main/libc/SECCOMP_ALLOWLIST_APP.TXT
+  - golang/go#27797, "gomobile apps using syscall.Lstat() are blocked by seccomp on Android O and P": https://github.com/golang/go/issues/27797
+  - `github.com/mattn/go-sqlite3` v1.14.52 (MIT), `sqlite3.go` (DSN parameters), `sqlite3-binding.h` (SQLite 3.53.4)

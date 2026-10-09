@@ -13,7 +13,7 @@ Requires **Go 1.27.1 or later**: Go 1.27.0's `database/sql` can deadlock (golang
 | `localmatrix` | Local implementation of the Matrix side of `bridgev2` (`MatrixConnector`, `MatrixAPI`): rooms, timeline, message statuses, media, stored in SQLite, with a change stream for the UI |
 | `bridgehost` | Starts and stops the `bridgev2` bridges (one per network) on the shared database and the local Matrix server |
 | `connector/echo` | Fake network for tests: one login flow, three contacts (instant echo, delayed echo, failed send) |
-| `storage/sqlite` | Opens the SQLite database (pure-Go `modernc.org/sqlite`, no cgo) |
+| `storage/sqlite` | Opens the SQLite database: pure-Go `modernc.org/sqlite` (no cgo), except on Android and with the `musubee_cgo_sqlite` tag, which use `mattn/go-sqlite3` (cgo; ADR 0011) |
 | `embedded` | The core as one object for an embedding app: JSON configuration, JSON commands, JSON event stream (T1.2 spike surface, replaced by the T1.4 contract) |
 | `ffi` | The C shared library (`musubee.h`) around `embedded`; the only package that needs cgo. On Android it also holds the JNI entry points of the app (`jni_android.go`). `testdata/host.c` is the C host program of its tests |
 

@@ -197,6 +197,7 @@ android build:      cd apps/mobile/android && ./gradlew :app:assembleDebug      
 android tests:      ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest
 android app e2e:    cd apps/mobile/e2e && MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android:app
 android measures:   ANDROID_SERIAL=emulator-5554 ./measure-core.sh 5          (soak test: see apps/mobile/README.md)
+android SQLite:     go test -tags=musubee_cgo_sqlite -count=1 ./core/...     (the cgo driver of Android builds, on the host; ADR 0011)
 ```
 
 To be confirmed in the corresponding tasks (T1.5):

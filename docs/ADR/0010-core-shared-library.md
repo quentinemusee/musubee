@@ -92,7 +92,7 @@ Windows: Windows 11, Intel Core i7-9750H, MSYS2 UCRT64 GCC 16.2.0. Linux: Docker
 | The 41.8 MiB of private bytes before `musubee_open` on Windows is the Go runtime's initial reservation | **assumed**: not broken down; Linux shows 4.8 MiB resident. To check if desktop memory matters (T1.5) | — |
 | bridgev2 aborts in-flight portal events on stop, on v0.31.0 and `main` | **verified** by code reading (`Bridge.stop`, `Portal.eventLoop`, `getEventCtxWithLog`) and by the late log lines in tests | mautrix-go v0.31.0 and `main`, `bridgev2/bridge.go`, `portal.go` |
 | Real networks resynchronise what an aborted handler lost | **unknown**: per connector (Telegram's update state, Signal's queue); must be tested by killing the core mid-message in each connector task | connector tasks |
-| modernc.org/sqlite runs correctly on Android and iOS | **unknown**: it cross-builds (CI); runtime and memory checked in T1.3 and the iOS tasks. mattn stays the fallback | T1.3 |
+| modernc.org/sqlite runs correctly on Android and iOS | Android: **verified false** on x86_64 (Android's seccomp filter kills the process, ADR 0011 point 7); Android builds now use mattn. iOS: **unknown**, checked in the iOS tasks *(updated in T1.3)* | T1.3, ADR 0011 |
 | JSON over FFI is fast enough for the UI | **assumed**: 8 to 17 µs per 1 KiB call is far below a frame (16 ms); T1.4 compares with a local socket | Measurements |
 
 ## Consequences
