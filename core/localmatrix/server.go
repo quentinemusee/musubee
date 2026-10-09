@@ -361,6 +361,19 @@ func (s *Server) Timeline(ctx context.Context, roomID id.RoomID, after int64, li
 	return s.store.timeline(ctx, roomID, after, limit)
 }
 
+// MessagesBefore returns up to limit message events (m.room.message) of a
+// room stored before the given stream order, or the latest ones when before
+// is 0, newest first. The stream order of each event is in
+// Unsigned.BeeperHSOrder, to page further back.
+func (s *Server) MessagesBefore(ctx context.Context, roomID id.RoomID, before int64, limit int) ([]*event.Event, error) {
+	return s.store.messagesBefore(ctx, roomID, before, limit)
+}
+
+// Event returns one event of a room, or an error wrapping ErrNotFound.
+func (s *Server) Event(ctx context.Context, roomID id.RoomID, eventID id.EventID) (*event.Event, error) {
+	return s.store.getEvent(ctx, roomID, eventID)
+}
+
 // State returns the current state event of a room for a type and state key,
 // or nil if there is none.
 func (s *Server) State(ctx context.Context, roomID id.RoomID, eventType event.Type, stateKey string) (*event.Event, error) {
