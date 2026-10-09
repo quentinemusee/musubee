@@ -79,15 +79,22 @@ class CoreLibraryTest {
             JSONObject().put("process_id", step.getString("process_id")).put("values", JSONObject().put(field, "alice")),
         ).getJSONObject("result")
         assertEquals("complete", done.getString("type"))
-        waitEvent("connected account") {
-            it.optString("type") == "account.updated" &&
-                it.getJSONObject("data").getJSONObject("account").optString("state") == "connected"
+        // The account's connection and its conversation are announced in
+        // either order: waiting for one first could skip the other.
+        var connected = false
+        var conversationId: String? = null
+        waitEvent("connected account and Instant Echo conversation") {
+            when (it.optString("type")) {
+                "account.updated" ->
+                    connected = connected || it.getJSONObject("data").getJSONObject("account").optString("state") == "connected"
+                "conversation.updated" -> {
+                    val conversation = it.getJSONObject("data").getJSONObject("conversation")
+                    if (conversation.optString("name") == "Instant Echo") conversationId = conversation.getString("conversation_id")
+                }
+            }
+            connected && conversationId != null
         }
-        val event = waitEvent("Instant Echo conversation") {
-            it.optString("type") == "conversation.updated" &&
-                it.getJSONObject("data").getJSONObject("conversation").optString("name") == "Instant Echo"
-        }
-        return event.getJSONObject("data").getJSONObject("conversation").getString("conversation_id")
+        return conversationId!!
     }
 
     private fun sendAndWaitEcho(conversationId: String, text: String) {
