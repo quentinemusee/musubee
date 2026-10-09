@@ -36,8 +36,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if err = os.WriteFile(goPath, goCode, 0o644); err != nil {
+	if err = os.WriteFile(goPath, goCode, 0o644); err != nil { //nolint:gosec // Source files of the repository.
 		return err
 	}
-	return os.WriteFile(tsPath, tsCode, 0o644)
+	return os.WriteFile(tsPath, tsCode, 0o644) //nolint:gosec // Same.
 }

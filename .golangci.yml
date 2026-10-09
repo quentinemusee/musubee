@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: 2026 Quentin Raimbaud
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# golangci-lint v2 for the Go modules of go.work. Run from the repository
+# root: golangci-lint run ./core/... ./infra/... ./scripts/licenseaudit/...
+version: "2"
+
+run:
+  # The integration and Telegram tests are linted too.
+  build-tags:
+    - integration
+    - telegram
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - gosec
+    - misspell
+    - noctx
+    - nolintlint
+    - rowserrcheck
+    - sqlclosecheck
+    - unconvert
+  settings:
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+  exclusions:
+    presets:
+      # Unchecked errors of Close, Flush, fmt.Fprint* and os.Remove*.
+      - std-error-handling
+    rules:
+      # Tests run commands and read files that they name themselves, and
+      # have their own context rules: gosec and noctx only report false
+      # positives there.
+      - path: _test\.go$
+        linters: [gosec, noctx]
+      # The same for the development tools (infra, scripts, code generators,
+      # benchmarks), which are not shipped: G204 (command from a variable) and
+      # G304 (file from a variable) are what they are for. Their other gosec
+      # findings stay reported. The shipped code (the core) is fully checked.
+      - path: ^(infra|scripts|core/api/apigen|core/api/internal/codegen|core/api/transportbench)/
+        linters: [noctx]
+      - path: ^(infra|scripts|core/api/apigen|core/api/internal/codegen|core/api/transportbench)/
+        linters: [gosec]
+        text: "G204|G304"
+
+formatters:
+  enable:
+    - gofmt
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

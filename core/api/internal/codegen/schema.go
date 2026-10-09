@@ -16,6 +16,7 @@ package codegen
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -356,7 +357,7 @@ func parseOrdered(data []byte) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err = dec.Token(); err != io.EOF {
+	if _, err = dec.Token(); !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("unexpected data after the schema")
 	}
 	return v, nil

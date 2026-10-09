@@ -279,7 +279,11 @@ func (c *Core) stats(context.Context, api.Empty) (api.StatsResult, error) {
 	runtime.GC()
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
-	return api.StatsResult{HeapAllocBytes: int64(mem.HeapAlloc), HeapSysBytes: int64(mem.HeapSys), Goroutines: int64(runtime.NumGoroutine())}, nil
+	return api.StatsResult{
+		HeapAllocBytes: int64(mem.HeapAlloc), //nolint:gosec // A heap of 2^63 bytes does not exist.
+		HeapSysBytes:   int64(mem.HeapSys),   //nolint:gosec // Same.
+		Goroutines:     int64(runtime.NumGoroutine()),
+	}, nil
 }
 
 func (c *Core) ping(_ context.Context, p api.PingPayload) (api.PingPayload, error) {

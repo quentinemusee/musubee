@@ -120,7 +120,7 @@ func (b BotAPI) call(ctx context.Context, method string, params, out any) error 
 	resp, err := (&http.Client{Timeout: time.Minute}).Do(req)
 	if err != nil {
 		// The URL contains the token: never report it.
-		return fmt.Errorf("Bot API %s: request failed", method)
+		return fmt.Errorf("telegram Bot API %s: request failed", method)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
@@ -133,10 +133,10 @@ func (b BotAPI) call(ctx context.Context, method string, params, out any) error 
 		Result      json.RawMessage `json:"result"`
 	}
 	if err := json.Unmarshal(body, &envelope); err != nil {
-		return fmt.Errorf("Bot API %s: HTTP %d", method, resp.StatusCode)
+		return fmt.Errorf("telegram Bot API %s: HTTP %d", method, resp.StatusCode)
 	}
 	if !envelope.OK {
-		return fmt.Errorf("Bot API %s: %s", method, envelope.Description)
+		return fmt.Errorf("telegram Bot API %s: %s", method, envelope.Description)
 	}
 	return json.Unmarshal(envelope.Result, out)
 }
