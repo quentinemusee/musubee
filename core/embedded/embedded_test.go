@@ -90,7 +90,7 @@ func checkLateLogs(t *testing.T, lines []string) {
 		// for it in the raw line.
 		background := strings.Contains(line, `"action":"handle `) || strings.Contains(line, `"action":"resend bridge info"`) ||
 			entry.Message == "Sent new bridge state"
-		if !(aborted || background) || strings.Contains(strings.ToLower(entry.Message), "panic") {
+		if (!aborted && !background) || strings.Contains(strings.ToLower(entry.Message), "panic") {
 			t.Errorf("unexpected log line after Close: %s", line)
 		}
 	}

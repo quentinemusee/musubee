@@ -90,7 +90,7 @@ func TestDeterministicIDs(t *testing.T) {
 	echo := newConnector(t, server, "echo")
 	other := newConnector(t, server, "other")
 	key := networkid.PortalKey{ID: "chat", Receiver: "alice"}
-	if echo.GenerateDeterministicRoomID(key) != echo.GenerateDeterministicRoomID(key) {
+	if first, again := echo.GenerateDeterministicRoomID(key), echo.GenerateDeterministicRoomID(key); first != again {
 		t.Error("the room ID of a portal is not stable")
 	}
 	distinct := map[id.RoomID]string{}

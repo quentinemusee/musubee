@@ -9,6 +9,7 @@
 package sqlite
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -38,7 +39,7 @@ func Open(path string) (*dbutil.Database, error) {
 	if err != nil {
 		return nil, fmt.Errorf("opening %s: %w", path, err)
 	}
-	if err = raw.Ping(); err != nil {
+	if err = raw.PingContext(context.Background()); err != nil {
 		_ = raw.Close()
 		return nil, fmt.Errorf("opening %s: %w", path, err)
 	}

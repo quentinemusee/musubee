@@ -41,7 +41,7 @@ const (
 	ServerName = "musubee.test"
 
 	secretFileName = "registration_shared_secret"
-	secretsDirEnv  = "MUSUBEE_TEST_SECRETS_DIR"
+	secretsDirEnv  = "MUSUBEE_TEST_SECRETS_DIR" //nolint:gosec // The name of an environment variable, not a secret.
 	infraDirEnv    = "MUSUBEE_INFRA_DIR"
 	waitTimeout    = 180 * time.Second
 )
@@ -362,7 +362,7 @@ func (e *HTTPError) Error() string {
 // readable by others; Docker Desktop on Windows and macOS ignores these modes.
 // The secret only protects a throw-away homeserver bound to localhost.
 func writeSecret(dir, secret string) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // see the function comment
 		return fmt.Errorf("creating secrets directory: %w", err)
 	}
 	// MkdirAll keeps the mode of an existing directory (os.MkdirTemp creates

@@ -113,7 +113,7 @@ func (e *Env) prepareTelegram(ctx context.Context, opts TelegramOptions) error {
 	dir := e.telegramDir()
 	// The bridge (root in its container) and Synapse (UID 991) read these
 	// files through bind mounts.
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // read by the containers
 		return err
 	}
 	if err := os.Chmod(dir, 0o755); err != nil { //nolint:gosec // throw-away test files, read by containers
@@ -137,7 +137,7 @@ func (e *Env) prepareTelegram(ctx context.Context, opts TelegramOptions) error {
 // copy at /config instead.
 func (e *Env) writeSynapseConfigWithAppservice(dir string) error {
 	target := filepath.Join(dir, "synapse-config")
-	if err := os.MkdirAll(target, 0o755); err != nil {
+	if err := os.MkdirAll(target, 0o755); err != nil { //nolint:gosec // read by the Synapse container
 		return err
 	}
 	if err := os.Chmod(target, 0o755); err != nil { //nolint:gosec // read by the Synapse container
