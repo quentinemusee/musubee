@@ -116,3 +116,116 @@ composer.addEventListener("submit", async (event) => {
     show(`Send failed: ${err.message}`);
   }
 });
+
+// Telegram (T1.6): logs in with whichever flow the core offers but the QR
+// code, which this page cannot draw, for the manual tests on a real phone.
+// Values typed here go to the core only.
+const telegram = document.getElementById("telegram");
+const tgStart = document.getElementById("tg-start");
+const tgFlow = document.getElementById("tg-flow");
+const tgStep = document.getElementById("tg-step");
+const tgInstructions = document.getElementById("tg-instructions");
+const tgFields = document.getElementById("tg-fields");
+const tgLogout = document.getElementById("tg-logout");
+const FIELD_INPUT_TYPES = { password: "password", token: "password", phone_number: "tel", email: "email" };
+
+let tgProcess = null;
+let tgAccount = null;
+
+function showTelegram(account) {
+  tgAccount = account;
+  tgStart.hidden = account !== null;
+  tgStep.hidden = true;
+  tgLogout.hidden = account === null;
+}
+
+function showStep(step) {
+  tgProcess = step.process_id;
+  tgInstructions.textContent = step.instructions;
+  tgFields.textContent = "";
+  for (const field of step.fields ?? []) {
+    const label = document.createElement("label");
+    label.textContent = field.name;
+    const input = document.createElement(field.type === "select" ? "select" : "input");
+    input.name = field.field_id;
+    input.required = true;
+    if (field.type === "select") {
+      for (const option of field.options ?? []) {
+        input.append(new Option(option, option));
+      }
+    } else {
+      input.type = FIELD_INPUT_TYPES[field.type] ?? "text";
+      input.autocomplete = "off";
+      input.value = field.default_value ?? "";
+    }
+    label.append(input);
+    tgFields.append(label);
+  }
+  tgStart.hidden = true;
+  tgStep.hidden = false;
+  tgFields.querySelector("input, select")?.focus();
+}
+
+async function followStep(step) {
+  while (step.type === "display_and_wait") {
+    tgInstructions.textContent = step.display?.data ? `${step.instructions} ${step.display.data}` : step.instructions;
+    step = await request("login.wait", { process_id: step.process_id });
+  }
+  if (step.type === "complete") {
+    tgProcess = null;
+    status.textContent = "Logged in to Telegram";
+    showTelegram(step.account_id);
+  } else {
+    showStep(step);
+  }
+}
+
+async function setUpTelegram() {
+  const { networks } = await request("networks.list", {});
+  const network = networks.find((n) => n.network_id === "telegram");
+  if (!network) {
+    return;
+  }
+  for (const flow of network.login_flows.filter((f) => f.flow_id !== "qr")) {
+    tgFlow.append(new Option(flow.name, flow.flow_id));
+  }
+  const { accounts } = await request("accounts.list", {});
+  showTelegram(accounts.find((a) => a.network_id === "telegram")?.account_id ?? null);
+  telegram.hidden = false;
+}
+
+tgStart.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    await followStep(await request("login.start", { network_id: "telegram", flow_id: tgFlow.value }));
+  } catch (err) {
+    status.textContent = `Telegram login failed: ${err.message}`;
+    showTelegram(null);
+  }
+});
+
+tgStep.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const values = Object.fromEntries(new FormData(tgStep));
+  tgFields.textContent = "";
+  try {
+    await followStep(await request("login.submit", { process_id: tgProcess, values }));
+  } catch (err) {
+    status.textContent = `Telegram login failed: ${err.message}`;
+    showTelegram(null);
+  }
+});
+
+tgLogout.addEventListener("click", async () => {
+  try {
+    await request("accounts.logout", { account_id: tgAccount });
+    status.textContent = "Logged out of Telegram";
+    showTelegram(null);
+  } catch (err) {
+    status.textContent = `Telegram logout failed: ${err.message}`;
+  }
+});
+
+setUpTelegram().catch((err) => {
+  status.textContent = `Telegram unavailable: ${err.message}`;
+});

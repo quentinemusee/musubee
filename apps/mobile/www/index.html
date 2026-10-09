@@ -12,12 +12,16 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     <title>Musubee</title>
     <style>
       :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+      [hidden] { display: none !important; }
       body { margin: 0; padding: max(16px, env(safe-area-inset-top)) 16px 16px; }
       h1 { font-size: 1.25rem; margin: 0 0 12px; }
       form, .row { display: flex; gap: 8px; margin-bottom: 12px; }
       input { flex: 1; min-width: 0; font-size: 1rem; padding: 8px; }
       button { font-size: 1rem; padding: 8px 12px; }
       #status { margin-bottom: 12px; }
+      fieldset { border: 1px solid color-mix(in srgb, currentColor 30%, transparent); margin: 0 0 12px; padding: 8px; }
+      fieldset label { display: block; margin-bottom: 8px; }
+      fieldset input, select { display: block; width: 100%; box-sizing: border-box; font-size: 1rem; padding: 8px; margin-top: 4px; }
       #log { list-style: none; padding: 0; margin: 0; font-size: 0.9rem; }
       #log li { padding: 4px 0; border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent); overflow-wrap: anywhere; }
     </style>
@@ -32,6 +36,21 @@ SPDX-License-Identifier: AGPL-3.0-or-later
       <input id="text" name="text" placeholder="Message" aria-label="Message" autocomplete="off" disabled />
       <button id="send" type="submit" disabled>Send</button>
     </form>
+    <!-- Telegram, for the manual tests on a real phone (T1.6): shown only
+         when the app is built with the Telegram credentials. -->
+    <fieldset id="telegram" hidden>
+      <legend>Telegram</legend>
+      <form id="tg-start">
+        <select id="tg-flow" aria-label="Telegram login method"></select>
+        <button type="submit">Log in to Telegram</button>
+      </form>
+      <form id="tg-step" hidden>
+        <p id="tg-instructions"></p>
+        <div id="tg-fields"></div>
+        <button type="submit">Continue</button>
+      </form>
+      <button id="tg-logout" type="button" hidden>Log out of Telegram</button>
+    </fieldset>
     <ul id="log" aria-label="Events"></ul>
     <script src="app.js"></script>
   </body>
