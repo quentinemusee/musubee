@@ -2,13 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Package embedded is the core as an embedding application sees it: JSON
-// requests in, JSON responses and events out. The C library (package ffi)
-// is a thin layer over it, so that everything except the C calls is tested
-// in Go.
-//
-// This is the T1.2 spike surface (docs/ADR/0010-core-shared-library.md):
-// just enough commands to log in to the echo network and exchange messages.
-// The real core/UI contract is designed in T1.4.
+// requests in, JSON responses and events out, as defined by the core API
+// contract (package api, docs/ADR/0012-core-api-contract.md). The C library
+// (package ffi) and the JNI entry points are thin layers over it, so that
+// everything except the native calls is tested in Go.
 package embedded
 
 import (
@@ -18,28 +15,31 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
-	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/networkid"
-	"maunium.net/go/mautrix/bridgev2/status"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 
+	"github.com/quentinemusee/musubee/core/api"
 	"github.com/quentinemusee/musubee/core/bridgehost"
 	"github.com/quentinemusee/musubee/core/connector/echo"
 	"github.com/quentinemusee/musubee/core/localmatrix"
 )
+
+// Version is the version of the core build, reported by core.hello. Release
+// builds set it with -ldflags "-X .../core/embedded.Version=...".
+var Version = "dev"
 
 // echoBridge is the bridge ID of the echo network.
 const echoBridge networkid.BridgeID = "echo"
 
 // eventQueueSize bounds the events waiting for the application. When the
 // application stops reading, the oldest events are not kept forever: the
-// queue reports an overflow and the application must re-read the state.
+// queue reports resync.required and the application must re-read the state.
 const eventQueueSize = 1024
 
 // Config is the JSON configuration passed to Open.
@@ -54,13 +54,17 @@ type Config struct {
 
 // Core is one running core.
 type Core struct {
-	host *bridgehost.Host
-	logs *logWriter
-	log  zerolog.Logger
+	host     *bridgehost.Host
+	networks []networkid.BridgeID
+	logs     *logWriter
+	log      zerolog.Logger
 
 	// ctx is cancelled by Close; it bounds every request.
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	loginsMu sync.Mutex
+	logins   map[string]*loginProcess
 
 	events      chan []byte
 	unsubscribe func()
@@ -95,7 +99,7 @@ func Open(config []byte) (*Core, error) {
 	logs := &logWriter{f: logFile}
 	log := zerolog.New(logs).Level(level).With().Timestamp().Logger()
 
-	c := &Core{logs: logs, log: log, events: make(chan []byte, eventQueueSize)}
+	c := &Core{logs: logs, log: log, events: make(chan []byte, eventQueueSize), logins: map[string]*loginProcess{}}
 	c.ctx, c.cancel = context.WithCancel(log.WithContext(context.Background()))
 	if err = c.start(cfg); err != nil {
 		c.cancel()
@@ -121,6 +125,7 @@ func (c *Core) start(cfg Config) error {
 	if _, err = host.AddNetwork(echoBridge, network); err != nil {
 		return err
 	}
+	c.networks = append(c.networks, echoBridge)
 	// Subscribe before starting, so that no event of the start is missed.
 	updates, unsubscribe := host.Matrix.Subscribe(eventQueueSize)
 	c.unsubscribe = unsubscribe
@@ -133,6 +138,7 @@ func (c *Core) start(cfg Config) error {
 func (c *Core) Close() error {
 	c.closeOnce.Do(func() {
 		c.cancel()
+		c.cancelLogins()
 		c.closeErr = c.host.Stop()
 		c.unsubscribe()
 		c.forwarding.Wait()
@@ -145,14 +151,14 @@ func (c *Core) Close() error {
 }
 
 // NextEvent waits up to timeout for the next event. It returns false on
-// timeout, and a final {"type":"closed"} event once the core is closed.
+// timeout, and a final core.closed event once the core is closed.
 func (c *Core) NextEvent(timeout time.Duration) ([]byte, bool) {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	select {
 	case evt, ok := <-c.events:
 		if !ok {
-			return []byte(`{"type":"closed"}`), true
+			return closedEvent, true
 		}
 		return evt, true
 	case <-timer.C:
@@ -160,63 +166,153 @@ func (c *Core) NextEvent(timeout time.Duration) ([]byte, bool) {
 	}
 }
 
-// Event types sent to the application.
-type messageEvent struct {
-	Type    string    `json:"type"`
-	RoomID  id.RoomID `json:"room_id"`
-	EventID string    `json:"event_id"`
-	Sender  id.UserID `json:"sender"`
-	FromMe  bool      `json:"from_me"`
-	Body    string    `json:"body"`
-}
-
-type statusEvent struct {
-	Type    string `json:"type"`
-	EventID string `json:"event_id"`
-	Status  string `json:"status"`
-	Message string `json:"message,omitempty"`
-}
-
-type stateEvent struct {
-	Type    string `json:"type"`
-	Network string `json:"network"`
-	LoginID string `json:"login_id,omitempty"`
-	State   string `json:"state"`
-}
-
+// forward turns the local storage's updates into API events.
 func (c *Core) forward(updates <-chan localmatrix.Update) {
 	defer c.forwarding.Done()
-	me := c.host.Matrix.UserID()
 	for update := range updates {
-		var evt any
-		switch {
-		case update.Event != nil && update.Event.Type == event.EventMessage:
-			content := update.Event.Content.AsMessage()
-			evt = messageEvent{"message", update.Event.RoomID, string(update.Event.ID), update.Event.Sender, update.Event.Sender == me, content.Body}
-		case update.MessageStatus != nil:
-			evt = statusEvent{"message_status", string(update.MessageStatus.EventID), string(update.MessageStatus.Status), update.MessageStatus.Message}
-		case update.BridgeState != nil:
-			evt = stateEvent{"network_state", update.BridgeState.BridgeID, string(update.BridgeState.RemoteID), string(update.BridgeState.StateEvent)}
-		default:
-			continue
-		}
-		data, err := json.Marshal(evt)
+		evt, err := c.translate(update)
 		if err != nil {
-			c.log.Err(err).Msg("Failed to encode an event for the application")
+			if c.ctx.Err() == nil {
+				c.log.Err(err).Msg("Failed to translate an update for the application")
+			}
 			continue
 		}
-		c.push(data)
+		if evt != nil {
+			c.pushEvent(evt)
+		}
 	}
 	// The channel closes when the core stops, or when this subscriber fell
 	// behind and the server dropped it.
 	if c.ctx.Err() == nil {
-		c.push([]byte(`{"type":"overflow"}`))
+		c.push(resyncEvent)
 		c.log.Warn().Msg("The application read events too slowly; it must re-read the state")
 	}
 }
 
+// translate returns the API event of an update, or nil if it has none.
+func (c *Core) translate(update localmatrix.Update) (*api.Event, error) {
+	ctx := c.ctx
+	switch {
+	case update.Event != nil && update.Event.Type == event.EventMessage:
+		msg, err := c.message(ctx, update.Event)
+		if err != nil {
+			return nil, err
+		}
+		return &api.Event{Type: api.EventMessageAdded, Data: api.MessageEvent{Message: msg}}, nil
+	case update.Event != nil && update.Event.Type == event.StateRoomName:
+		c.announceConversation(update.Event.RoomID)
+		return nil, nil
+	case update.MessageStatus != nil:
+		evt, err := c.host.Matrix.Event(ctx, update.MessageStatus.RoomID, update.MessageStatus.EventID)
+		if err != nil {
+			return nil, err
+		}
+		msg, err := c.message(ctx, evt)
+		if err != nil {
+			return nil, err
+		}
+		return &api.Event{Type: api.EventMessageUpdated, Data: api.MessageEvent{Message: msg}}, nil
+	case update.BridgeState != nil && update.BridgeState.RemoteID != "":
+		network := networkid.BridgeID(update.BridgeState.BridgeID)
+		br := c.host.Bridge(network)
+		if br == nil {
+			return nil, nil
+		}
+		login := update.BridgeState.RemoteID
+		account, err := c.account(ctx, network, login, loginName(br, login))
+		if err != nil {
+			return nil, err
+		}
+		return &api.Event{Type: api.EventAccountUpdated, Data: api.AccountEvent{Account: account}}, nil
+	}
+	return nil, nil
+}
+
+// conversationWait bounds how long a named room may take to become a portal
+// before its conversation.updated event is given up.
+const conversationWait = 10 * time.Second
+
+// announceConversation sends conversation.updated for a room whose name was
+// set. bridgev2 names a room while creating it and records it as a portal
+// just after, so the event may have to wait for the portal; it waits on its
+// own goroutine, without holding up the other events. It is only called
+// from forward, so the wait group is never at zero here.
+func (c *Core) announceConversation(roomID id.RoomID) {
+	c.forwarding.Add(1)
+	go func() {
+		defer c.forwarding.Done()
+		deadline := time.Now().Add(conversationWait)
+		for {
+			room, err := c.host.Matrix.Room(c.ctx, roomID)
+			var conv *api.Conversation
+			if err == nil {
+				conv, err = c.conversation(c.ctx, room)
+			}
+			if err != nil {
+				if c.ctx.Err() == nil {
+					c.log.Err(err).Stringer("room_id", roomID).Msg("Failed to read a conversation")
+				}
+				return
+			}
+			if conv != nil {
+				c.pushEvent(&api.Event{Type: api.EventConversationUpdated, Data: api.ConversationEvent{Conversation: *conv}})
+				return
+			}
+			if time.Now().After(deadline) {
+				c.log.Warn().Stringer("room_id", roomID).Msg("A named room did not become a conversation")
+				return
+			}
+			select {
+			case <-c.ctx.Done():
+				return
+			case <-time.After(10 * time.Millisecond):
+			}
+		}
+	}()
+}
+
+func (c *Core) pushEvent(evt *api.Event) {
+	data, err := json.Marshal(evt)
+	if err != nil {
+		c.log.Err(err).Str("event_type", evt.Type).Msg("Failed to encode an event for the application")
+		return
+	}
+	c.push(data)
+}
+
+var (
+	resyncEvent = mustJSON(&api.Event{Type: api.EventResyncRequired, Data: api.Empty{}})
+	// closedEvent is the last event, returned by NextEvent once the core
+	// is closed.
+	closedEvent = mustJSON(&api.Event{Type: api.EventCoreClosed, Data: api.Empty{}})
+)
+
+// ClosedEvent returns the core.closed event, for the bindings to report a
+// core that is closed or was never open.
+func ClosedEvent() []byte {
+	return slices.Clone(closedEvent)
+}
+
+// ErrorResponse returns the error response to a request that cannot reach a
+// core, for the bindings. Its ID is the request's, when the request has one.
+func ErrorResponse(request []byte, code api.ErrorCode, message string) []byte {
+	var req struct {
+		ID int64 `json:"id"`
+	}
+	_ = json.Unmarshal(request, &req)
+	return mustJSON(response{ID: req.ID, Error: &api.CoreError{Code: code, Message: message}})
+}
+
+func mustJSON(v any) []byte {
+	data, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return data
+}
+
 // push queues an event without ever blocking the core: when the queue is
-// full, the oldest event is dropped and an overflow is reported instead.
+// full, the oldest event is dropped and resync.required is queued instead.
 func (c *Core) push(data []byte) {
 	for {
 		select {
@@ -226,194 +322,122 @@ func (c *Core) push(data []byte) {
 		}
 		select {
 		case <-c.events:
-			data = []byte(`{"type":"overflow"}`)
+			data = resyncEvent
 		default:
 		}
 	}
 }
 
-// request and response are the JSON envelope of Call.
-type request struct {
-	ID      int64           `json:"id"`
-	Command string          `json:"command"`
-	Params  json.RawMessage `json:"params,omitempty"`
-}
+// requestTimeout bounds one request, so that a stuck network cannot block
+// the application's thread forever. login.wait is the exception: it waits
+// for the user, and login.cancel or Close ends it.
+const requestTimeout = 30 * time.Second
 
 type response struct {
-	ID     int64  `json:"id"`
-	Result any    `json:"result,omitempty"`
-	Error  string `json:"error,omitempty"`
+	ID     int64          `json:"id"`
+	Result any            `json:"result,omitempty"`
+	Error  *api.CoreError `json:"error,omitempty"`
 }
-
-// requestTimeout bounds one request, so that a stuck network cannot block
-// the application's thread forever.
-const requestTimeout = 30 * time.Second
 
 // Call runs one JSON request and returns the JSON response. It never fails:
 // errors are reported in the response.
 func (c *Core) Call(data []byte) []byte {
-	var req request
-	resp := response{}
+	var req struct {
+		ID      int64           `json:"id"`
+		Command string          `json:"command"`
+		Params  json.RawMessage `json:"params"`
+	}
+	var resp response
 	if err := json.Unmarshal(data, &req); err != nil {
-		resp.Error = "invalid request: " + err.Error()
+		resp.Error = newError(api.ErrorCodeInvalidRequest, "invalid request: %v", err)
+	} else if resp.ID = req.ID; req.Command == "" {
+		resp.Error = newError(api.ErrorCodeInvalidRequest, "invalid request: command is missing")
 	} else {
-		resp.ID = req.ID
-		ctx, cancel := context.WithTimeout(c.ctx, requestTimeout)
-		result, err := c.dispatch(ctx, req)
+		ctx, cancel := c.ctx, context.CancelFunc(func() {})
+		if req.Command != api.CommandLoginWait {
+			ctx, cancel = context.WithTimeout(c.ctx, requestTimeout)
+		}
+		result, err := c.dispatch(ctx, req.Command, req.Params)
 		cancel()
 		if err != nil {
-			resp.Error = err.Error()
+			resp.Error = c.coreError(err)
 		} else {
 			resp.Result = result
 		}
 	}
 	out, err := json.Marshal(resp)
 	if err != nil {
-		return []byte(`{"error":"failed to encode the response"}`)
+		return mustJSON(response{ID: resp.ID, Error: newError(api.ErrorCodeInternal, "failed to encode the response")})
 	}
 	return out
 }
 
-func (c *Core) dispatch(ctx context.Context, req request) (any, error) {
-	switch req.Command {
-	case "ping":
-		var p struct {
-			Payload string `json:"payload"`
-		}
-		if err := decodeParams(req.Params, &p); err != nil {
-			return nil, err
-		}
-		return p, nil
-	case "login":
-		var p struct {
-			Username string `json:"username"`
-		}
-		if err := decodeParams(req.Params, &p); err != nil {
-			return nil, err
-		}
-		return c.login(ctx, p.Username)
-	case "rooms":
-		return c.rooms(ctx)
-	case "send":
-		var p struct {
-			RoomID id.RoomID `json:"room_id"`
-			Text   string    `json:"text"`
-		}
-		if err := decodeParams(req.Params, &p); err != nil {
-			return nil, err
-		}
-		eventID, err := c.host.Matrix.SendMessage(ctx, p.RoomID, &event.MessageEventContent{MsgType: event.MsgText, Body: p.Text})
-		if err != nil {
-			return nil, err
-		}
-		return map[string]string{"event_id": string(eventID)}, nil
-	case "stats":
-		return stats(), nil
+func (c *Core) dispatch(ctx context.Context, command string, params json.RawMessage) (any, error) {
+	switch command {
+	case api.CommandCoreHello:
+		return handle(ctx, params, c.hello)
+	case api.CommandNetworksList:
+		return handle(ctx, params, c.networksList)
+	case api.CommandAccountsList:
+		return handle(ctx, params, c.accountsList)
+	case api.CommandLoginStart:
+		return handle(ctx, params, c.loginStart)
+	case api.CommandLoginSubmit:
+		return handle(ctx, params, c.loginSubmit)
+	case api.CommandLoginWait:
+		return handle(ctx, params, c.loginWait)
+	case api.CommandLoginCancel:
+		return handle(ctx, params, c.loginCancel)
+	case api.CommandConversationsList:
+		return handle(ctx, params, c.conversationsList)
+	case api.CommandMessagesList:
+		return handle(ctx, params, c.messagesList)
+	case api.CommandMessagesSend:
+		return handle(ctx, params, c.messagesSend)
+	case api.CommandDebugPing:
+		return handle(ctx, params, c.ping)
+	case api.CommandDebugStats:
+		return handle(ctx, params, c.stats)
 	default:
-		return nil, fmt.Errorf("unknown command %q", req.Command)
+		return nil, newError(api.ErrorCodeUnknownCommand, "unknown command %q", command)
 	}
 }
 
-func decodeParams(raw json.RawMessage, v any) error {
-	if len(raw) == 0 {
-		return nil
-	}
-	if err := json.Unmarshal(raw, v); err != nil {
-		return fmt.Errorf("invalid params: %w", err)
-	}
-	return nil
-}
-
-type loginResult struct {
-	LoginID string `json:"login_id"`
-	Rooms   []room `json:"rooms"`
-}
-
-type room struct {
-	RoomID id.RoomID `json:"room_id"`
-	Name   string    `json:"name"`
-}
-
-// login runs the echo network's login flow and waits until the login is
-// connected and its conversations exist.
-func (c *Core) login(ctx context.Context, username string) (*loginResult, error) {
-	br := c.host.Bridge(echoBridge)
-	user, err := c.host.User(ctx, echoBridge)
-	if err != nil {
-		return nil, err
-	}
-	process, err := br.Network.CreateLogin(ctx, user, echo.FlowUsername)
-	if err != nil {
-		return nil, err
-	}
-	step, err := process.Start(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if step.Type != bridgev2.LoginStepTypeUserInput || len(step.UserInputParams.Fields) != 1 {
-		return nil, fmt.Errorf("unexpected login step %q", step.StepID)
-	}
-	field := step.UserInputParams.Fields[0].ID
-	step, err = process.(bridgev2.LoginProcessUserInput).SubmitUserInput(ctx, map[string]string{field: username})
-	if err != nil {
-		return nil, err
-	}
-	if step.Type != bridgev2.LoginStepTypeComplete || step.CompleteParams.UserLogin == nil {
-		return nil, fmt.Errorf("unexpected login step %q", step.StepID)
-	}
-	loginID := step.CompleteParams.UserLogin.ID
-	for {
-		state, err := c.host.Matrix.BridgeState(ctx, string(echoBridge), string(loginID))
-		if err != nil {
-			return nil, err
-		}
-		rooms, err := c.rooms(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if state != nil && state.StateEvent == status.StateConnected && len(rooms) == len(echo.Contacts) {
-			return &loginResult{LoginID: string(loginID), Rooms: rooms}, nil
-		}
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("waiting for the login to connect: %w", ctx.Err())
-		case <-time.After(10 * time.Millisecond):
+// handle decodes the params of a command and runs it. Unknown params are
+// ignored: a newer user interface may send fields this core does not know.
+func handle[P, R any](ctx context.Context, raw json.RawMessage, fn func(context.Context, P) (R, error)) (any, error) {
+	var params P
+	if len(raw) > 0 && string(raw) != "null" {
+		if err := json.Unmarshal(raw, &params); err != nil {
+			return nil, newError(api.ErrorCodeInvalidParams, "invalid params: %v", err)
 		}
 	}
+	return fn(ctx, params)
 }
 
-// rooms lists the rooms whose name is set, i.e. fully created.
-func (c *Core) rooms(ctx context.Context) ([]room, error) {
-	all, err := c.host.Matrix.Rooms(ctx)
-	if err != nil {
-		return nil, err
+func newError(code api.ErrorCode, format string, args ...any) *api.CoreError {
+	return &api.CoreError{Code: code, Message: fmt.Sprintf(format, args...)}
+}
+
+// coreError gives an error its API code.
+func (c *Core) coreError(err error) *api.CoreError {
+	var coreErr *api.CoreError
+	switch {
+	case errors.As(err, &coreErr):
+		return coreErr
+	case c.ctx.Err() != nil:
+		return newError(api.ErrorCodeClosed, "the core is closed")
+	case errors.Is(err, context.DeadlineExceeded):
+		return newError(api.ErrorCodeTimeout, "%v", err)
+	case errors.Is(err, localmatrix.ErrNotFound):
+		return newError(api.ErrorCodeNotFound, "%v", err)
+	default:
+		return newError(api.ErrorCodeInternal, "%v", err)
 	}
-	rooms := make([]room, 0, len(all))
-	for _, r := range all {
-		name, err := c.host.Matrix.State(ctx, r.ID, event.StateRoomName, "")
-		if err != nil {
-			return nil, err
-		} else if name == nil {
-			continue
-		}
-		rooms = append(rooms, room{RoomID: r.ID, Name: name.Content.AsRoomName().Name})
-	}
-	return rooms, nil
 }
 
-type statsResult struct {
-	HeapAllocBytes uint64 `json:"heap_alloc_bytes"`
-	HeapSysBytes   uint64 `json:"heap_sys_bytes"`
-	Goroutines     int    `json:"goroutines"`
-}
-
-// stats reports the Go runtime's memory after a garbage collection, for the
-// leak tests of the embedding application.
-func stats() statsResult {
-	runtime.GC()
-	var mem runtime.MemStats
-	runtime.ReadMemStats(&mem)
-	return statsResult{HeapAllocBytes: mem.HeapAlloc, HeapSysBytes: mem.HeapSys, Goroutines: runtime.NumGoroutine()}
+func (c *Core) hasNetwork(network networkid.BridgeID) bool {
+	return slices.Contains(c.networks, network)
 }
 
 // logWriter writes the core's logs to its file. bridgev2 does not wait for

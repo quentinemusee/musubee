@@ -35,25 +35,16 @@ class CoreServiceTest {
         val listener: (ByteArray) -> Unit = { events.add(JSONObject(String(it, Charsets.UTF_8))) }
         service.addListener(listener)
         try {
-            val login = JSONObject(
-                String(service.call("""{"id":1,"command":"login","params":{"username":"alice"}}""".toByteArray()), Charsets.UTF_8),
-            )
-            val rooms = login.getJSONObject("result").getJSONArray("rooms")
-            val roomId = (0 until rooms.length()).map { rooms.getJSONObject(it) }
-                .first { it.getString("name") == "Instant Echo" }.getString("room_id")
-            val send = JSONObject().put("id", 2).put("command", "send")
-                .put("params", JSONObject().put("room_id", roomId).put("text", "through the service"))
+            val conversationId = loginThroughService(service, events)
+            val send = JSONObject().put("id", 10).put("command", "messages.send")
+                .put("params", JSONObject().put("conversation_id", conversationId).put("text", "through the service"))
             service.call(send.toString().toByteArray())
             val deadline = System.currentTimeMillis() + 15_000
             while (true) {
                 val remaining = deadline - System.currentTimeMillis()
                 assertTrue("no echo within 15 s", remaining > 0)
                 val event = events.poll(remaining, TimeUnit.MILLISECONDS) ?: continue
-                if (event.optString("type") == "message" && !event.optBoolean("from_me") &&
-                    event.optString("body").contains("through the service")
-                ) {
-                    break
-                }
+                if (isEcho(event, "through the service")) break
             }
         } finally {
             service.removeListener(listener)

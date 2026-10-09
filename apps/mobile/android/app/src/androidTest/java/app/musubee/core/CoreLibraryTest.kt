@@ -52,7 +52,7 @@ class CoreLibraryTest {
         if (params != null) req.put("params", params)
         val resp = JSONObject(String(core.call(req.toString().toByteArray()), Charsets.UTF_8))
         assertEquals("response id", nextId, resp.getInt("id"))
-        if (resp.has("error")) fail("$command: ${resp.getString("error")}")
+        if (resp.has("error")) fail("$command: ${resp.getJSONObject("error")}")
         return resp
     }
 
@@ -69,36 +69,49 @@ class CoreLibraryTest {
 
     private fun pssKiB(): Long = Debug.getPss()
 
+    /** Adds the echo account "alice"; returns the ID of the Instant Echo conversation. */
     private fun login(): String {
-        val result = request("login", JSONObject().put("username", "alice")).getJSONObject("result")
-        waitEvent("connected state") { it.optString("type") == "network_state" && it.optString("state") == "CONNECTED" }
-        val rooms: JSONArray = result.getJSONArray("rooms")
-        for (i in 0 until rooms.length()) {
-            val room = rooms.getJSONObject(i)
-            if (room.getString("name") == "Instant Echo") return room.getString("room_id")
+        val step = request("login.start", JSONObject().put("network_id", "echo").put("flow_id", "username"))
+            .getJSONObject("result")
+        val field = step.getJSONArray("fields").getJSONObject(0).getString("field_id")
+        val done = request(
+            "login.submit",
+            JSONObject().put("process_id", step.getString("process_id")).put("values", JSONObject().put(field, "alice")),
+        ).getJSONObject("result")
+        assertEquals("complete", done.getString("type"))
+        waitEvent("connected account") {
+            it.optString("type") == "account.updated" &&
+                it.getJSONObject("data").getJSONObject("account").optString("state") == "connected"
         }
-        fail("no Instant Echo room in $rooms")
-        throw AssertionError()
+        val event = waitEvent("Instant Echo conversation") {
+            it.optString("type") == "conversation.updated" &&
+                it.getJSONObject("data").getJSONObject("conversation").optString("name") == "Instant Echo"
+        }
+        return event.getJSONObject("data").getJSONObject("conversation").getString("conversation_id")
     }
 
-    private fun sendAndWaitEcho(roomId: String, text: String) {
-        request("send", JSONObject().put("room_id", roomId).put("text", text))
-        waitEvent("echo of $text") {
-            it.optString("type") == "message" && !it.optBoolean("from_me") && it.optString("body").contains(text)
-        }
+    private fun sendAndWaitEcho(conversationId: String, text: String) {
+        request("messages.send", JSONObject().put("conversation_id", conversationId).put("text", text))
+        waitEvent("echo of $text") { isEcho(it, text) }
     }
 
     @Test
     fun pingReturnsThePayload() {
         val payload = "hello 👋"
-        val result = request("ping", JSONObject().put("payload", payload)).getJSONObject("result")
+        val result = request("debug.ping", JSONObject().put("payload", payload)).getJSONObject("result")
         assertEquals(payload, result.getString("payload"))
     }
 
     @Test
     fun invalidRequestGetsAnError() {
         val resp = JSONObject(String(core.call("{not json".toByteArray()), Charsets.UTF_8))
-        assertTrue(resp.toString(), resp.getString("error").startsWith("invalid request"))
+        assertEquals(resp.toString(), "invalid_request", resp.getJSONObject("error").getString("code"))
+    }
+
+    @Test
+    fun helloReportsTheApiVersion() {
+        val result = request("core.hello").getJSONObject("result")
+        assertTrue(result.toString(), result.getString("api_version").startsWith("1."))
     }
 
     @Test
@@ -110,8 +123,10 @@ class CoreLibraryTest {
     fun closeEndsTheEventStream() {
         login()
         core.close()
-        waitEvent("closed event") { it.optString("type") == "closed" }
+        waitEvent("closed event") { it.optString("type") == "core.closed" }
         assertNotNull(core.nextEvent(1))
+        val resp = JSONObject(String(core.call("""{"id":9,"command":"core.hello"}""".toByteArray()), Charsets.UTF_8))
+        assertEquals(resp.toString(), "closed", resp.getJSONObject("error").getString("code"))
     }
 
     /**
@@ -123,7 +138,7 @@ class CoreLibraryTest {
     @Test
     fun measurements() {
         val result = JSONObject().put("pss_open_kib", pssKiB())
-        val ping = JSONObject().put("id", 1).put("command", "ping")
+        val ping = JSONObject().put("id", 1).put("command", "debug.ping")
             .put("params", JSONObject().put("payload", "x".repeat(1024))).toString().toByteArray()
         repeat(PING_WARMUP) { core.call(ping) }
         val loopUs = JSONArray()
@@ -136,19 +151,19 @@ class CoreLibraryTest {
         }
         result.put("ping_us", loopUs).put("ping_pss_kib", loopPss)
 
-        val roomId = login()
-        repeat(ROUNDTRIP_WARMUP) { sendAndWaitEcho(roomId, "warm-up $it") }
+        val conversationId = login()
+        repeat(ROUNDTRIP_WARMUP) { sendAndWaitEcho(conversationId, "warm-up $it") }
         var total = 0L
         var slowest = 0L
         repeat(ROUNDTRIP_ITERATIONS) {
             val start = SystemClock.elapsedRealtimeNanos()
-            sendAndWaitEcho(roomId, "message $it")
+            sendAndWaitEcho(conversationId, "message $it")
             val elapsed = SystemClock.elapsedRealtimeNanos() - start
             total += elapsed
             slowest = maxOf(slowest, elapsed)
         }
         result.put("roundtrip_mean_ms", total / 1e6 / ROUNDTRIP_ITERATIONS).put("roundtrip_max_ms", slowest / 1e6)
-        val stats = request("stats").getJSONObject("result")
+        val stats = request("debug.stats").getJSONObject("result")
         result.put("pss_end_kib", pssKiB())
             .put("native_heap_kib", Debug.getNativeHeapAllocatedSize() / 1024)
             .put("go_heap_kib", stats.getLong("heap_alloc_bytes") / 1024)

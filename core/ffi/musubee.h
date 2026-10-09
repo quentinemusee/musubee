@@ -5,9 +5,11 @@
  * C interface of the Musubee core, built as a shared library with
  *   go build -buildmode=c-shared ./core/ffi
  *
- * T1.2 spike (docs/ADR/0010-core-shared-library.md): requests, responses and
- * events are JSON documents in UTF-8. The commands are those of the Go
- * package core/embedded. The stable contract comes with T1.4.
+ * Requests, responses and events are JSON documents in UTF-8. Their contract
+ * is the versioned JSON Schema core/api/schema/core-api.schema.json, from
+ * which the TypeScript and Go types are generated (docs/ADR/0012). This
+ * file only carries them; see docs/ADR/0010-core-shared-library.md for the
+ * library itself.
  *
  * Memory: every musubee_buffer returned by the library is owned by the
  * caller, who must release it with musubee_free. Input pointers are only
@@ -48,13 +50,15 @@ musubee_handle musubee_open(const uint8_t *config, size_t config_len, musubee_bu
 /*
  * Runs one JSON request {"id": 1, "command": "...", "params": {...}} and
  * returns the JSON response {"id": 1, "result": ...} or
- * {"id": 1, "error": "..."}. Never returns an empty buffer.
+ * {"id": 1, "error": {"code": "...", "message": "..."}}. Never returns an
+ * empty buffer. On a closed handle, the error code is "closed".
  */
 musubee_buffer musubee_call(musubee_handle handle, const uint8_t *request, size_t request_len);
 
 /*
  * Waits up to timeout_ms milliseconds for the next JSON event. Returns an
- * empty buffer on timeout. After musubee_close, returns {"type":"closed"}.
+ * empty buffer on timeout. After musubee_close, and on a handle that was
+ * never open, returns {"type":"core.closed","data":{}}.
  */
 musubee_buffer musubee_next_event(musubee_handle handle, int32_t timeout_ms);
 

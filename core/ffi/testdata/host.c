@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  *
  * Host program of the T1.2 spike: loads the core shared library, calls it
- * through the C interface of musubee.h, and prints one JSON line of
+ * through the C interface of musubee.h with the commands of the core API
+ * (core/api/schema, docs/ADR/0012), and prints one JSON line of
  * measurements on stdout. Run by ffi_test.go; see
  * docs/ADR/0010-core-shared-library.md.
  *
@@ -121,7 +122,7 @@ static uint64_t number_field(const char *json, const char *name) {
 	return strtoull(at + strlen(key), NULL, 10);
 }
 
-/* Reads a string field without escapes, such as "room_id":"!abc:x". */
+/* Reads a string field without escapes, such as "process_id":"p.1f". */
 static void string_field(const char *json, const char *name, char *out, size_t out_len) {
 	char key[64];
 	snprintf(key, sizeof(key), "\"%s\":\"", name);
@@ -144,7 +145,7 @@ typedef struct {
 } go_stats;
 
 static go_stats stats(musubee_handle core) {
-	char *response = call(core, "{\"id\":1,\"command\":\"stats\"}");
+	char *response = call(core, "{\"id\":1,\"command\":\"debug.stats\"}");
 	go_stats s = {number_field(response, "heap_alloc_bytes"), number_field(response, "goroutines")};
 	free(response);
 	return s;
@@ -156,7 +157,7 @@ static uint64_t ping_loop(musubee_handle core, long iterations, int leak) {
 	char payload[PING_PAYLOAD_SIZE + 1];
 	memset(payload, 'x', PING_PAYLOAD_SIZE);
 	payload[PING_PAYLOAD_SIZE] = '\0';
-	int request_len = snprintf(request, sizeof(request), "{\"id\":2,\"command\":\"ping\",\"params\":{\"payload\":\"%s\"}}", payload);
+	int request_len = snprintf(request, sizeof(request), "{\"id\":2,\"command\":\"debug.ping\",\"params\":{\"payload\":\"%s\"}}", payload);
 	uint64_t start = now_ns();
 	for (long i = 0; i < iterations; i++) {
 		musubee_buffer response = musubee_call(core, (const uint8_t *)request, (size_t)request_len);
@@ -170,20 +171,46 @@ static uint64_t ping_loop(musubee_handle core, long iterations, int leak) {
 	return iterations > 0 ? (now_ns() - start) / (uint64_t)iterations : 0;
 }
 
-/* Finds the room of a contact in the response of the login command. */
-static void find_room(const char *login, const char *name, char *room_id, size_t room_id_len) {
+/* Adds the echo account "host" with the username login flow. */
+static void login(musubee_handle core) {
+	char *step = call(core, "{\"id\":4,\"command\":\"login.start\",\"params\":{\"network_id\":\"echo\",\"flow_id\":\"username\"}}");
+	char process_id[128], field_id[128], request[512];
+	string_field(step, "process_id", process_id, sizeof(process_id));
+	string_field(step, "field_id", field_id, sizeof(field_id));
+	free(step);
+	snprintf(request, sizeof(request), "{\"id\":5,\"command\":\"login.submit\",\"params\":{\"process_id\":\"%s\",\"values\":{\"%s\":\"host\"}}}", process_id, field_id);
+	step = call(core, request);
+	if (strstr(step, "\"type\":\"complete\"") == NULL) {
+		fail("login did not complete: %s", step);
+	}
+	free(step);
+}
+
+/* Fails on the events that end or reset the stream. */
+static void check_event(const char *event, const char *waiting_for) {
+	if (strstr(event, "\"type\":\"core.closed\"") != NULL || strstr(event, "\"type\":\"resync.required\"") != NULL) {
+		fail("unexpected event while waiting for %s: %s", waiting_for, event);
+	}
+}
+
+/* Waits for the conversation.updated event of a contact; returns its ID. */
+static void wait_conversation(musubee_handle core, const char *name, char *conversation_id, size_t conversation_id_len) {
 	char needle[128];
 	snprintf(needle, sizeof(needle), "\"name\":\"%s\"", name);
-	const char *at = strstr(login, needle);
-	if (at == NULL) {
-		fail("no room named %s in %s", name, login);
+	uint64_t deadline = now_ns() + (uint64_t)EVENT_TIMEOUT_MS * 1000000u;
+	while (now_ns() < deadline) {
+		char *event = take_string(musubee_next_event(core, EVENT_TIMEOUT_MS));
+		check_event(event, name);
+		int found = strstr(event, "\"type\":\"conversation.updated\"") != NULL && strstr(event, needle) != NULL;
+		if (found) {
+			string_field(event, "conversation_id", conversation_id, conversation_id_len);
+		}
+		free(event);
+		if (found) {
+			return;
+		}
 	}
-	/* Each room is {"room_id":"...","name":"..."}: go back to its start. */
-	const char *start = at;
-	while (start > login && *start != '{') {
-		start--;
-	}
-	string_field(start, "room_id", room_id, room_id_len);
+	fail("no conversation %s within %d ms", name, EVENT_TIMEOUT_MS);
 }
 
 /*
@@ -194,12 +221,10 @@ static void wait_echo(musubee_handle core, const char *marker) {
 	uint64_t deadline = now_ns() + (uint64_t)EVENT_TIMEOUT_MS * 1000000u;
 	while (now_ns() < deadline) {
 		char *event = take_string(musubee_next_event(core, EVENT_TIMEOUT_MS));
-		int found = strstr(event, "\"type\":\"message\"") != NULL &&
+		check_event(event, marker);
+		int found = strstr(event, "\"type\":\"message.added\"") != NULL &&
 			strstr(event, "\"from_me\":false") != NULL &&
 			strstr(event, marker) != NULL;
-		if (strstr(event, "\"type\":\"closed\"") != NULL || strstr(event, "\"type\":\"overflow\"") != NULL) {
-			fail("unexpected event while waiting for %s: %s", marker, event);
-		}
 		free(event);
 		if (found) {
 			return;
@@ -214,13 +239,13 @@ typedef struct {
 } latency;
 
 /* Sends messages to the instant echo contact and waits for each echo. */
-static latency roundtrip_loop(musubee_handle core, const char *room_id, long iterations) {
+static latency roundtrip_loop(musubee_handle core, const char *conversation_id, long iterations) {
 	latency result = {0, 0};
 	uint64_t total = 0;
 	for (long i = 0; i < iterations; i++) {
 		char marker[32], request[256];
 		snprintf(marker, sizeof(marker), "roundtrip-%ld", i);
-		snprintf(request, sizeof(request), "{\"id\":3,\"command\":\"send\",\"params\":{\"room_id\":\"%s\",\"text\":\"%s\"}}", room_id, marker);
+		snprintf(request, sizeof(request), "{\"id\":3,\"command\":\"messages.send\",\"params\":{\"conversation_id\":\"%s\",\"text\":\"%s\"}}", conversation_id, marker);
 		uint64_t start = now_ns();
 		free(call(core, request));
 		wait_echo(core, marker);
@@ -273,7 +298,7 @@ int main(int argc, char **argv) {
 
 	/* Requests that fail must answer with an error, not crash. */
 	char *response = take_string(musubee_call(core, (const uint8_t *)"{oops", 5));
-	if (strstr(response, "\"error\"") == NULL) {
+	if (strstr(response, "\"code\":\"invalid_request\"") == NULL) {
 		fail("invalid JSON accepted: %s", response);
 	}
 	free(response);
@@ -285,13 +310,12 @@ int main(int argc, char **argv) {
 	go_stats stats_after_ping = stats(core);
 	uint64_t memory_after_ping = memory_bytes();
 
-	char *login = call(core, "{\"id\":4,\"command\":\"login\",\"params\":{\"username\":\"host\"}}");
-	char room_id[256];
-	find_room(login, "Instant Echo", room_id, sizeof(room_id));
-	free(login);
-	roundtrip_loop(core, room_id, 10); /* warm-up */
+	login(core);
+	char conversation_id[256];
+	wait_conversation(core, "Instant Echo", conversation_id, sizeof(conversation_id));
+	roundtrip_loop(core, conversation_id, 10); /* warm-up */
 	uint64_t memory_before_roundtrip = memory_bytes();
-	latency roundtrip = roundtrip_loop(core, room_id, roundtrip_iterations);
+	latency roundtrip = roundtrip_loop(core, conversation_id, roundtrip_iterations);
 	go_stats stats_after_roundtrip = stats(core);
 	uint64_t memory_after_roundtrip = memory_bytes();
 
@@ -299,14 +323,14 @@ int main(int argc, char **argv) {
 	musubee_close(core);
 	uint64_t close_ns = now_ns() - start;
 
-	/* A closed handle answers with an error and a closed event. */
-	response = take_string(musubee_call(core, (const uint8_t *)"{}", 2));
-	if (strstr(response, "invalid or closed handle") == NULL) {
+	/* A closed handle answers with a closed error and a core.closed event. */
+	response = take_string(musubee_call(core, (const uint8_t *)"{\"id\":9}", 8));
+	if (strstr(response, "{\"id\":9,\"error\":{\"code\":\"closed\"") == NULL) {
 		fail("call after close: %s", response);
 	}
 	free(response);
 	response = take_string(musubee_next_event(core, 0));
-	if (strcmp(response, "{\"type\":\"closed\"}") != 0) {
+	if (strcmp(response, "{\"type\":\"core.closed\",\"data\":{}}") != 0) {
 		fail("event after close: %s", response);
 	}
 	free(response);

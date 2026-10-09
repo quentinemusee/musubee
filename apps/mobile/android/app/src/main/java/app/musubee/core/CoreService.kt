@@ -130,6 +130,6 @@ class CoreService : Service() {
         private const val OPEN_TIMEOUT_SECONDS = 30L
         private const val EVENT_WAIT_MILLIS = 60_000
         private const val READER_JOIN_MILLIS = 2_000L
-        private val CLOSED_EVENT = """{"type":"closed"}""".toByteArray(Charsets.UTF_8)
+        private val CLOSED_EVENT = """{"type":"core.closed","data":{}}""".toByteArray(Charsets.UTF_8)
     }
 }

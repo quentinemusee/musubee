@@ -77,7 +77,7 @@ async function waitFor(predicate, what, timeout = 60_000) {
 test("the app logs in and gets the echo of a message", async () => {
   // The first start loads the web view and the core: allow for slow CI.
   await (await waitFor(exactly("Log in"), "the Log in button", 120_000)).click();
-  await waitFor(exactly("Logged in, room: Instant Echo"), "the logged-in status");
+  await waitFor(exactly("Logged in, conversation: Instant Echo"), "the logged-in status");
 
   const text = "hello from Appium";
   const input = await driver.$("//android.widget.EditText");

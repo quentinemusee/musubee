@@ -15,13 +15,13 @@ typedef const uint8_t musubee_const_byte;
 import "C"
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"sync"
 	"time"
 	"unsafe"
 
+	"github.com/quentinemusee/musubee/core/api"
 	"github.com/quentinemusee/musubee/core/embedded"
 )
 
@@ -52,18 +52,25 @@ func openCore(config []byte) (uint64, error) {
 	return lastHandle, nil
 }
 
-// closedHandleError is the error response to a request on a handle that
-// is not (or no longer) open.
+// closedHandleError is the message of the closed error that answers a
+// request on a handle that is not (or no longer) open.
 const closedHandleError = "invalid or closed handle"
 
-// closedEvent is the event read from a closed core.
-var closedEvent = []byte(`{"type":"closed"}`)
+// call runs a request on a core, or answers that the handle is closed.
+func call(handle uint64, request []byte) []byte {
+	core := lookup(handle)
+	if core == nil {
+		return embedded.ErrorResponse(request, api.ErrorCodeClosed, closedHandleError)
+	}
+	return core.Call(request)
+}
 
 // nextEvent waits for the next event of a core; see embedded.Core.NextEvent.
+// A closed handle reads core.closed, like a closed core.
 func nextEvent(handle uint64, timeoutMS int32) ([]byte, bool) {
 	core := lookup(handle)
 	if core == nil {
-		return closedEvent, true
+		return embedded.ClosedEvent(), true
 	}
 	return core.NextEvent(time.Duration(max(timeoutMS, 0)) * time.Millisecond)
 }
@@ -100,12 +107,6 @@ func cBuffer(data []byte) C.musubee_buffer {
 	return C.musubee_buffer{data: (*C.uint8_t)(C.CBytes(data)), len: C.size_t(len(data))}
 }
 
-// errorResponse is the response to a request that could not reach a core.
-func errorResponse(message string) C.musubee_buffer {
-	data, _ := json.Marshal(map[string]string{"error": message})
-	return cBuffer(data)
-}
-
 // A panic must never cross into C, where it would abort the host process
 // without a trace: every exported function recovers and reports it.
 
@@ -131,23 +132,22 @@ func musubee_open(config *C.musubee_const_byte, configLen C.size_t, errOut *C.mu
 
 //export musubee_call
 func musubee_call(handle C.musubee_handle, request *C.musubee_const_byte, requestLen C.size_t) (resp C.musubee_buffer) {
+	var data []byte
 	defer func() {
 		if r := recover(); r != nil {
-			resp = errorResponse(fmt.Sprint("panic: ", r))
+			resp = cBuffer(embedded.ErrorResponse(data, api.ErrorCodeInternal, fmt.Sprint("panic: ", r)))
 		}
 	}()
-	core := lookup(uint64(handle))
-	if core == nil {
-		return errorResponse(closedHandleError)
-	}
-	return cBuffer(core.Call(goBytes(request, requestLen)))
+	data = goBytes(request, requestLen)
+	return cBuffer(call(uint64(handle), data))
 }
 
 //export musubee_next_event
 func musubee_next_event(handle C.musubee_handle, timeoutMS C.int32_t) (evt C.musubee_buffer) {
 	defer func() {
 		if r := recover(); r != nil {
-			evt = errorResponse(fmt.Sprint("panic: ", r))
+			// There is no error event: the host sees the end of the stream.
+			evt = cBuffer(embedded.ClosedEvent())
 		}
 	}()
 	data, ok := nextEvent(uint64(handle), int32(timeoutMS))
