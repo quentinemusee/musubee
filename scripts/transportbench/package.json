@@ -1,0 +1,17 @@
+{
+  "name": "musubee-transportbench",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Measures the transports between Node (Electron's main process) and the core, for docs/ADR/0012.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "bench": "node bench.mjs"
+  },
+  "devDependencies": {
+    "koffi": "^3.3.2"
+  }
+}
