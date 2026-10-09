@@ -140,6 +140,16 @@ export class Store {
     }
   }
 
+  /** Logs an account out: the core removes it, with its conversations. */
+  async logout(accountId: string): Promise<void> {
+    try {
+      await this.client.call("accounts.logout", { account_id: accountId });
+    } catch (error) {
+      this.#set({ error: `Could not log out: ${describe(error)}` });
+    }
+    await this.reload();
+  }
+
   dismissError(): void {
     const { error: _, ...rest } = this.#state;
     this.#replace(rest);
@@ -153,9 +163,17 @@ export class Store {
       return;
     }
     switch (event?.type) {
-      case "account.updated":
-        this.#set({ accounts: upsert(this.#state.accounts, event.data.account, (a) => a.account_id) });
+      case "account.updated": {
+        const { account } = event.data;
+        // A logged-out account no longer exists in the core.
+        this.#set({
+          accounts:
+            account.state === "logged_out"
+              ? this.#state.accounts.filter((a) => a.account_id !== account.account_id)
+              : upsert(this.#state.accounts, account, (a) => a.account_id),
+        });
         break;
+      }
       case "conversation.updated":
         this.#set({
           conversations: sortConversations(upsert(this.#state.conversations, event.data.conversation, (c) => c.conversation_id)),

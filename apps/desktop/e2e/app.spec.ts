@@ -100,6 +100,20 @@ test("open the app, send a message and get its echo, then find it again after a 
   await app.close();
 });
 
+test("log out of an account: it goes away with its conversations", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "leaving");
+  await page.getByRole("button", { name: "Log out of Echo: leaving" }).click();
+  // Nothing happens before the confirmation.
+  await page.getByRole("button", { name: "Keep" }).click();
+  await expect(page.getByRole("heading", { name: "Instant Echo" })).toBeVisible();
+  await page.getByRole("button", { name: "Log out of Echo: leaving" }).click();
+  await page.getByRole("button", { name: "Log out", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Add an account" })).toBeVisible();
+  expect(await page.evaluate(`window.musubee.core.call(JSON.stringify({ id: 1, command: "conversations.list" }))`)).toContain('"conversations":[]');
+  await app.close();
+});
+
 test("the interface is isolated, and the main process checks what it sends", async () => {
   const { app, page } = await launch(newDataDir());
 

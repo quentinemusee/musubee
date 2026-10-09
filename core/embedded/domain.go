@@ -64,6 +64,24 @@ func (c *Core) accountsList(ctx context.Context, _ api.Empty) (api.AccountsListR
 	return result, nil
 }
 
+func (c *Core) accountsLogout(ctx context.Context, p api.AccountsLogoutParams) (api.Empty, error) {
+	network, loginID, err := parseAccountID(p.AccountID)
+	if err != nil {
+		return api.Empty{}, err
+	}
+	var login *bridgev2.UserLogin
+	if br := c.host.Bridge(network); br != nil && c.hasNetwork(network) {
+		login = br.GetCachedUserLoginByID(loginID)
+	}
+	if login == nil {
+		return api.Empty{}, newError(api.ErrorCodeNotFound, "no account %q", p.AccountID)
+	}
+	// What UserLogin.Logout does, but blocking: when the command returns,
+	// the account's conversations are gone too.
+	login.Delete(ctx, status.BridgeState{StateEvent: status.StateLoggedOut}, bridgev2.DeleteOpts{LogoutRemote: true, BlockingCleanup: true})
+	return api.Empty{}, nil
+}
+
 func (c *Core) account(ctx context.Context, network networkid.BridgeID, login networkid.UserLoginID, name string) (api.Account, error) {
 	account := api.Account{AccountID: accountID(network, login), NetworkID: string(network), Name: name, State: api.AccountStateConnecting}
 	state, err := c.host.Matrix.BridgeState(ctx, string(network), string(login))

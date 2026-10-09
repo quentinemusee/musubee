@@ -61,7 +61,7 @@ function scriptedShell(results: Record<string, (params: unknown) => unknown>) {
 }
 
 const coreState = (conversations: Conversation[] = []) => ({
-  "core.hello": () => ({ api_version: "1.0", core_version: "test" }),
+  "core.hello": () => ({ api_version: "1.1", core_version: "test" }),
   "networks.list": () => ({ networks: [{ network_id: "echo", name: "Echo", login_flows: [] }] }),
   "accounts.list": () => ({ accounts: [] }),
   "conversations.list": () => ({ conversations }),
@@ -115,6 +115,35 @@ describe("Store", () => {
     const state = store.getState();
     expect(state.messages["c1"]?.map((m) => `${m.message_id}:${m.status}`)).toEqual(["m1:received", "m2:received", "m3:sent", "m4:received"]);
     expect(state.conversations.map((c) => c.name)).toEqual(["Aaron", "Adam"]);
+  });
+
+  test("logs out, and forgets a logged-out account", async () => {
+    const alice = { account_id: "a1", network_id: "echo", name: "alice", state: "connected" };
+    let accounts = [alice];
+    const shell = scriptedShell({
+      ...coreState([conversation("c1", "Adam")]),
+      "accounts.list": () => ({ accounts }),
+      "accounts.logout": () => {
+        accounts = [];
+        return {};
+      },
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    expect(store.getState().accounts).toHaveLength(1);
+
+    shell.commands.length = 0;
+    await store.logout("a1");
+    expect(shell.commands.slice(0, 2)).toEqual(["accounts.logout", "core.hello"]);
+    expect(store.getState().accounts).toEqual([]);
+
+    // The event of the logout may come after the state was read again.
+    shell.emit("account.updated", { account: { ...alice, state: "connecting" } });
+    expect(store.getState().accounts).toHaveLength(1);
+    shell.emit("account.updated", { account: { ...alice, state: "logged_out" } });
+    expect(store.getState().accounts).toEqual([]);
   });
 
   test("reads everything again after a restart or when events were dropped", async () => {

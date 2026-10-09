@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.0",
+  "x-musubee-api-version": "1.1",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -94,6 +94,16 @@
           "properties": {
             "params": { "$ref": "#/$defs/Empty" },
             "result": { "$ref": "#/$defs/AccountsListResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "accounts.logout": {
+          "description": "Logs an account out of its network and removes it from this device, with the conversations only it reached. The account first appears once more, in an account.updated event with the state logged_out. Since API 1.1.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/AccountsLogoutParams" },
+            "result": { "$ref": "#/$defs/Empty" }
           },
           "required": ["params", "result"],
           "additionalProperties": false
@@ -349,6 +359,15 @@
         "account": { "$ref": "#/$defs/Account" }
       },
       "required": ["account"],
+      "additionalProperties": false
+    },
+
+    "AccountsLogoutParams": {
+      "type": "object",
+      "properties": {
+        "account_id": { "type": "string" }
+      },
+      "required": ["account_id"],
       "additionalProperties": false
     },
 

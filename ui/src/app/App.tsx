@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { useState } from "react";
+import type { Account } from "../core-api/types.gen";
 import type { CoreStatus } from "../shell";
 import { AddAccount } from "./AddAccount";
 import { useAppState, useStore } from "./state";
@@ -99,18 +100,53 @@ function Accounts() {
       <h2 id="accounts-title">Accounts</h2>
       <ul className="accounts">
         {accounts.map((account) => (
-          <li key={account.account_id}>
-            <span className="account-name">
-              {networks.find((n) => n.network_id === account.network_id)?.name ?? account.network_id}
-              {account.name ? `: ${account.name}` : ""}
-            </span>
-            <span className="account-state" data-state={account.state}>
-              {account.error || (STATE_LABELS[account.state] ?? account.state)}
-            </span>
-          </li>
+          <AccountItem
+            key={account.account_id}
+            account={account}
+            label={`${networks.find((n) => n.network_id === account.network_id)?.name ?? account.network_id}${account.name ? `: ${account.name}` : ""}`}
+          />
         ))}
       </ul>
     </section>
+  );
+}
+
+// Logging out removes the account's conversations from the device: the
+// button asks for a confirmation first.
+function AccountItem({ account, label }: { account: Account; label: string }) {
+  const store = useStore();
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function logout() {
+    setBusy(true);
+    await store.logout(account.account_id);
+    setBusy(false);
+    setConfirming(false);
+  }
+
+  return (
+    <li>
+      <span className="account-name">{label}</span>
+      <span className="account-state" data-state={account.state}>
+        {account.error || (STATE_LABELS[account.state] ?? account.state)}
+      </span>
+      {confirming ? (
+        <fieldset className="account-actions">
+          <legend className="hint">Log out? Its conversations will be removed from this device.</legend>
+          <button type="button" className="danger" disabled={busy} onClick={() => void logout()}>
+            Log out
+          </button>
+          <button type="button" className="secondary" disabled={busy} onClick={() => setConfirming(false)}>
+            Keep
+          </button>
+        </fieldset>
+      ) : (
+        <button type="button" className="link" aria-label={`Log out of ${label}`} onClick={() => setConfirming(true)}>
+          Log out…
+        </button>
+      )}
+    </li>
   );
 }
 

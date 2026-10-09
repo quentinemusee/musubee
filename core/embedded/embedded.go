@@ -405,6 +405,8 @@ func (c *Core) dispatch(ctx context.Context, command string, params json.RawMess
 		return handle(ctx, params, c.networksList)
 	case api.CommandAccountsList:
 		return handle(ctx, params, c.accountsList)
+	case api.CommandAccountsLogout:
+		return handle(ctx, params, c.accountsLogout)
 	case api.CommandLoginStart:
 		return handle(ctx, params, c.loginStart)
 	case api.CommandLoginSubmit:
