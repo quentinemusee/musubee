@@ -200,55 +200,97 @@ test("the app starts the core again when it stops unexpectedly", async () => {
   await app.close();
 });
 
+interface Measures {
+  pingUs: number;
+  roundTripMeanMs: number;
+  roundTripP50Ms: number;
+  roundTripMaxMs: number;
+}
+
+type Call = (request: { id: number; command: string; params?: object }) => Promise<string>;
+type OnEvent = (listener: (event: string) => void) => () => void;
+
+/**
+ * Measures the core through call and onEvent: 2,000 pings with a 1 KiB
+ * payload, then 50 round trips to the Instant Echo conversation (a message
+ * sent, until its echo arrives). Playwright serialises the function to run it
+ * in the page or in the main process: it must not use anything from this
+ * module.
+ */
+async function measure(call: Call, onEvent: OnEvent, conversationId: string): Promise<Measures> {
+  let id = 0;
+  const payload = { payload: "x".repeat(1024) };
+  for (let i = 0; i < 200; i++) {
+    await call({ id: ++id, command: "debug.ping", params: payload });
+  }
+  const pings = 2000;
+  let start = performance.now();
+  for (let i = 0; i < pings; i++) {
+    await call({ id: ++id, command: "debug.ping", params: payload });
+  }
+  const pingUs = ((performance.now() - start) / pings) * 1000;
+
+  const times: number[] = [];
+  for (let i = 0; i < 60; i++) {
+    const text = `round trip ${i} ${Math.random()}`;
+    const received = new Promise<void>((done) => {
+      const stop = onEvent((json) => {
+        const event = JSON.parse(json) as { type: string; data: { message?: { from_me: boolean; text: string } } };
+        if (event.type === "message.added" && event.data.message?.from_me === false && event.data.message.text === text) {
+          stop();
+          done();
+        }
+      });
+    });
+    start = performance.now();
+    await call({ id: ++id, command: "messages.send", params: { conversation_id: conversationId, text } });
+    await received;
+    if (i >= 10) {
+      times.push(performance.now() - start);
+    }
+  }
+  const sorted = times.toSorted((a, b) => a - b);
+  return {
+    pingUs,
+    roundTripMeanMs: sorted.reduce((a, b) => a + b, 0) / sorted.length,
+    roundTripP50Ms: sorted[Math.floor(sorted.length / 2)]!,
+    roundTripMaxMs: sorted.at(-1)!,
+  };
+}
+
 // Playwright needs the object pattern to pass testInfo second.
 // oxlint-disable-next-line eslint/no-empty-pattern
 test("measure the start-up of the core and the cost of a call through the app", async ({}, testInfo) => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "bench");
-  const measures = await page.evaluate(async () => {
-    const core = window.musubee!.core;
-    let id = 0;
-    const call = (command: string, params?: object) => core.call(JSON.stringify({ id: ++id, command, ...(params ? { params } : {}) }));
-    const payload = { payload: "x".repeat(1024) };
-    for (let i = 0; i < 200; i++) {
-      await call("debug.ping", payload);
-    }
-    const pings = 2000;
-    let start = performance.now();
-    for (let i = 0; i < pings; i++) {
-      await call("debug.ping", payload);
-    }
-    const pingUs = ((performance.now() - start) / pings) * 1000;
-
-    const conversations = JSON.parse(await call("conversations.list")) as { result: { conversations: { conversation_id: string; name: string }[] } };
-    const echo = conversations.result.conversations.find((c) => c.name === "Instant Echo")!;
-    const times: number[] = [];
-    for (let i = 0; i < 60; i++) {
-      const text = `round trip ${i}`;
-      const received = new Promise<void>((resolve) => {
-        const stop = core.onEvent((json) => {
-          const event = JSON.parse(json) as { type: string; data: { message?: { from_me: boolean; text: string } } };
-          if (event.type === "message.added" && event.data.message?.from_me === false && event.data.message.text === text) {
-            stop();
-            resolve();
-          }
-        });
-      });
-      start = performance.now();
-      await call("messages.send", { conversation_id: echo.conversation_id, text });
-      await received;
-      if (i >= 10) {
-        times.push(performance.now() - start);
-      }
-    }
-    times.sort((a, b) => a - b);
-    return {
-      pingUs,
-      roundTripMeanMs: times.reduce((a, b) => a + b, 0) / times.length,
-      roundTripP50Ms: times[Math.floor(times.length / 2)]!,
-      roundTripMaxMs: times[times.length - 1]!,
+  const conversationId = await page.evaluate(async () => {
+    const response = JSON.parse(await window.musubee!.core.call(JSON.stringify({ id: 1, command: "conversations.list" }))) as {
+      result: { conversations: { conversation_id: string; name: string }[] };
     };
+    return response.result.conversations.find((c) => c.name === "Instant Echo")!.conversation_id;
   });
+
+  // From the renderer: the interface's path (preload, IPC, validation, main
+  // process, core), while the interface shows the conversation.
+  const source = measure.toString();
+  // An expression rather than new Function: the page's policy forbids eval,
+  // and expressions Playwright evaluates are not subject to it.
+  const fromRenderer = `(${source})((request) => window.musubee.core.call(JSON.stringify(request)), (listener) => window.musubee.core.onEvent(listener), ${JSON.stringify(conversationId)})`;
+  const renderer = (await page.evaluate(fromRenderer)) as Measures;
+  // The same path with the conversation off screen: the store still takes
+  // every event, but React no longer renders the thread.
+  await page.getByRole("button", { name: "Add an account" }).click();
+  await expect(page.getByRole("heading", { name: "Instant Echo" })).toBeHidden();
+  const rendererThreadHidden = (await page.evaluate(fromRenderer)) as Measures;
+  // From the main process: the supervisor and the core only.
+  const main = await app.evaluate(
+    async (_, [fn, id]) => {
+      const hook = (globalThis as unknown as { musubeeE2E: { call: Call; onEvent: OnEvent } }).musubeeE2E;
+      const run = new Function(`return (${fn})`)() as typeof measure;
+      return run(hook.call, hook.onEvent, id);
+    },
+    [source, conversationId] as const,
+  );
   await app.close();
 
   // Three more cold starts of the app on the same data directory.
@@ -260,11 +302,11 @@ test("measure the start-up of the core and the cost of a call through the app", 
     startups.push(...(await run.app.evaluate(() => (globalThis as unknown as { musubeeE2E: { startupTimesMs(): number[] } }).musubeeE2E.startupTimesMs())));
     await run.app.close();
   }
-  const result = { platform: process.platform, arch: process.arch, ...measures, coreStartupMs: startups };
+  const result = { platform: process.platform, arch: process.arch, renderer, rendererThreadHidden, main, coreStartupMs: startups };
   console.log(JSON.stringify(result));
   writeFileSync(testInfo.outputPath("measurements.json"), JSON.stringify(result, null, 2));
   await testInfo.attach("measurements", { body: JSON.stringify(result, null, 2), contentType: "application/json" });
   // Loose bounds: they catch a broken transport, not a slow machine.
-  expect(measures.pingUs).toBeLessThan(10_000);
-  expect(measures.roundTripP50Ms).toBeLessThan(1_000);
+  expect(renderer.pingUs).toBeLessThan(10_000);
+  expect(renderer.roundTripP50Ms).toBeLessThan(1_000);
 });

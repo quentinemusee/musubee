@@ -23,11 +23,10 @@ const desktop = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const root = resolve(desktop, "../..");
 const resources = join(desktop, "resources");
 const exe = process.platform === "win32" ? ".exe" : "";
-const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 
 function run(command, args, cwd, env = {}) {
   console.log(`> ${[command, ...args].join(" ")}`);
-  execFileSync(command, args, { cwd, stdio: "inherit", env: { ...process.env, ...env }, shell: process.platform === "win32" && command === npm });
+  execFileSync(command, args, { cwd, stdio: "inherit", env: { ...process.env, ...env } });
 }
 
 rmSync(resources, { recursive: true, force: true });
@@ -35,7 +34,9 @@ rmSync(join(desktop, "dist"), { recursive: true, force: true });
 mkdirSync(join(resources, "core"), { recursive: true });
 
 run("go", ["build", "-trimpath", "-o", join(resources, "core", `musubee-core${exe}`), "./core/cmd/musubee-core"], root, { CGO_ENABLED: "0" });
-run(npm, ["run", "build"], join(root, "ui"));
+// The interface's "build" script, run with this Node rather than through a
+// shell (npm is a .cmd script on Windows).
+run(process.execPath, [join(root, "ui", "node_modules", "vite", "bin", "vite.js"), "build"], join(root, "ui"));
 cpSync(join(root, "ui", "dist"), join(resources, "ui"), { recursive: true });
 cpSync(join(root, "core", "api", "schema", "core-api.schema.json"), join(resources, "core-api.schema.json"));
 run(process.execPath, [join(desktop, "node_modules", "typescript", "bin", "tsc"), "-p", "tsconfig.json"], desktop);
