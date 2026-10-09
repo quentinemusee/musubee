@@ -95,6 +95,29 @@ apps/mobile/android/variables.gradle and the Gradle runtime classpath,
 - Gradle wrapper (gradlew, gradlew.bat, gradle/wrapper/), used to build,
   not shipped in the app. Copyright 2015 the original authors. Apache-2.0.
 
+Interface (ui/, displayed by the desktop and mobile apps; exact versions
+in ui/package-lock.json):
+
+- React 19.3.0 and React DOM 19.3.0 (with their dependency scheduler
+  0.28.0), https://react.dev. Copyright (c) Meta Platforms, Inc. and
+  affiliates. MIT.
+
+Desktop app (apps/desktop; exact versions in apps/desktop/package-lock.json;
+installers come with E3.2):
+
+- Electron 44.7.0, https://www.electronjs.org. Copyright (c) Electron
+  contributors, Copyright (c) 2013-2020 GitHub Inc. MIT. Electron bundles
+  Chromium 152.0.7977.130 and Node.js 24.21.0, whose components carry their
+  own licenses (BSD-3-Clause, MIT, Apache-2.0, LGPL-2.1 and others), listed
+  in the LICENSES.chromium.html file that every Electron build ships.
+- Ajv 8.20.0, https://ajv.js.org (validates the interface's requests in the
+  main process). Copyright (c) 2015-2021 Evgeny Poberezkin. MIT. Its
+  dependencies: fast-deep-equal 3.1.3 and json-schema-traverse 1.0.0
+  (Copyright (c) 2017 Evgeny Poberezkin, MIT), require-from-string 2.0.2
+  (Copyright (c) Vsevolod Strukchinsky, MIT), and fast-uri 3.1.8
+  (Copyright (c) 2011-2021 Gary Court, Copyright (c) 2021-present The
+  Fastify team, BSD-3-Clause).
+
 ========================================================================
 Third-party material included in this repository (not code)
 ========================================================================
@@ -144,15 +167,24 @@ Development tools (used to build or check the project, NOT distributed)
   ISC, Apache-2.0, BSD-2/3-Clause, BlueOak-1.0.0, CC0-1.0, Unlicense, WTFPL,
   PSF-2.0, CC-BY-3.0 data, LGPL-3.0-or-later for libvips in sharp). Exact
   versions: apps/mobile/e2e/package-lock.json.
-- GitHub Actions also used in CI: actions/setup-go, actions/setup-node (MIT),
-  reactivecircus/android-emulator-runner (Apache-2.0).
+- GitHub Actions also used in CI: actions/setup-go, actions/setup-node,
+  actions/upload-artifact (MIT), reactivecircus/android-emulator-runner
+  (Apache-2.0), golangci/golangci-lint-action (MIT).
 - Contract tests of the core API (docs/ADR/0012, test code only, not in
   the core's build): github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
   (Apache-2.0), in core/api/apitest.
-- UI tests and type checks (ui/, development only): TypeScript 7.0.2
-  (Apache-2.0), Vitest 5.0.3 (MIT), Ajv 8.20.0 (MIT), @types/node 24.19.1
-  (MIT), and their npm dependencies (MIT, Apache-2.0, MPL-2.0 for
-  lightningcss, BSD-3-Clause, ISC). Exact versions: ui/package-lock.json.
+- UI build, tests and type checks (ui/, development only): Vite 8.3.4 and
+  @vitejs/plugin-react 6.1.2 (MIT), TypeScript 7.0.2 (Apache-2.0), Vitest
+  5.0.3 (MIT), Ajv 8.20.0 (MIT, in the contract tests), @types/react,
+  @types/react-dom and @types/node (MIT), and their npm dependencies (MIT,
+  Apache-2.0, MPL-2.0 for lightningcss, BSD-3-Clause, ISC). Exact versions:
+  ui/package-lock.json.
+- Desktop app tests (apps/desktop, development only): Playwright 1.64.0
+  (@playwright/test, Apache-2.0), Vitest 5.0.3 (MIT), TypeScript 7.0.2
+  (Apache-2.0). Exact versions: apps/desktop/package-lock.json.
+- Linters: oxlint 1.87.0 (MIT), https://oxc.rs, for ui/ and apps/desktop;
+  golangci-lint 2.14.0 (GPL-3.0), https://golangci-lint.run, for the Go
+  modules, run as a separate program (CI and developers' machines).
 - Transport measurements (scripts/transportbench, development only):
   koffi 3.3.2 (MIT), https://koffi.dev.
 - Dependency license audit (scripts/licenseaudit, development only):

@@ -67,6 +67,7 @@ Goal: prove that the Go core can run **on the device**. Each spike ends with an 
 **T1.5 — Electron shell**
 - Deliverable: Electron window with a minimal UI, core as a sidecar or library, `contextIsolation` enabled, validated IPC.
 - 🧪 Test: Playwright, "open the app, send a dummy message" journey.
+- Outcome: the core runs as its own program (`core/cmd/musubee-core`) over stdio, supervised by Electron's main process (restart with backoff, gives up after five crashes in a minute); the interface is served on `app://musubee` with a strict content security policy, in a sandboxed and context-isolated window, and every request is checked against the core API schema before it reaches the core; see ADR 0013. Playwright journeys pass on Linux, Windows and macOS in CI: send and echo, restart with the history kept, isolation checks, recovery after the core is killed. Measured on the three systems: the main process reaches the core as fast as plain Node did in ADR 0012, the IPC adds 0.1 to 0.3 ms per call, the core starts in 60 to 420 ms, and re-rendering the open thread on every event adds 1.4 to 7 ms to a round trip, an input for the virtualized list ADR. Also: a minimal React interface, golangci-lint and oxlint in CI.
 
 **T1.6 — Telegram on the device**
 - Deliverable: Telegram connector in "on-device" mode inside the core, against the test servers.
