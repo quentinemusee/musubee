@@ -1,11 +1,14 @@
 # SPDX-FileCopyrightText: 2026 Quentin Raimbaud
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Telegram end-to-end test of the bridge with dedicated test bots (ADR 0006).
-# Separate from checks.yml because every run logs the bridge bot in, and
-# Telegram rate-limits bot logins (FLOOD_WAIT of about 20 minutes after many
-# runs): it only runs when the test environment changes, on master, once a
-# day, and on demand.
+# Telegram end-to-end tests with dedicated test bots (ADR 0006): the hosted
+# bridge with Synapse (T0.4), then Telegram "on device" (T1.6, ADR 0014) in
+# the core alone, in the desktop app (Windows) and in the Android app
+# (emulator). Separate from checks.yml because every test logs the bridge bot
+# in, and Telegram rate-limits bot logins (FLOOD_WAIT of about 20 minutes
+# after many runs): it only runs when the code involved changes, on master,
+# once a day, and on demand. A bot has one session at a time, so the jobs
+# run one after the other.
 
 name: telegram
 
@@ -14,11 +17,17 @@ on:
     branches: [master]
     paths:
       - "infra/**"
+      - "core/**"
+      - "apps/desktop/e2e/telegram.spec.ts"
+      - "apps/mobile/android/app/src/androidTest/java/app/musubee/core/TelegramTest.kt"
       - "go.work"
       - ".github/workflows/telegram.yml"
   pull_request:
     paths:
       - "infra/**"
+      - "core/**"
+      - "apps/desktop/e2e/telegram.spec.ts"
+      - "apps/mobile/android/app/src/androidTest/java/app/musubee/core/TelegramTest.kt"
       - "go.work"
       - ".github/workflows/telegram.yml"
   schedule:
@@ -28,7 +37,7 @@ on:
 permissions:
   contents: read
 
-# The test logs the same bot in every time: never run two at once.
+# The tests log the same bot in every time: never run two at once.
 concurrency:
   group: telegram-e2e
   cancel-in-progress: false
@@ -63,3 +72,130 @@ jobs:
           MUSUBEE_REQUIRE_TELEGRAM_E2E: ${{ (secrets.MUSUBEE_TG_BRIDGE_BOT_TOKEN != '' && secrets.MUSUBEE_TG_PEER_BOT_TOKEN != '') && '1' || '' }}
         run: go test -tags=telegram -count=1 -v -timeout 25m ./infra/telegramtest/
 
+  on-device-windows:
+    name: Telegram on device, core and desktop app (Windows)
+    needs: telegram
+    # After the bridge test even when it failed: each test logs out.
+    if: ${{ !cancelled() }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      MUSUBEE_TG_BRIDGE_BOT_TOKEN: ${{ secrets.MUSUBEE_TG_BRIDGE_BOT_TOKEN }}
+      MUSUBEE_TG_PEER_BOT_TOKEN: ${{ secrets.MUSUBEE_TG_PEER_BOT_TOKEN }}
+      MUSUBEE_TG_CHAT_ID: ${{ vars.MUSUBEE_TG_CHAT_ID }}
+      MUSUBEE_TG_API_ID: ${{ secrets.MUSUBEE_TG_API_ID }}
+      MUSUBEE_TG_API_HASH: ${{ secrets.MUSUBEE_TG_API_HASH }}
+      MUSUBEE_REQUIRE_TELEGRAM_E2E: ${{ (secrets.MUSUBEE_TG_BRIDGE_BOT_TOKEN != '' && secrets.MUSUBEE_TG_PEER_BOT_TOKEN != '') && '1' || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: |
+            core/go.sum
+            infra/go.sum
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            ui/package-lock.json
+            apps/desktop/package-lock.json
+
+      # The core alone, through its API: timings and memory in the log.
+      - name: Core end-to-end test
+        env:
+          CGO_ENABLED: "0"
+        run: go test -tags=telegram -count=1 -v -timeout 15m ./infra/telegramtest/ondevice/
+
+      - name: Install npm dependencies
+        run: |
+          npm ci --no-audit --no-fund --prefix ui
+          npm ci --no-audit --no-fund --prefix apps/desktop
+
+      - name: Build the desktop app
+        working-directory: apps/desktop
+        run: npm run build
+
+      # No artifact: the test types the bot token into the app.
+      - name: Desktop end-to-end test (Playwright)
+        working-directory: apps/desktop
+        run: npx playwright test telegram.spec.ts
+
+  on-device-android:
+    name: Telegram on device, Android app (emulator)
+    needs: on-device-windows
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Install the Android NDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358" > /dev/null
+
+      - name: Install the app's npm packages
+        run: npm ci --no-audit --no-fund --prefix apps/mobile
+
+      # The application credentials go into the app (BuildConfig), as in
+      # every Telegram client. No artifact: the APK carries them.
+      - name: Build the app (x86_64, for the emulator)
+        working-directory: apps/mobile/android
+        env:
+          MUSUBEE_TG_API_ID: ${{ secrets.MUSUBEE_TG_API_ID }}
+          MUSUBEE_TG_API_HASH: ${{ secrets.MUSUBEE_TG_API_HASH }}
+        run: |
+          (cd .. && npx cap sync android)
+          ./gradlew --no-daemon -Pmusubee.abis=x86_64 :app:assembleDebug :app:assembleDebugAndroidTest
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Without the secrets (forks), the test is skipped; with them, it is
+      # required. The bot tokens are
+      # instrumentation arguments: they reach the test, not the APK.
+      - name: Instrumented end-to-end test on the emulator
+        uses: reactivecircus/android-emulator-runner@c9c93e6ba9c4194322e114c40970d5983d9a07cc # v2.38.0
+        env:
+          MUSUBEE_TG_API_ID: ${{ secrets.MUSUBEE_TG_API_ID }}
+          MUSUBEE_TG_API_HASH: ${{ secrets.MUSUBEE_TG_API_HASH }}
+          MUSUBEE_TG_BRIDGE_BOT_TOKEN: ${{ secrets.MUSUBEE_TG_BRIDGE_BOT_TOKEN }}
+          MUSUBEE_TG_PEER_BOT_TOKEN: ${{ secrets.MUSUBEE_TG_PEER_BOT_TOKEN }}
+          MUSUBEE_TG_CHAT_ID: ${{ vars.MUSUBEE_TG_CHAT_ID }}
+          MUSUBEE_REQUIRE_TELEGRAM_E2E: ${{ (secrets.MUSUBEE_TG_BRIDGE_BOT_TOKEN != '' && secrets.MUSUBEE_TG_PEER_BOT_TOKEN != '') && '1' || '0' }}
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
+          working-directory: apps/mobile/android
+          script: |
+            ANDROID_SERIAL=emulator-5554 ./gradlew --no-daemon -Pmusubee.abis=x86_64 :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.musubee.core.TelegramTest "-Pandroid.testInstrumentationRunnerArguments.musubeeTgBridgeBotToken=$MUSUBEE_TG_BRIDGE_BOT_TOKEN" "-Pandroid.testInstrumentationRunnerArguments.musubeeTgPeerBotToken=$MUSUBEE_TG_PEER_BOT_TOKEN" "-Pandroid.testInstrumentationRunnerArguments.musubeeTgChatId=$MUSUBEE_TG_CHAT_ID" -Pandroid.testInstrumentationRunnerArguments.musubeeTgRequire=$MUSUBEE_REQUIRE_TELEGRAM_E2E || { adb logcat -d -b crash; adb logcat -d -s Go:* AndroidRuntime:* TestRunner:* MusubeeCore:* MusubeeTelegramTest:*; exit 1; }
+            adb logcat -d -s MusubeeTelegramTest:*
