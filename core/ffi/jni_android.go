@@ -96,12 +96,7 @@ func Java_app_musubee_core_NativeCore_call(env *C.JNIEnv, _ C.jclass, handle C.j
 			throw(env, fmt.Sprint("panic: ", r))
 		}
 	}()
-	core := lookup(uint64(handle))
-	if core == nil {
-		throw(env, closedHandleError)
-		return 0
-	}
-	return javaBytes(env, core.Call(jniBytes(env, request)))
+	return javaBytes(env, call(uint64(handle), jniBytes(env, request)))
 }
 
 //export Java_app_musubee_core_NativeCore_nextEvent

@@ -50,7 +50,7 @@ class SoakTest {
         val req = JSONObject().put("id", ++nextId).put("command", command)
         if (params != null) req.put("params", params)
         val resp = JSONObject(String(service.call(req.toString().toByteArray()), Charsets.UTF_8))
-        assertTrue("$command: ${resp.optString("error")}", !resp.has("error"))
+        assertTrue("$command: ${resp.optJSONObject("error")}", !resp.has("error"))
         return resp.getJSONObject("result")
     }
 
@@ -61,16 +61,12 @@ class SoakTest {
             val remaining = deadline - SystemClock.uptimeMillis()
             assertTrue("no echo of $text within $ECHO_TIMEOUT_MILLIS ms", remaining > 0)
             val event = events.poll(remaining, TimeUnit.MILLISECONDS) ?: continue
-            if (event.optString("type") == "message" && !event.optBoolean("from_me") &&
-                event.optString("body").contains(text)
-            ) {
-                return
-            }
+            if (isEcho(event, text)) return
         }
     }
 
     private fun sample(service: CoreService, start: Long, startUptime: Long, messages: Int): JSONObject {
-        val stats = request(service, "stats")
+        val stats = request(service, "debug.stats")
         return JSONObject()
             .put("elapsed_s", (SystemClock.elapsedRealtime() - start) / 1000)
             .put("awake_s", (SystemClock.uptimeMillis() - startUptime) / 1000)
@@ -100,9 +96,7 @@ class SoakTest {
         val listener: (ByteArray) -> Unit = { events.add(JSONObject(String(it, Charsets.UTF_8))) }
         service.addListener(listener)
         try {
-            val rooms = request(service, "login", JSONObject().put("username", "alice")).getJSONArray("rooms")
-            val roomId = (0 until rooms.length()).map { rooms.getJSONObject(it) }
-                .first { it.getString("name") == "Instant Echo" }.getString("room_id")
+            val conversationId = loginThroughService(service, events)
             val start = SystemClock.elapsedRealtime()
             val startUptime = SystemClock.uptimeMillis()
             val end = start + minutes * 60_000L
@@ -111,7 +105,7 @@ class SoakTest {
             record(sample(service, start, startUptime, 0))
             while (SystemClock.elapsedRealtime() < end) {
                 val text = "soak ${++messages}"
-                request(service, "send", JSONObject().put("room_id", roomId).put("text", text))
+                request(service, "messages.send", JSONObject().put("conversation_id", conversationId).put("text", text))
                 waitEcho(text)
                 if (SystemClock.elapsedRealtime() >= nextSample) {
                     record(sample(service, start, startUptime, messages))

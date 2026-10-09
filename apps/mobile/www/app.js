@@ -11,7 +11,7 @@
 "use strict";
 
 const PLUGIN = "MusubeeCore";
-const ROOM_NAME = "Instant Echo";
+const CONVERSATION_NAME = "Instant Echo";
 
 const status = document.getElementById("status");
 const loginButton = document.getElementById("login");
@@ -21,7 +21,8 @@ const sendButton = document.getElementById("send");
 const log = document.getElementById("log");
 
 let nextId = 0;
-let roomId = null;
+let loggedIn = false;
+let conversationId = null;
 
 function show(line) {
   const item = document.createElement("li");
@@ -29,44 +30,73 @@ function show(line) {
   log.prepend(item);
 }
 
+// Commands and events are those of the core API (core/api/schema).
 async function request(command, params) {
   const response = await window.Capacitor.nativePromise(PLUGIN, "call", {
     request: { id: ++nextId, command, params },
   });
   if (response.error) {
-    throw new Error(`${command}: ${response.error}`);
+    throw new Error(`${command}: ${response.error.code}: ${response.error.message}`);
   }
   return response.result;
 }
 
 function describe(event) {
+  const data = event.data;
   switch (event.type) {
-    case "message":
-      return `${event.from_me ? "Sent" : "Received"}: ${event.body}`;
-    case "message_status":
-      return `Status: ${event.status}${event.message ? ` (${event.message})` : ""}`;
-    case "network_state":
-      return `Network ${event.network}: ${event.state}`;
+    case "message.added":
+      return `${data.message.from_me ? "Sent" : "Received"}: ${data.message.text}`;
+    case "message.updated":
+      return `Status: ${data.message.status}${data.message.error ? ` (${data.message.error})` : ""}`;
+    case "account.updated":
+      return `Account ${data.account.name}: ${data.account.state}`;
+    case "conversation.updated":
+      return `Conversation: ${data.conversation.name}`;
     default:
       return `Event: ${event.type}`;
   }
 }
 
-window.Capacitor.addListener(PLUGIN, "event", (event) => show(describe(event)));
+// The composer opens once the account is added and its conversation exists,
+// in whichever order the login response and the event arrive.
+function openComposer() {
+  if (!loggedIn || !conversationId) {
+    return;
+  }
+  status.textContent = `Logged in, conversation: ${CONVERSATION_NAME}`;
+  text.disabled = false;
+  sendButton.disabled = false;
+}
+
+window.Capacitor.addListener(PLUGIN, "event", (event) => {
+  show(describe(event));
+  if (event.type === "conversation.updated" && event.data.conversation.name === CONVERSATION_NAME) {
+    conversationId = event.data.conversation.conversation_id;
+    openComposer();
+  }
+});
 
 loginButton.addEventListener("click", async () => {
   loginButton.disabled = true;
   status.textContent = "Logging in…";
   try {
-    const result = await request("login", { username: "alice" });
-    const room = result.rooms.find((r) => r.name === ROOM_NAME);
-    if (!room) {
-      throw new Error(`no "${ROOM_NAME}" room`);
+    const step = await request("login.start", { network_id: "echo", flow_id: "username" });
+    const done = await request("login.submit", {
+      process_id: step.process_id,
+      values: { [step.fields[0].field_id]: "alice" },
+    });
+    if (done.type !== "complete") {
+      throw new Error(`unexpected login step ${done.type}`);
     }
-    roomId = room.room_id;
-    status.textContent = `Logged in, room: ${ROOM_NAME}`;
-    text.disabled = false;
-    sendButton.disabled = false;
+    // The conversation may exist already, from an earlier start.
+    const { conversations } = await request("conversations.list", { account_id: done.account_id });
+    const conversation = conversations.find((c) => c.name === CONVERSATION_NAME);
+    if (conversation) {
+      conversationId = conversation.conversation_id;
+    }
+    loggedIn = true;
+    status.textContent = "Logged in, waiting for the conversation…";
+    openComposer();
   } catch (err) {
     status.textContent = `Login failed: ${err.message}`;
     loginButton.disabled = false;
@@ -76,12 +106,12 @@ loginButton.addEventListener("click", async () => {
 composer.addEventListener("submit", async (event) => {
   event.preventDefault();
   const body = text.value.trim();
-  if (!body || !roomId) {
+  if (!body || !conversationId) {
     return;
   }
   text.value = "";
   try {
-    await request("send", { room_id: roomId, text: body });
+    await request("messages.send", { conversation_id: conversationId, text: body });
   } catch (err) {
     show(`Send failed: ${err.message}`);
   }

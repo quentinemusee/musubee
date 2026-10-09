@@ -7,7 +7,8 @@ package app.musubee.core
  * One running core, through the C shared library and its JNI entry points
  * (core/ffi/jni_android.go); see docs/ADR/0011-core-on-android.md.
  *
- * Requests, responses and events are JSON documents in UTF-8 (core/embedded).
+ * Requests, responses and events are JSON documents in UTF-8, as described
+ * by the core API schema (core/api/schema, docs/ADR/0012).
  * Every method may block: never call them on the main thread.
  */
 class CoreLibrary private constructor(private val handle: Long) : AutoCloseable {
@@ -22,7 +23,10 @@ class CoreLibrary private constructor(private val handle: Long) : AutoCloseable 
     /** Waits up to [timeoutMs] for the next event; null on timeout. */
     fun nextEvent(timeoutMs: Int): ByteArray? = NativeCore.nextEvent(handle, timeoutMs)
 
-    /** Stops the core; later calls fail and [nextEvent] returns the closed event. */
+    /**
+     * Stops the core; later calls answer with a "closed" error and [nextEvent]
+     * returns the core.closed event.
+     */
     override fun close() = NativeCore.close(handle)
 }
 
