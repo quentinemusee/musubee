@@ -103,7 +103,11 @@ func (c *Connector) BotIntent() bridgev2.MatrixAPI {
 }
 
 // SendBridgeStatus stores the connection state of the bridge or of a login.
+// After Server.Stop, it drops the state.
 func (c *Connector) SendBridgeStatus(ctx context.Context, state *status.BridgeState) error {
+	if c.server.stopped.Load() {
+		return nil
+	}
 	data, err := json.Marshal(state)
 	if err != nil {
 		return err

@@ -149,6 +149,7 @@ func (h *Host) User(ctx context.Context, bridgeID networkid.BridgeID) (*bridgev2
 // Stop stops every bridge and closes the database. A stopped host cannot be
 // started again: create a new one.
 func (h *Host) Stop() error {
+	h.Matrix.Stop()
 	for _, br := range h.bridges {
 		br.Stop()
 		// bridgev2 only destroys the bridge state queue of a login when the
