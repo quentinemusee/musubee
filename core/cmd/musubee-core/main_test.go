@@ -177,3 +177,29 @@ func TestExitsOnTermination(t *testing.T) {
 		t.Errorf("exit after SIGTERM: %v; stderr: %s", err, p.stderr)
 	}
 }
+
+func TestTelegramConfig(t *testing.T) {
+	env := func(vars map[string]string) func(string) string {
+		return func(key string) string { return vars[key] }
+	}
+	if cfg, err := telegramConfig(env(nil)); cfg != nil || err != nil {
+		t.Errorf("no variables: %+v, %v", cfg, err)
+	}
+	cfg, err := telegramConfig(env(map[string]string{"MUSUBEE_TG_API_ID": "42", "MUSUBEE_TG_API_HASH": "fake-hash"}))
+	if err != nil || cfg == nil || cfg.APIID != 42 || cfg.APIHash != "fake-hash" {
+		t.Errorf("both variables: %+v, %v", cfg, err)
+	}
+	for _, vars := range []map[string]string{
+		{"MUSUBEE_TG_API_ID": "42"},
+		{"MUSUBEE_TG_API_HASH": "fake-hash"},
+		{"MUSUBEE_TG_API_ID": "forty-two", "MUSUBEE_TG_API_HASH": "fake-hash"},
+		{"MUSUBEE_TG_API_ID": "-1", "MUSUBEE_TG_API_HASH": "fake-hash"},
+	} {
+		_, err := telegramConfig(env(vars))
+		if err == nil {
+			t.Errorf("%v: no error", vars)
+		} else if strings.Contains(err.Error(), "fake-hash") || strings.Contains(err.Error(), "forty-two") {
+			t.Errorf("the error quotes a value: %v", err)
+		}
+	}
+}

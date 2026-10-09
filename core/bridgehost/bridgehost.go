@@ -16,8 +16,8 @@ import (
 	"go.mau.fi/util/dbutil"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/bridgeconfig"
+	"maunium.net/go/mautrix/bridgev2/commands"
 	"maunium.net/go/mautrix/bridgev2/networkid"
-	"maunium.net/go/mautrix/id"
 
 	"github.com/quentinemusee/musubee/core/localmatrix"
 	"github.com/quentinemusee/musubee/core/storage/sqlite"
@@ -63,18 +63,12 @@ func New(opts Options) (*Host, error) {
 	}, nil
 }
 
-// noCommands is the bridgev2 command processor of in-process bridges: the
-// application drives logins and settings through the core API, never through
-// chat commands.
-type noCommands struct{}
-
-func (noCommands) Handle(context.Context, id.RoomID, id.EventID, *bridgev2.User, string, id.EventID) {
-}
-
 // commandPrefix is a prefix that no message starts with in practice:
 // bridgev2 hands every message starting with the command prefix to the
 // command processor instead of the network, and an empty prefix would match
-// every message.
+// every message. The application drives logins and settings through the
+// core API, never through chat commands: the user also lacks the Commands
+// permission, so bridgev2 refuses a command before any handler runs.
 const commandPrefix = "\x00musubee-commands-disabled"
 
 // AddNetwork creates the bridge of one network, identified by bridgeID
@@ -105,9 +99,10 @@ func (h *Host) AddNetwork(bridgeID networkid.BridgeID, network bridgev2.NetworkC
 		},
 	}
 	log := h.log.With().Str("bridge_id", string(bridgeID)).Logger()
-	br := bridgev2.NewBridge(bridgeID, h.DB, log, cfg, matrix, network, func(*bridgev2.Bridge) bridgev2.CommandProcessor {
-		return noCommands{}
-	})
+	// bridgev2's own processor: connectors such as mautrix-telegram add
+	// their handlers to it in Init and require its concrete type. It never
+	// runs a command (see commandPrefix).
+	br := bridgev2.NewBridge(bridgeID, h.DB, log, cfg, matrix, network, commands.NewProcessor)
 	// Every bridge shares the host's database: stopping one network must
 	// not close it under the others (bridgev2 closes it otherwise).
 	br.ExternallyManagedDB = true

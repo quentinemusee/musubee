@@ -44,7 +44,7 @@ versions in core/go.mod and go.work):
   Matsumoto. MIT; contains the SQLite 3.53.4 amalgamation (public domain).
 - github.com/rs/zerolog v1.35.1 (Copyright (c) 2017 Olivier Poitrey) and
   github.com/rs/xid v1.6.0 (Copyright (c) 2015 Olivier Poitrey). MIT.
-- github.com/tidwall/gjson v1.19.0, match v1.1.1, pretty v1.2.1,
+- github.com/tidwall/gjson v1.19.0, match v1.2.0, pretty v1.2.1,
   sjson v1.2.5. Copyright (c) 2016-2017 Josh Baker. MIT.
 - github.com/mattn/go-colorable v0.1.15, go-isatty v0.0.24.
   Copyright (c) Yasuhiro Matsumoto. MIT.
@@ -67,6 +67,44 @@ versions in core/go.mod and go.work):
 - gopkg.in/yaml.v3 v3.0.1, https://github.com/go-yaml/yaml. Apache-2.0 AND
   MIT. Its NOTICE file reads: "Copyright 2011-2016 Canonical Ltd. Licensed
   under the Apache License, Version 2.0".
+
+  Telegram, on the device (core/connector/telegram, docs/ADR/0014):
+
+- mautrix-telegram v0.2609.0, https://github.com/mautrix/telegram
+  (go.mau.fi/mautrix-telegram, its network connector as a library).
+  Copyright (C) Tulir Asokan, Sumner Evans and the mautrix-telegram
+  contributors. AGPL-3.0-or-later. Its LICENSE.exceptions grants exceptions
+  to Beeper and Element only; Musubee uses none.
+  It contains pkg/gotd, a fork of gotd/td (https://github.com/gotd/td):
+  Copyright (c) 2020 Aleksandr Razumov, Copyright (c) 2026 Tulir Asokan.
+  MIT.
+- go.mau.fi/zerozap v0.1.2, https://github.com/tulir/zerozap. Copyright (c)
+  2024 Tulir Asokan. MPL-2.0.
+- go.mau.fi/webp: not linked. core/replace/webp replaces it (go.mod
+  replace) with Musubee's own stand-in (AGPL-3.0-or-later), so that the core
+  links no C library (libwebp).
+- github.com/gotd/ige v0.2.2. Copyright (c) 2018 Karl McGuire. MIT.
+- github.com/gotd/neo v0.1.5. Copyright (c) 2019 gortc. BSD-3-Clause.
+- github.com/go-faster/errors v0.7.1 and go-faster/xor v1.0.0. Copyright (c)
+  2009 The Go Authors. BSD-3-Clause.
+- github.com/go-faster/jx v1.2.0. Copyright (c) 2016 json-iterator. MIT.
+- github.com/klauspost/compress v1.19.2. Copyright (c) 2012 The Go Authors,
+  Copyright (c) 2019 Klaus Post. BSD-3-Clause, with parts under Apache-2.0
+  (gzhttp) and MIT (s2/cmd/internal/readahead).
+- github.com/cenkalti/backoff/v4 v4.3.0. Copyright (c) 2014 Cenk Altı. MIT.
+- github.com/cespare/xxhash/v2 v2.3.0. Copyright (c) 2016 Caleb Spare. MIT.
+- github.com/segmentio/asm v1.2.1. Copyright 2023 Segment. MIT-0.
+- github.com/skip2/go-qrcode (pseudo-version 20200617195104-da1b6568686e).
+  Copyright (c) 2014 Tom Harwood. MIT.
+- rsc.io/qr v0.2.0. Copyright (c) 2009 The Go Authors. BSD-3-Clause.
+- go.opentelemetry.io/otel v1.45.0 and otel/trace v1.45.0,
+  https://github.com/open-telemetry/opentelemetry-go. Copyright The
+  OpenTelemetry Authors. Apache-2.0.
+- go.uber.org/zap v1.28.0 (Copyright (c) 2016-2024 Uber Technologies, Inc.),
+  atomic v1.11.0 (Copyright (c) 2016 Uber Technologies, Inc.), multierr
+  v1.11.0 (Copyright (c) 2017-2021 Uber Technologies, Inc.). MIT.
+- golang.org/x/image v0.46.0 and sync v0.23.0. Copyright 2009 The Go Authors.
+  BSD-3-Clause.
 
 Android app (apps/mobile; exact versions in apps/mobile/package-lock.json,
 apps/mobile/android/variables.gradle and the Gradle runtime classpath,
@@ -131,7 +169,8 @@ Third-party material included in this repository (not code)
 Test tooling (infra/, used to run tests, NOT distributed)
 ========================================================================
 
-- Go module github.com/quentinemusee/musubee/infra depends on:
+- Go module github.com/quentinemusee/musubee/infra depends on the core
+  module above (for the Telegram end-to-end test of T1.6), and on:
   maunium.net/go/mautrix v0.31.0 (MPL-2.0), go.mau.fi/util v0.10.1
   (MPL-2.0), github.com/rs/zerolog (MIT), github.com/tidwall/gjson, match,
   pretty, sjson (MIT), github.com/mattn/go-colorable, go-isatty (MIT),
