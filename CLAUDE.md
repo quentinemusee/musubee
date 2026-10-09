@@ -224,3 +224,15 @@ core program:       go build -o musubee-core.exe ./core/cmd/musubee-core
 ```
 
 golangci-lint is installed with `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0` (on the maintainer's machine: `GOBIN=D:\SDK\golangci-lint`).
+
+Verified in T1.6 (Windows, Go 1.27.1, JDK 21; the Telegram journeys on CI with the test bots' secrets; see ADR 0014). Telegram's application credentials come from `MUSUBEE_TG_API_ID` and `MUSUBEE_TG_API_HASH`, never from the repository:
+
+```
+telegram core e2e:    go test -tags=telegram -v ./infra/telegramtest/ondevice/       (test bots, see infra/README.md)
+telegram desktop e2e: cd apps/desktop && npm run build && npx playwright test telegram.spec.ts
+telegram android:     MUSUBEE_TG_API_ID=... MUSUBEE_TG_API_HASH=... ./gradlew :app:assembleDebug   (the app offers Telegram)
+telegram android e2e: ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.musubee.core.TelegramTest (+ bot arguments, see apps/mobile/README.md)
+stripped core:        go build -trimpath -ldflags="-s -w" -o musubee-core.exe ./core/cmd/musubee-core
+```
+
+A bot has one Telegram session at a time: never run two Telegram tests at once.

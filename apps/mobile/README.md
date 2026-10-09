@@ -2,7 +2,7 @@
 
 Mobile application: the UI from [`ui/`](../../ui/) inside Capacitor, plus a native plugin embedding the Go core. The native shells stay thin: Kotlin for Android, Swift for iOS.
 
-**Status: T1.3 done for Android.** The app embeds the Go core (the shared library of `core/ffi`, called through JNI) in a foreground service and gives a test web page access to it through a Capacitor plugin ([ADR 0011](../../docs/ADR/0011-core-on-android.md)). No real UI yet. iOS: T1.7 (extension memory budget) then E3.3. See [`docs/TASKS.md`](../../docs/TASKS.md).
+**Status: T1.3 done for Android.** The app embeds the Go core (the shared library of `core/ffi`, called through JNI) in a foreground service and gives a test web page access to it through a Capacitor plugin ([ADR 0011](../../docs/ADR/0011-core-on-android.md)). Since T1.6 the core can run Telegram on the device when the app is built with Telegram's application credentials ([ADR 0014](../../docs/ADR/0014-telegram-on-device.md)), and the test page can log in to it. No real UI yet. iOS: T1.7 (extension memory budget) then E3.3. See [`docs/TASKS.md`](../../docs/TASKS.md).
 
 ## Layout
 
@@ -54,6 +54,18 @@ ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest
 ```
 MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android:app
 ```
+
+### Telegram
+
+The app offers Telegram only when it is built with Telegram's application credentials (https://my.telegram.org), which never go into the repository: either the environment variables `MUSUBEE_TG_API_ID` and `MUSUBEE_TG_API_HASH`, or the Gradle properties `musubee.telegramApiId` and `musubee.telegramApiHash` (for example in `~/.gradle/gradle.properties`). Gradle checks them and puts them in `BuildConfig`; the core service passes them to the core. The test page then shows a Telegram section: log in with a phone number (then the code Telegram sends, and the password if the account has one) or a bot token; the QR code flow is not offered there.
+
+The instrumented end-to-end test logs in as the bridge test bot of ADR 0006 and exchanges a message with the peer bot (verified in T1.6 on CI's API 35 emulator):
+
+```
+ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest   -Pandroid.testInstrumentationRunnerArguments.class=app.musubee.core.TelegramTest   -Pandroid.testInstrumentationRunnerArguments.musubeeTgBridgeBotToken=...   -Pandroid.testInstrumentationRunnerArguments.musubeeTgPeerBotToken=...   -Pandroid.testInstrumentationRunnerArguments.musubeeTgChatId=...
+```
+
+Without them it is skipped (`musubeeTgRequire=1` makes it fail instead, as in CI). It logs timings and memory under the tag `MusubeeTelegramTest`, never the tokens nor the messages.
 
 ### Measurements
 

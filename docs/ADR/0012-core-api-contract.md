@@ -85,7 +85,7 @@ On mobile, only in-process applies: iOS apps cannot start child processes, and o
    - Events come on a separate stream. The core queues up to 1024 of them; when the UI falls behind, the oldest are dropped and `resync.required` is queued instead, after which the UI re-reads the state with the `*.list` commands. `core.closed` is always the last event.
    - IDs are opaque strings with a type prefix (`a.` account, `c.` conversation, `m.` message, `k.` cursor, `p.` login process). They encode Matrix identifiers today, but the UI must not parse them. An ID that names nothing, malformed or not, is `not_found`. A malformed cursor is `invalid_params`: a cursor names no object.
    - Long waits are explicit requests: `login.wait` blocks until the login step changes, and `login.cancel` ends it with `cancelled`.
-3. **Versioning**: `core.hello` returns `api_version`, `"major.minor"` (now `1.0`). A UI calls it first and refuses a core with another major version.
+3. **Versioning**: `core.hello` returns `api_version`, `"major.minor"` (`1.0` here; `1.1` since T1.6, which added `accounts.logout`, ADR 0014). A UI calls it first and refuses a core with another major version.
    - A minor version only adds: optional fields, commands, event types, enum values. Consumers ignore what they do not know: `parseEvent` returns `null` for an unknown event type.
    - Anything else (removing or renaming a field, making a field required, changing a meaning) is a new major version.
    - Inside one version, every object is exact (`additionalProperties: false`), so tests catch a field that the schema does not declare.
@@ -140,7 +140,7 @@ Reading:
 | The same ordering on Linux and macOS, and inside Electron rather than plain Node | **assumed**: the transports are the same system primitives, and Electron's main process is Node; to check in T1.5 | T1.5 |
 | koffi works in Electron's main process | **assumed** (it is a Node-API addon); only matters if T1.5 falls back to in-process | T1.5 |
 | A child process can be signed and notarised inside the macOS app, and starts fast enough | **unknown** | T1.5 |
-| The protocol is enough for real networks (Telegram login with a code and a password, media, typing) | **unknown**: the echo network exercises the username and code flows only. New commands and fields are minor versions | connector tasks |
+| The protocol is enough for real networks (Telegram login with a code and a password, media, typing) | **unknown**: the echo network exercises the username and code flows only. New commands and fields are minor versions. *Update T1.6 (ADR 0014): Telegram's bot login and messages go through unchanged; only `accounts.logout` was missing (version 1.1). Phone login with a code and a password, media and typing are still not exercised.* | connector tasks |
 | A hosted core can speak the same documents over the network | **assumed**: the envelopes are transport-independent; authentication and reconnection are not designed | later phase |
 
 ## Consequences
