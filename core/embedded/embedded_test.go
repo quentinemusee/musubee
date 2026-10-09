@@ -4,6 +4,7 @@
 package embedded
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -425,11 +426,31 @@ func TestCloseEndsLoginWait(t *testing.T) {
 	}
 	select {
 	case out := <-waited:
-		if err = schema(t).ValidateResponse(api.CommandLoginWait, out); err != nil || !strings.Contains(string(out), `"error"`) {
+		if err = schema(t).ValidateResponse(api.CommandLoginWait, out); err != nil || !strings.Contains(string(out), `"code":"closed"`) {
 			t.Errorf("login.wait after Close: %s (%v)", out, err)
 		}
 	case <-time.After(eventTimeout):
 		t.Fatal("Close did not end login.wait")
+	}
+}
+
+// A request that Close overtakes answers closed, whatever error closing
+// caused: Close forgets the login processes, so a login.wait that arrives
+// while the core closes no longer finds its process (it answered not_found,
+// a flake of the desktop app's crash test).
+func TestRequestsOvertakenByCloseAnswerClosed(t *testing.T) {
+	c := open(t)
+	if err := c.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for _, err := range []error{
+		newError(api.ErrorCodeNotFound, "no login process"),
+		errLoginCancelled,
+		context.Canceled,
+	} {
+		if got := c.coreError(err); got.Code != api.ErrorCodeClosed {
+			t.Errorf("coreError(%v) after Close = %s, want closed", err, got.Code)
+		}
 	}
 }
 

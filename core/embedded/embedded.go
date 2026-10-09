@@ -419,14 +419,16 @@ func newError(code api.ErrorCode, format string, args ...any) *api.CoreError {
 	return &api.CoreError{Code: code, Message: fmt.Sprintf(format, args...)}
 }
 
-// coreError gives an error its API code.
+// coreError gives an error its API code. Once the core is closing, every
+// error is closed: closing ends what the requests were using (Close forgets
+// the login processes, for one), so their own errors would be misleading.
 func (c *Core) coreError(err error) *api.CoreError {
 	var coreErr *api.CoreError
 	switch {
-	case errors.As(err, &coreErr):
-		return coreErr
 	case c.ctx.Err() != nil:
 		return newError(api.ErrorCodeClosed, "the core is closed")
+	case errors.As(err, &coreErr):
+		return coreErr
 	case errors.Is(err, context.DeadlineExceeded):
 		return newError(api.ErrorCodeTimeout, "%v", err)
 	case errors.Is(err, localmatrix.ErrNotFound):
