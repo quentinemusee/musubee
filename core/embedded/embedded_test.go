@@ -77,11 +77,20 @@ func checkLateLogs(t *testing.T, lines []string) {
 			Error   string `json:"error"`
 		}
 		_ = json.Unmarshal([]byte(line), &entry)
-		aborted := strings.Contains(entry.Error, "context canceled") || strings.Contains(entry.Error, "database is closed")
-		// Nested loggers repeat the "action" key, and json.Unmarshal keeps
-		// only the last one: look for the handler's in the raw line.
-		inHandler := strings.Contains(line, `"action":"handle `)
-		if !(aborted || inHandler) || strings.Contains(strings.ToLower(entry.Message), "panic") {
+		// Work cut short by Close. When a transaction's context is
+		// canceled, database/sql rolls it back itself, and dbutil's own
+		// rollback then fails with "already been committed or rolled back".
+		aborted := strings.Contains(entry.Error, "context canceled") || strings.Contains(entry.Error, "database is closed") ||
+			strings.Contains(entry.Error, "already been committed or rolled back")
+		// bridgev2 goroutines that Bridge.Stop does not wait for: event
+		// handlers, PostStart (which resends the bridge info to every room
+		// on a bridge's first start), and the bridge state queue, whose
+		// states localmatrix drops after Stop. Nested loggers repeat the
+		// "action" key, and json.Unmarshal keeps only the last one: look
+		// for it in the raw line.
+		background := strings.Contains(line, `"action":"handle `) || strings.Contains(line, `"action":"resend bridge info"`) ||
+			entry.Message == "Sent new bridge state"
+		if !(aborted || background) || strings.Contains(strings.ToLower(entry.Message), "panic") {
 			t.Errorf("unexpected log line after Close: %s", line)
 		}
 	}

@@ -432,3 +432,28 @@ func TestUpgradeClearsPreviousBridgeStates(t *testing.T) {
 		t.Errorf("BridgeState after restart = %v, %v; want none", got, err)
 	}
 }
+
+// TestStopDropsBridgeStates checks that a bridge state sent after Stop
+// succeeds without touching the database, which may already be closed:
+// bridgev2 would retry a failed send forever.
+func TestStopDropsBridgeStates(t *testing.T) {
+	db, err := sqlite.Open(filepath.Join(t.TempDir(), "core.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := localmatrix.New(db, localmatrix.Options{Log: zerolog.Nop()})
+	if err = server.Upgrade(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	conn := newConnector(t, server, "echo")
+	server.Stop()
+	if err = db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	state := &localmatrix.BridgeState{}
+	state.StateEvent = "CONNECTED"
+	state.RemoteID = "alice"
+	if err = conn.SendBridgeStatus(t.Context(), &state.BridgeState); err != nil {
+		t.Errorf("SendBridgeStatus after Stop = %v, want nil", err)
+	}
+}
