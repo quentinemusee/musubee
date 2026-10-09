@@ -1,0 +1,32 @@
+{
+  "name": "musubee-desktop",
+  "productName": "Musubee",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Musubee's desktop app: an Electron shell around the interface (ui/) and the core in a child process.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "main": "dist/main.js",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "electron .",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc -p tsconfig.check.json",
+    "lint": "oxlint"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.0",
+    "@types/node": "^24.19.1",
+    "electron": "^44.7.0",
+    "oxlint": "^1.87.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

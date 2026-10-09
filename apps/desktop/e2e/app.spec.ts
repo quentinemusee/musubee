@@ -1,0 +1,270 @@
+// SPDX-FileCopyrightText: 2026 Quentin Raimbaud
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+// The desktop app end to end (T1.5): the Electron app, its interface and
+// the real core in its child process, driven by Playwright. Each test starts
+// the app with a data directory of its own.
+//
+//   npm run build && npm run test:e2e
+
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve as resolvePath } from "node:path";
+import { fileURLToPath } from "node:url";
+import { _electron as electron, expect, test, type ElectronApplication, type Page } from "@playwright/test";
+// Also brings window.musubee, as the interface sees it.
+import type { CoreStatus } from "../../../ui/src/shell.ts";
+
+// resolvePath() drops the trailing separator: on Windows, "dir\" on a command
+// line escapes the closing quote, and Electron gets a path ending with '"'.
+const appDir = resolvePath(fileURLToPath(new URL("..", import.meta.url)));
+
+interface Running {
+  app: ElectronApplication;
+  page: Page;
+}
+
+let dataDirs: string[] = [];
+
+test.afterEach(() => {
+  for (const dir of dataDirs) {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
+  }
+  dataDirs = [];
+});
+
+function newDataDir(): string {
+  const dir = mkdtempSync(join(tmpdir(), "musubee-desktop-e2e-"));
+  dataDirs.push(dir);
+  return dir;
+}
+
+async function launch(dataDir: string): Promise<Running> {
+  const app = await electron.launch({
+    args: [appDir],
+    env: { ...process.env, MUSUBEE_USER_DATA_DIR: dataDir, MUSUBEE_E2E: "1" },
+  });
+  const page = await app.firstWindow();
+  await expect(page.getByRole("status")).toHaveText(/Ready|Loading/);
+  return { app, page };
+}
+
+function corePid(app: ElectronApplication): Promise<number | undefined> {
+  return app.evaluate(() => (globalThis as unknown as { musubeeE2E: { corePid(): number | undefined } }).musubeeE2E.corePid());
+}
+
+function isRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Adds an account on the echo network and opens its Instant Echo conversation. */
+async function addEchoAccount(page: Page, username: string): Promise<void> {
+  await expect(page.getByRole("heading", { name: "Add an account" })).toBeVisible();
+  await page.getByRole("button", { name: "Echo: Username" }).click();
+  await page.getByLabel("Username").fill(username);
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Instant Echo" }).click();
+  await expect(page.getByRole("heading", { name: "Instant Echo" })).toBeVisible();
+}
+
+async function sendAndGetEcho(page: Page, text: string): Promise<void> {
+  await page.getByLabel("Message").fill(text);
+  await page.getByRole("button", { name: "Send" }).click();
+  const log = page.getByRole("log");
+  await expect(log.locator('[data-from-me="true"]', { hasText: text })).toContainText("Sent");
+  await expect(log.locator('[data-from-me="false"]', { hasText: text })).toContainText("Instant Echo");
+}
+
+test("open the app, send a message and get its echo, then find it again after a restart", async () => {
+  const dataDir = newDataDir();
+  let { app, page } = await launch(dataDir);
+  await expect(page).toHaveTitle("Musubee");
+  await addEchoAccount(page, "desktop");
+  await expect(page.getByText("Connected")).toBeVisible();
+  await sendAndGetEcho(page, "hello from Playwright");
+
+  // Closing the app closes the core: no process is left behind.
+  const pid = await corePid(app);
+  expect(pid).toBeDefined();
+  await app.close();
+  expect(isRunning(pid!)).toBe(false);
+
+  ({ app, page } = await launch(dataDir));
+  await page.getByRole("button", { name: "Instant Echo" }).click();
+  await expect(page.getByRole("log").locator(".message", { hasText: "hello from Playwright" })).toHaveCount(2);
+  await app.close();
+});
+
+test("the interface is isolated, and the main process checks what it sends", async () => {
+  const { app, page } = await launch(newDataDir());
+
+  // The renderer runs in Chromium's sandbox. Electron reports it on Windows
+  // and macOS only.
+  const sandboxed = await app.evaluate(({ app: electronApp }) => electronApp.getAppMetrics().filter((m) => m.type === "Tab").map((m) => m.sandboxed));
+  expect(sandboxed.length).toBeGreaterThan(0);
+  if (process.platform !== "linux") {
+    expect(sandboxed.every((s) => s === true)).toBe(true);
+  }
+  expect(page.url()).toBe("app://musubee/index.html");
+
+  // No Node.js in the page. window.musubee exists only with context
+  // isolation: contextBridge refuses to work without it.
+  const globals = await page.evaluate(() => {
+    const w = window as unknown as Record<string, unknown>;
+    return {
+      require: typeof w["require"],
+      process: typeof w["process"],
+      module: typeof w["module"],
+      shell: Object.keys(window.musubee ?? {}),
+      core: Object.keys(window.musubee?.core ?? {}).toSorted(),
+    };
+  });
+  expect(globals).toEqual({ require: "undefined", process: "undefined", module: "undefined", shell: ["core"], core: ["call", "onEvent", "onStatus"] });
+
+  // Requests the schema refuses get the core API's own errors.
+  const codes = await page.evaluate(async () => {
+    // Functions in page.evaluate run in the page: they cannot be moved out.
+    // oxlint-disable-next-line unicorn/consistent-function-scoping
+    const call = async (request: string) => (JSON.parse(await window.musubee!.core.call(request)) as { error?: { code: string } }).error?.code;
+    return {
+      notJson: await call("not json"),
+      extraField: await call(JSON.stringify({ id: 1, command: "core.hello", extra: true })),
+      zeroId: await call(JSON.stringify({ id: 0, command: "core.hello" })),
+      unknownCommand: await call(JSON.stringify({ id: 2, command: "core.shutdown" })),
+      badParams: await call(JSON.stringify({ id: 3, command: "messages.send", params: { conversation_id: 5, text: "x" } })),
+      missingParams: await call(JSON.stringify({ id: 4, command: "messages.send" })),
+      valid: await call(JSON.stringify({ id: 5, command: "core.hello" })),
+    };
+  });
+  expect(codes).toEqual({
+    notJson: "invalid_request",
+    extraField: "invalid_request",
+    zeroId: "invalid_request",
+    unknownCommand: "unknown_command",
+    badParams: "invalid_params",
+    missingParams: "invalid_params",
+    valid: undefined,
+  });
+
+  // Payloads that no interface sends are refused outright.
+  const refused = await page.evaluate(async () => {
+    // oxlint-disable-next-line unicorn/consistent-function-scoping
+    const outcome = (p: Promise<unknown>) => p.then(() => "accepted", (e: unknown) => String(e));
+    const call = window.musubee!.core.call as (request: unknown) => Promise<string>;
+    return {
+      number: await outcome(call(42)),
+      huge: await outcome(call(JSON.stringify({ id: 1, command: "debug.ping", params: { payload: "x".repeat(2 << 20) } }))),
+    };
+  });
+  expect(refused.number).toContain("must be a string");
+  expect(refused.huge).toContain("at most");
+
+  // No navigation, no new window, no inline script.
+  const blocked = await page.evaluate(async () => {
+    const opened = window.open("https://example.com/");
+    const script = document.createElement("script");
+    script.textContent = "window.inlineRan = true";
+    document.body.append(script);
+    location.href = "https://example.com/";
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return { opened: opened === null, inlineRan: (window as unknown as { inlineRan?: boolean }).inlineRan === true };
+  });
+  expect(blocked).toEqual({ opened: true, inlineRan: false });
+  expect(page.url()).toBe("app://musubee/index.html");
+  await app.close();
+});
+
+test("the app starts the core again when it stops unexpectedly", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "crash");
+  await page.evaluate(() => {
+    const seen: CoreStatus["state"][] = [];
+    (window as unknown as { statuses: string[] }).statuses = seen;
+    window.musubee!.core.onStatus((status) => seen.push(status.state));
+  });
+
+  const pid = await corePid(app);
+  process.kill(pid!);
+  await expect.poll(async () => (await corePid(app)) ?? pid).not.toBe(pid);
+  await expect(page.getByRole("status")).toHaveText("Ready");
+  expect(await page.evaluate(() => (window as unknown as { statuses: string[] }).statuses)).toEqual(["ready", "restarting", "ready"]);
+
+  // The interface read its state again, and works with the new core.
+  await page.getByRole("button", { name: "Instant Echo" }).click();
+  await sendAndGetEcho(page, "after the restart");
+  await app.close();
+});
+
+// Playwright needs the object pattern to pass testInfo second.
+// oxlint-disable-next-line eslint/no-empty-pattern
+test("measure the start-up of the core and the cost of a call through the app", async ({}, testInfo) => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "bench");
+  const measures = await page.evaluate(async () => {
+    const core = window.musubee!.core;
+    let id = 0;
+    const call = (command: string, params?: object) => core.call(JSON.stringify({ id: ++id, command, ...(params ? { params } : {}) }));
+    const payload = { payload: "x".repeat(1024) };
+    for (let i = 0; i < 200; i++) {
+      await call("debug.ping", payload);
+    }
+    const pings = 2000;
+    let start = performance.now();
+    for (let i = 0; i < pings; i++) {
+      await call("debug.ping", payload);
+    }
+    const pingUs = ((performance.now() - start) / pings) * 1000;
+
+    const conversations = JSON.parse(await call("conversations.list")) as { result: { conversations: { conversation_id: string; name: string }[] } };
+    const echo = conversations.result.conversations.find((c) => c.name === "Instant Echo")!;
+    const times: number[] = [];
+    for (let i = 0; i < 60; i++) {
+      const text = `round trip ${i}`;
+      const received = new Promise<void>((resolve) => {
+        const stop = core.onEvent((json) => {
+          const event = JSON.parse(json) as { type: string; data: { message?: { from_me: boolean; text: string } } };
+          if (event.type === "message.added" && event.data.message?.from_me === false && event.data.message.text === text) {
+            stop();
+            resolve();
+          }
+        });
+      });
+      start = performance.now();
+      await call("messages.send", { conversation_id: echo.conversation_id, text });
+      await received;
+      if (i >= 10) {
+        times.push(performance.now() - start);
+      }
+    }
+    times.sort((a, b) => a - b);
+    return {
+      pingUs,
+      roundTripMeanMs: times.reduce((a, b) => a + b, 0) / times.length,
+      roundTripP50Ms: times[Math.floor(times.length / 2)]!,
+      roundTripMaxMs: times[times.length - 1]!,
+    };
+  });
+  await app.close();
+
+  // Three more cold starts of the app on the same data directory.
+  const startups: number[] = [];
+  const dataDir = newDataDir();
+  for (let i = 0; i < 4; i++) {
+    const run = await launch(dataDir);
+    await expect(run.page.getByRole("status")).toHaveText(/Ready/);
+    startups.push(...(await run.app.evaluate(() => (globalThis as unknown as { musubeeE2E: { startupTimesMs(): number[] } }).musubeeE2E.startupTimesMs())));
+    await run.app.close();
+  }
+  const result = { platform: process.platform, arch: process.arch, ...measures, coreStartupMs: startups };
+  console.log(JSON.stringify(result));
+  writeFileSync(testInfo.outputPath("measurements.json"), JSON.stringify(result, null, 2));
+  await testInfo.attach("measurements", { body: JSON.stringify(result, null, 2), contentType: "application/json" });
+  // Loose bounds: they catch a broken transport, not a slow machine.
+  expect(measures.pingUs).toBeLessThan(10_000);
+  expect(measures.roundTripP50Ms).toBeLessThan(1_000);
+});
