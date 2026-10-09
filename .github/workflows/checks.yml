@@ -3,14 +3,16 @@
 #
 # Repository checks: SPDX headers (REUSE 3.3), English-only content, the
 # install scripts (.ps1 / .bat / .sh in dry-run mode), and the tests of all
-# these checks; Go formatting, vet and unit tests (race detector) of the
-# core, the test infrastructure and the tooling, and pure-Go (no cgo) builds
-# of the core for every target OS; the license audit of every Go and npm
-# dependency (scripts/licenseaudit); and the integration tests against a
-# real Synapse + PostgreSQL (Linux only, Docker). The Telegram end-to-end test has its own workflow (telegram.yml).
-# Desktop checks run on Linux, Windows and macOS; mobile "hello tests" run on
-# an Android emulator (Linux) and an iOS simulator (macOS), see
-# apps/mobile/e2e/ and docs/ADR/0007-mobile-e2e-tool.md.
+# these checks; Go formatting, vet, lint (golangci-lint) and unit tests (race
+# detector) of the core, the test infrastructure and the tooling, and pure-Go
+# (no cgo) builds of the core for every target OS; the license audit of every
+# Go and npm dependency (scripts/licenseaudit); the interface's tests, lint
+# and build; the desktop app (Electron) with its unit and Playwright
+# end-to-end tests on Linux, Windows and macOS (docs/ADR/0013-desktop-shell.md);
+# and the integration tests against a real Synapse + PostgreSQL (Linux only,
+# Docker). The Telegram end-to-end test has its own workflow (telegram.yml).
+# Mobile tests run on an Android emulator (Linux) and an iOS simulator
+# (macOS), see apps/mobile/e2e/ and docs/ADR/0007-mobile-e2e-tool.md.
 
 name: checks
 
@@ -107,6 +109,22 @@ jobs:
           go vet -tags=telegram ./infra/...
           go vet ./scripts/licenseaudit/...
 
+      # Configuration: .golangci.yml. Built from source with the job's Go, so
+      # that golangci-lint always understands the Go version of the modules.
+      - name: Lint (golangci-lint)
+        if: runner.os == 'Linux'
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.14.0
+          install-mode: goinstall
+          args: ./core/... ./infra/... ./scripts/licenseaudit/...
+
+      - name: Lint with the SQLite driver of Android (golangci-lint)
+        if: runner.os == 'Linux'
+        env:
+          CGO_ENABLED: "1"
+        run: golangci-lint run --build-tags=musubee_cgo_sqlite ./core/...
+
       - name: Unit tests (race detector)
         run: go test -race -count=1 ./core/... ./infra/... ./scripts/licenseaudit/...
 
@@ -171,6 +189,7 @@ jobs:
           cache-dependency-path: |
             apps/mobile/package-lock.json
             apps/mobile/e2e/package-lock.json
+            apps/desktop/package-lock.json
             ui/package-lock.json
             scripts/transportbench/package-lock.json
 
@@ -180,6 +199,7 @@ jobs:
         run: |
           npm ci --no-audit --no-fund --ignore-scripts --prefix apps/mobile/e2e
           npm ci --no-audit --no-fund --ignore-scripts --prefix apps/mobile
+          npm ci --no-audit --no-fund --ignore-scripts --prefix apps/desktop
           npm ci --no-audit --no-fund --ignore-scripts --prefix ui
           npm ci --no-audit --no-fund --ignore-scripts --prefix scripts/transportbench
 
@@ -189,9 +209,10 @@ jobs:
   # TypeScript side of the core API contract (docs/ADR/0012): the generated
   # types type-check, and Ajv validates the shared examples and one example
   # per command and event against the schema. The Go side runs in the go
-  # job, which also fails when the generated files are stale.
+  # job, which also fails when the generated files are stale. Also the
+  # interface's own tests, its lint (oxlint) and its production build.
   ui:
-    name: UI contract tests and typecheck
+    name: UI tests, typecheck, lint and build
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -214,8 +235,93 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      - name: Lint (oxlint)
+        run: npm run lint
+
       - name: Contract and unit tests
         run: npm test
+
+      - name: Production build
+        run: npm run build
+
+  # The Electron app with the real core as its child process
+  # (docs/ADR/0013-desktop-shell.md): unit tests of the main process (the
+  # supervisor runs the real core binary), then the app built and driven by
+  # Playwright. The end-to-end tests also measure the transport and the
+  # core's start-up; the measurements are in the uploaded test results.
+  desktop:
+    name: Desktop app (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            ui/package-lock.json
+            apps/desktop/package-lock.json
+
+      # Electron's install script downloads Electron itself.
+      - name: Install npm dependencies
+        run: |
+          npm ci --no-audit --no-fund --prefix ui
+          npm ci --no-audit --no-fund --prefix apps/desktop
+
+      - name: Type check and lint (oxlint)
+        working-directory: apps/desktop
+        run: |
+          npm run typecheck
+          npm run lint
+
+      - name: Unit tests (with the real core)
+        working-directory: apps/desktop
+        run: npm test
+
+      - name: Build (core, interface, main process)
+        working-directory: apps/desktop
+        run: npm run build
+
+      # Ubuntu 24.04 forbids unprivileged user namespaces through AppArmor,
+      # and Chromium's sandbox needs them. Allow them rather than run the app
+      # with --no-sandbox: the tests check the sandbox.
+      - name: Allow Chromium's sandbox (Linux)
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: End-to-end tests (Playwright)
+        working-directory: apps/desktop
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            command -v xvfb-run >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq xvfb; }
+            xvfb-run --auto-servernum npm run test:e2e
+          else
+            npm run test:e2e
+          fi
+
+      # Measurements, and traces of failed tests.
+      - name: Upload the end-to-end test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-e2e-${{ matrix.os }}
+          path: apps/desktop/test-results/
+          retention-days: 14
+          if-no-files-found: ignore
 
   integration:
     name: Integration tests (Synapse + PostgreSQL)
