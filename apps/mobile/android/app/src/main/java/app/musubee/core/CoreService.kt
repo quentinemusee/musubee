@@ -15,6 +15,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import app.musubee.BuildConfig
 import app.musubee.R
 import java.io.File
 import java.util.concurrent.CompletableFuture
@@ -52,9 +53,15 @@ class CoreService : Service() {
                 val config = org.json.JSONObject()
                     .put("data_dir", dataDir.absolutePath)
                     .put("log_level", "info")
-                    .toString()
-                    .toByteArray(Charsets.UTF_8)
-                val opened = CoreLibrary.open(config)
+                if (BuildConfig.TELEGRAM_API_ID != 0) {
+                    config.put(
+                        "telegram",
+                        org.json.JSONObject()
+                            .put("api_id", BuildConfig.TELEGRAM_API_ID)
+                            .put("api_hash", BuildConfig.TELEGRAM_API_HASH),
+                    )
+                }
+                val opened = CoreLibrary.open(config.toString().toByteArray(Charsets.UTF_8))
                 core.complete(opened)
                 reader = Thread({ readEvents(opened) }, "musubee-core-events").also { it.start() }
             } catch (e: Throwable) {
