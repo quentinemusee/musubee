@@ -56,8 +56,16 @@ test("the Settings app comes to the foreground", async () => {
 });
 
 test("its screen can be read through UiAutomator2", async () => {
-  const elements = await driver.$$(`android=new UiSelector().packageName("${SETTINGS}")`);
-  assert.ok(elements.length > 0, "no element of the Settings app found on screen");
+  // On a slow emulator the app can be in front before its first screen is
+  // drawn, or a system dialog can cover it for a moment: wait for it.
+  const found = await driver
+    .waitUntil(async () => (await driver.$$(`android=new UiSelector().packageName("${SETTINGS}")`)).length > 0, {
+      timeout: 30_000,
+      interval: 1_000,
+    })
+    .catch(() => false);
   const source = await driver.getPageSource();
+  assert.ok(found, `no element of the Settings app found on screen within 30 s; screen:
+${source.slice(0, 4000)}`);
   assert.ok(source.includes(`package="${SETTINGS}"`), "the page source does not contain the Settings app");
 });

@@ -244,7 +244,10 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # Each script line runs in its own shell, from working-directory.
+      # Each script line runs in its own shell, from working-directory. When
+      # a line fails, it prints the crash log and the core's runtime errors
+      # (the Go runtime writes them to logcat under the tag "Go") before
+      # failing the step.
       - name: Tests on the emulator (hello, instrumented, app end to end)
         uses: reactivecircus/android-emulator-runner@c9c93e6ba9c4194322e114c40970d5983d9a07cc # v2.38.0
         with:
@@ -255,9 +258,9 @@ jobs:
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
           working-directory: apps/mobile/e2e
           script: |
-            MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android
-            cd ../android && ANDROID_SERIAL=emulator-5554 ./gradlew --no-daemon -Pmusubee.abis=x86_64 :app:connectedDebugAndroidTest
-            MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android:app
+            MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android || { adb logcat -d -b crash; adb logcat -d -t 300; exit 1; }
+            cd ../android && ANDROID_SERIAL=emulator-5554 ./gradlew --no-daemon -Pmusubee.abis=x86_64 :app:connectedDebugAndroidTest || { adb logcat -d -b crash; adb logcat -d -s Go:* DEBUG:* AndroidRuntime:* libc:* TestRunner:* MusubeeCore:*; exit 1; }
+            MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android:app || { adb logcat -d -b crash; adb logcat -d -t 300; exit 1; }
 
   ios:
     name: iOS hello test (simulator, Appium)
