@@ -44,6 +44,41 @@ func TestOpenSettings(t *testing.T) {
 	}
 }
 
+// TestPoolKeepsIdleConnections checks that connections used concurrently
+// stay open for the next queries instead of being reopened.
+func TestPoolKeepsIdleConnections(t *testing.T) {
+	db, err := sqlite.Open(filepath.Join(t.TempDir(), "core.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	ctx := t.Context()
+	const n = 6
+	var conns []interface{ Close() error }
+	for range n {
+		conn, err := db.RawDB.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		conns = append(conns, conn)
+	}
+	for _, conn := range conns {
+		_ = conn.Close()
+	}
+	if stats := db.RawDB.Stats(); stats.Idle != n {
+		t.Errorf("idle connections after using %d at once = %d, want %d", n, stats.Idle, n)
+	}
+	for range 3 * n {
+		var one int
+		if err = db.QueryRow(ctx, "SELECT 1").Scan(&one); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if stats := db.RawDB.Stats(); stats.OpenConnections != n || stats.MaxIdleClosed != 0 {
+		t.Errorf("pool after more queries: %d open, %d closed as surplus; want %d and 0", stats.OpenConnections, stats.MaxIdleClosed, n)
+	}
+}
+
 // TestConcurrentWriters checks that immediate transactions make concurrent
 // writers wait for each other instead of failing with SQLITE_BUSY.
 func TestConcurrentWriters(t *testing.T) {
