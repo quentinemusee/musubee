@@ -41,3 +41,8 @@ __pycache__/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+
+# Desktop app build (apps/desktop/scripts/build.mjs) and Playwright output
+/apps/desktop/resources/
+test-results/
+playwright-report/
