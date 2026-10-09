@@ -3,12 +3,9 @@
 
 // Command transportbench serves a core over a stream, for the transport
 // measurements of docs/ADR/0012 (scripts/transportbench). It is a
-// measurement tool, not the desktop sidecar: that one comes with the
-// Electron shell (T1.5).
+// measurement tool: the desktop app runs core/cmd/musubee-core.
 //
-// The stream carries newline-delimited JSON: the client writes requests,
-// the server writes responses (which have an "id") and events (which have a
-// "type") as they come. Requests run concurrently, as with the C library.
+// The stream carries newline-delimited JSON (package stream).
 //
 //	transportbench -data DIR -listen stdio
 //	transportbench -data DIR -listen tcp
@@ -26,13 +23,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"os"
-	"sync"
 	"time"
 
+	"github.com/quentinemusee/musubee/core/api/stream"
 	"github.com/quentinemusee/musubee/core/embedded"
 )
 
@@ -57,7 +53,7 @@ func run(dataDir, listen string) error {
 	defer func() { _ = core.Close() }()
 	switch listen {
 	case "stdio":
-		return serve(core, os.Stdin, os.Stdout)
+		return stream.Serve(core, embedded.ClosedEvent(), os.Stdin, os.Stdout)
 	case "tcp":
 		return serveTCP(core)
 	}
@@ -86,46 +82,5 @@ func serveTCP(core *embedded.Core) error {
 		return fmt.Errorf("wrong token from %s", conn.RemoteAddr())
 	}
 	_ = conn.SetReadDeadline(time.Time{})
-	return serve(core, reader, conn)
-}
-
-// serve runs requests from r and writes responses and events to w, until r
-// ends.
-func serve(core *embedded.Core, r io.Reader, w io.Writer) error {
-	out := bufio.NewWriter(w)
-	var mu sync.Mutex
-	write := func(data []byte) {
-		mu.Lock()
-		defer mu.Unlock()
-		_, _ = out.Write(append(data, '\n'))
-		_ = out.Flush()
-	}
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		for {
-			data, ok := core.NextEvent(time.Minute)
-			if !ok {
-				continue
-			}
-			write(data)
-			if string(data) == string(embedded.ClosedEvent()) {
-				return
-			}
-		}
-	}()
-	scanner := bufio.NewScanner(r)
-	scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
-	var calls sync.WaitGroup
-	for scanner.Scan() {
-		request := append([]byte(nil), scanner.Bytes()...)
-		calls.Go(func() { write(core.Call(request)) })
-	}
-	calls.Wait()
-	err := core.Close()
-	<-done
-	if err != nil {
-		return err
-	}
-	return scanner.Err()
+	return stream.Serve(core, embedded.ClosedEvent(), reader, conn)
 }
