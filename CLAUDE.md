@@ -46,7 +46,7 @@ A local link table `Person ↔ [Conversation]` (stored on the device, syncable i
 - **No audio/video calls across networks.** Beeper does not support them either; relaying them would require reverse-engineered VoIP stacks. What we do: a call notification + opening the official app; native calls (MatrixRTC) only between Musubee users, later.
 - **iOS is the riskiest platform.** The NSE is a separate process with little memory (Beeper had 15 MB, then 50 MB after an exemption obtained through the EU DMA; more on some devices). A full Go runtime is tight there. A small push relay is required. **iOS starts in hosted-bridge mode.**
 - **Legal risk of bridges**: the terms of service of WhatsApp, iMessage, etc. are hostile to unofficial clients. Increasing risk order: native Matrix → Telegram → Signal → Discord/Slack → WhatsApp → iMessage. We start with the least risky.
-- **AGPL and Apple's App Store**: compatibility must be validated before publishing on iOS. It is not resolved. Deferred by the maintainer on 2026-10-07: the repository is private and has no external contributors.
+- **AGPL and Apple's App Store**: compatibility must be validated before publishing on iOS. It is not resolved. Deferred by the maintainer on 2026-10-07, when the repository was private; it became public on 2026-10-08 and still has no external contributors.
 - I (the design assistant) am not a lawyer: licensing points must be reviewed by a competent human before the public launch.
 
 ## 4. Open questions to settle with spikes (see `docs/TASKS.md`, phase 1)
@@ -200,10 +200,20 @@ android measures:   ANDROID_SERIAL=emulator-5554 ./measure-core.sh 5          (s
 android SQLite:     go test -tags=musubee_cgo_sqlite -count=1 ./core/...     (the cgo driver of Android builds, on the host; ADR 0011)
 ```
 
+Verified in T1.4 (Windows, Go 1.27.1, Node 24.20, npm 11; see ADR 0012, `ui/README.md`):
+
+```
+api types:          go generate ./core/api            (Go and TypeScript types from core/api/schema/core-api.schema.json)
+ui tools:           cd ui && npm ci
+ui tests:           npm test                          npm run typecheck
+api benchmark:      go test -run '^$' -bench RoundTrip -benchtime 2000x ./core/embedded/
+transports:         cd scripts/transportbench && npm ci && node bench.mjs   (needs the C toolchain; MUSUBEE_BENCH_PINGS, _ROUNDTRIPS, _ONLY)
+```
+
 To be confirmed in the corresponding tasks (T1.5):
 
 ```
 core:   golangci-lint run
-ui:     npm test                   npm run lint        npm run typecheck
+ui:     npm run lint
 e2e:    see docs/TESTING.md
 ```
