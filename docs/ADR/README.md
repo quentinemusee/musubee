@@ -23,3 +23,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0011](0011-core-on-android.md) | The core on Android: JNI in the shared library, in a foreground service | accepted | T1.3 |
 | [0012](0012-core-api-contract.md) | The core API contract: one JSON Schema, generated types, and the transports that carry it | accepted | T1.4 |
 | [0013](0013-desktop-shell.md) | The desktop shell: Electron with the core as a supervised child process | accepted | T1.5 |
+| [0014](0014-telegram-on-device.md) | Telegram on the device: mautrix-telegram's connector inside the core | accepted | T1.6 |

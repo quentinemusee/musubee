@@ -2,7 +2,7 @@
 
 A single interface codebase for every platform, built with Vite and displayed by Electron (desktop) and Capacitor (mobile).
 
-**Status: a minimal interface (T1.5).** Add an account on the echo network, list conversations, read and send messages, shown by the Electron app ([`apps/desktop`](../apps/desktop/)). Its state store is provisional: state management and the virtualized message list are decided later, in their own ADR (see [`docs/TASKS.md`](../docs/TASKS.md)).
+**Status: a minimal interface (T1.5, T1.6).** Add an account on any network the core offers (echo, and Telegram since T1.6), log out of it after a confirmation, list conversations, read and send messages, shown by the Electron app ([`apps/desktop`](../apps/desktop/)). Tokens and passwords are typed into password fields. Its state store is provisional: state management and the virtualized message list are decided later, in their own ADR (see [`docs/TASKS.md`](../docs/TASKS.md)).
 
 ## Layout
 

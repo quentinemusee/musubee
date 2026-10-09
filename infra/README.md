@@ -11,7 +11,8 @@ Services started with Docker for integration and end-to-end tests. Principle: **
 | `testenv/` | Go package that starts and stops the environment and creates users; integration tests |
 | `cmd/testenv/` | Command for manual work: `up`, `status`, `user`, `down` |
 | `compose.telegram.yml`, `telegram/` | Official mautrix-telegram image and its per-run configuration templates ([ADR 0006](../docs/ADR/0006-telegram-e2e-with-test-bots.md)) |
-| `telegramtest/` | Bot API client and the Telegram end-to-end tests |
+| `telegramtest/` | Bot API client and the Telegram end-to-end tests of the hosted bridge |
+| `telegramtest/ondevice/` | The Telegram end-to-end test of the core itself, on the device, without Synapse (T1.6, [ADR 0014](../docs/ADR/0014-telegram-on-device.md)) |
 
 Requirements: Docker with the Compose plugin (Docker Desktop on Windows and macOS), Go 1.27.1 or later (version in `go.mod`; 1.27.0 has a `database/sql` deadlock, see ADR 0009).
 
@@ -47,7 +48,19 @@ go test -tags=telegram -v ./infra/telegramtest/
 
 5. The project's own application credentials, created on <https://my.telegram.org> ("API development tools"): `gh secret set MUSUBEE_TG_API_ID` and `gh secret set MUSUBEE_TG_API_HASH`. Without them the test falls back on the public test application, which Telegram rate-limits for everyone (`API_ID_PUBLISHED_FLOOD`).
 
-For local runs, export the same variables. In CI the test has its own workflow (`.github/workflows/telegram.yml`): it runs when `infra/` or `go.work` change, on `master`, once a day, and on demand (`gh workflow run telegram`), because Telegram rate-limits bot logins (`FLOOD_WAIT`).
+For local runs, export the same variables. In CI the tests have their own workflow (`.github/workflows/telegram.yml`): it runs when `infra/`, `core/`, `go.work` or the Telegram tests of the apps change, on `master`, once a day, and on demand (`gh workflow run telegram`), because Telegram rate-limits bot logins (`FLOOD_WAIT`).
+
+### On the device (T1.6)
+
+The same bots, channel and application credentials drive the Telegram connector inside the core, with no bridge and no Synapse ([ADR 0014](../docs/ADR/0014-telegram-on-device.md)):
+
+```
+go test -tags=telegram -v ./infra/telegramtest/ondevice/
+```
+
+It logs in as the bridge bot through the core API, receives a post of the peer bot, answers it, checks that the peer bot sees the answer, logs out, and checks that the core's log holds neither the messages nor the token. Without the variables it is skipped; `MUSUBEE_REQUIRE_TELEGRAM_E2E=1` makes it fail instead (CI does). The workflow then runs the same journey in the desktop app (`apps/desktop/e2e/telegram.spec.ts`, Windows) and in the Android app on an emulator (`TelegramTest`), one after the other: **a bot has one session at a time, so never run two Telegram tests at once**, and every test logs out at the end.
+
+`infra/go.mod` requires the core module (through a `replace` to `../core`) and repeats the core's `replace go.mau.fi/webp => ../core/replace/webp`, which Go does not inherit.
 
 ## Use the environment by hand
 
