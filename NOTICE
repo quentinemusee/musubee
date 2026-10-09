@@ -146,6 +146,15 @@ Development tools (used to build or check the project, NOT distributed)
   versions: apps/mobile/e2e/package-lock.json.
 - GitHub Actions also used in CI: actions/setup-go, actions/setup-node (MIT),
   reactivecircus/android-emulator-runner (Apache-2.0).
+- Contract tests of the core API (docs/ADR/0012, test code only, not in
+  the core's build): github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
+  (Apache-2.0), in core/api/apitest.
+- UI tests and type checks (ui/, development only): TypeScript 7.0.2
+  (Apache-2.0), Vitest 5.0.3 (MIT), Ajv 8.20.0 (MIT), @types/node 24.19.1
+  (MIT), and their npm dependencies (MIT, Apache-2.0, MPL-2.0 for
+  lightningcss, BSD-3-Clause, ISC). Exact versions: ui/package-lock.json.
+- Transport measurements (scripts/transportbench, development only):
+  koffi 3.3.2 (MIT), https://koffi.dev.
 - Dependency license audit (scripts/licenseaudit, development only):
   github.com/google/licensecheck v0.3.1 (BSD-3-Clause).
 - GitHub CLI (gh), MIT. Used by the maintainer and Claude Code to open pull
