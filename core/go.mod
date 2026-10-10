@@ -12,6 +12,7 @@ require (
 	go.mau.fi/mautrix-telegram v0.2609.0
 	go.mau.fi/util v0.10.1
 	go.mau.fi/webp v0.3.0
+	golang.org/x/sys v0.48.0
 	gopkg.in/yaml.v3 v3.0.1
 	maunium.net/go/mautrix v0.31.0
 	modernc.org/sqlite v1.60.1
@@ -56,7 +57,6 @@ require (
 	golang.org/x/image v0.46.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	modernc.org/libc v1.77.1 // indirect
