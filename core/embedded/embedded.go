@@ -31,6 +31,7 @@ import (
 	"github.com/quentinemusee/musubee/core/connector/telegram"
 	"github.com/quentinemusee/musubee/core/localmatrix"
 	"github.com/quentinemusee/musubee/core/persons"
+	"github.com/quentinemusee/musubee/core/secrets"
 )
 
 // Version is the version of the core build, reported by core.hello. Release
@@ -43,11 +44,6 @@ const (
 	matrixBridge   networkid.BridgeID = matrix.NetworkID
 	telegramBridge networkid.BridgeID = "telegram"
 )
-
-// matrixPickleKey encrypts the Matrix accounts' keys in the database. As a
-// constant of the code, it protects nothing: anyone with the database file
-// has the keys. Protecting the secrets at rest is T2.3 (docs/TASKS.md).
-var matrixPickleKey = []byte("musubee: replaced by a key from the OS secure storage in T2.3")
 
 // eventQueueSize bounds the events waiting for the application. When the
 // application stops reading, the oldest events are not kept forever: the
@@ -65,6 +61,13 @@ type Config struct {
 	// Telegram enables the Telegram network. Without it, the core does not
 	// offer Telegram.
 	Telegram *TelegramConfig `json:"telegram,omitempty"`
+	// DatabaseKey is the master key of the secrets at rest, 32 bytes in
+	// base64, kept by the embedding application in the operating system's
+	// secure storage (the Android Keystore). Without it, the core keeps its
+	// own key file in DataDir, protected by Windows' DPAPI on Windows and by
+	// nothing but its permissions elsewhere (docs/ADR/0019). The application
+	// never logs it.
+	DatabaseKey string `json:"database_key,omitempty"`
 }
 
 // TelegramConfig identifies the application to Telegram
@@ -144,14 +147,27 @@ func Open(config []byte) (*Core, error) {
 }
 
 func (c *Core) start(cfg Config) error {
+	key, err := c.masterKey(cfg)
+	if err != nil {
+		return err
+	}
 	host, err := bridgehost.New(bridgehost.Options{
 		DatabasePath: filepath.Join(cfg.DataDir, "core.db"),
+		Sealer:       secrets.NewSealer(key, secrets.PurposeLoginMetadata),
 		Log:          c.log,
 	})
 	if err != nil {
 		return err
 	}
 	c.host = host
+	if err = secrets.CheckDatabase(c.ctx, host.DB, key); err != nil {
+		return err
+	}
+	if n, err := secrets.SealPlainLogins(c.ctx, host.DB); err != nil {
+		return err
+	} else if n > 0 {
+		c.log.Info().Int("logins", n).Msg("Sealed the sessions written before sealing")
+	}
 	c.persons = persons.New(host.DB)
 	if err = c.persons.Upgrade(c.ctx); err != nil {
 		return err
@@ -161,7 +177,7 @@ func (c *Core) start(cfg Config) error {
 		return err
 	}
 	c.networks = append(c.networks, echoBridge)
-	if _, err = host.AddNetwork(matrixBridge, matrix.New(matrix.Config{PickleKey: matrixPickleKey})); err != nil {
+	if _, err = host.AddNetwork(matrixBridge, matrix.New(matrix.Config{PickleKey: key.Derive(secrets.PurposeMatrixPickleKey)})); err != nil {
 		return err
 	}
 	c.networks = append(c.networks, matrixBridge)
@@ -181,6 +197,29 @@ func (c *Core) start(cfg Config) error {
 	c.forwarding.Add(1)
 	go c.forward(updates)
 	return host.Start(c.ctx)
+}
+
+// masterKey returns the key of the secrets at rest: the application's, or
+// the core's own key file.
+func (c *Core) masterKey(cfg Config) (secrets.Key, error) {
+	if cfg.DatabaseKey != "" {
+		key, err := secrets.ParseKey(cfg.DatabaseKey)
+		if err != nil {
+			return key, fmt.Errorf("invalid configuration: database_key: %w", err)
+		}
+		c.log.Info().Str("protection", string(secrets.ProtectionHost)).Msg("Secrets at rest are sealed")
+		return key, nil
+	}
+	key, protection, err := secrets.LoadOrCreate(cfg.DataDir)
+	if err != nil {
+		return key, err
+	}
+	if protection == secrets.ProtectionNone {
+		c.log.Warn().Msg("Secrets at rest are sealed, but their key file is protected by its permissions only: no secure storage on this platform yet")
+	} else {
+		c.log.Info().Str("protection", string(protection)).Msg("Secrets at rest are sealed")
+	}
+	return key, nil
 }
 
 // Close stops the core. It is safe to call more than once.
