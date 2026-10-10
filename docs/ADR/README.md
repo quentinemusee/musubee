@@ -26,3 +26,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0014](0014-telegram-on-device.md) | Telegram on the device: mautrix-telegram's connector inside the core | accepted | T1.6 |
 | [0015](0015-ios-nse-memory.md) | iOS notification extension memory: the core built for iOS, first measurements on the simulator | proposed | T1.7 |
 | [0016](0016-phase-1-go-no-go.md) | Phase 1 go / no-go: the core runs on the device; what each platform gets, what waits | accepted | T1.8 |
+| [0017](0017-persons-data-model.md) | Persons: merged conversations keyed by network identity, stored next to the bridges | accepted | T2.1 |

@@ -5,7 +5,7 @@
 // core is covered by the desktop app's end-to-end tests (apps/desktop/e2e).
 
 import { describe, expect, test } from "vitest";
-import type { Conversation, Message } from "./core-api/types.gen";
+import type { Conversation, Message, Person } from "./core-api/types.gen";
 import type { CoreStatus, ShellCore } from "./shell";
 import { mergeMessages, Store } from "./store";
 
@@ -60,11 +60,12 @@ function scriptedShell(results: Record<string, (params: unknown) => unknown>) {
   };
 }
 
-const coreState = (conversations: Conversation[] = []) => ({
-  "core.hello": () => ({ api_version: "1.1", core_version: "test" }),
+const coreState = (conversations: Conversation[] = [], persons: Person[] = []) => ({
+  "core.hello": () => ({ api_version: "1.2", core_version: "test" }),
   "networks.list": () => ({ networks: [{ network_id: "echo", name: "Echo", login_flows: [] }] }),
   "accounts.list": () => ({ accounts: [] }),
   "conversations.list": () => ({ conversations }),
+  "persons.list": () => ({ persons }),
   "messages.list": () => ({ messages: [message("m1", 1), message("m2", 2)] }),
   "messages.send": (params: unknown) => ({
     message: message("m3", 3, { from_me: true, status: "sending", text: (params as { text: string }).text }),
@@ -117,6 +118,25 @@ describe("Store", () => {
     expect(state.conversations.map((c) => c.name)).toEqual(["Aaron", "Adam"]);
   });
 
+  test("reads the persons, and applies their events", async () => {
+    const alice: Person = { person_id: "h1", name: "Alice", conversation_ids: ["c1"] };
+    const shell = scriptedShell(coreState([conversation("c1", "Alice"), conversation("c2", "Alice")], [alice]));
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    expect(store.getState().persons).toEqual([alice]);
+
+    shell.emit("person.updated", { person: { ...alice, conversation_ids: ["c1", "c2"] } });
+    shell.emit("person.updated", { person: { person_id: "h2", name: "Bob", conversation_ids: ["c3"] } });
+    shell.emit("conversation.updated", { conversation: { ...conversation("c2", "Alice"), person_id: "h1" } });
+    expect(store.getState().persons.map((p) => `${p.person_id}:${p.conversation_ids.join(",")}`)).toEqual(["h1:c1,c2", "h2:c3"]);
+    expect(store.getState().conversations.find((c) => c.conversation_id === "c2")?.person_id).toBe("h1");
+
+    shell.emit("person.deleted", { person_id: "h1" });
+    expect(store.getState().persons.map((p) => p.person_id)).toEqual(["h2"]);
+  });
+
   test("logs out, and forgets a logged-out account", async () => {
     const alice = { account_id: "a1", network_id: "echo", name: "alice", state: "connected" };
     let accounts = [alice];
@@ -158,7 +178,7 @@ describe("Store", () => {
     shell.commands.length = 0;
     shell.status({ state: "ready" });
     await settle();
-    expect(shell.commands).toEqual(["core.hello", "networks.list", "accounts.list", "conversations.list", "messages.list"]);
+    expect(shell.commands).toEqual(["core.hello", "networks.list", "accounts.list", "conversations.list", "persons.list", "messages.list"]);
     expect(store.getState().selected).toBe("c1");
 
     shell.commands.length = 0;

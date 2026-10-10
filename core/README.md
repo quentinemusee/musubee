@@ -17,12 +17,13 @@ Requires **Go 1.27.1 or later**: Go 1.27.0's `database/sql` can deadlock (golang
 | `replace/webp` | Pure-Go stand-in for `go.mau.fi/webp` (libwebp through cgo), used through a `replace` directive: PNG and JPEG stickers cannot be sent to Telegram (ADR 0014) |
 | `storage/sqlite` | Opens the SQLite database: pure-Go `modernc.org/sqlite` (no cgo), except on Android and with the `musubee_cgo_sqlite` tag, which use `mattn/go-sqlite3` (cgo; ADR 0011) |
 | `api` | The core API contract: the JSON Schema (`schema/`), shared test examples, and the Go types generated from it (`types.gen.go`, by `go generate ./core/api`) |
-| `api/apitest` | Validates JSON documents against the schema, for the contract tests (test code only) |
+| `api/apitest` | Validates JSON documents against the schema, and finds Matrix identifiers in them, for the contract tests (test code only) |
 | `api/internal/codegen`, `api/apigen` | The generator of the Go and TypeScript types (`ui/src/core-api/types.gen.ts`) |
 | `api/stream` | Serves the API as newline-delimited JSON on a reader and a writer: requests run concurrently, events are interleaved, `core.closed` is the last line |
 | `api/transportbench` | Serves a core over stdio or loopback TCP, for the transport measurements of ADR 0012 (`scripts/transportbench`) |
 | `cmd/musubee-core` | The core as a program (`-data DIR`, `-log-level`; Telegram's application credentials in `MUSUBEE_TG_API_ID` and `MUSUBEE_TG_API_HASH`), speaking `api/stream` on its standard input and output; it exits when its input ends. The desktop app's child process |
-| `embedded` | The core as one object for an embedding app: implements the API commands and the event stream on top of `bridgehost` and `localmatrix`; no Matrix type leaves it |
+| `embedded` | The core as one object for an embedding app: implements the API commands and the event stream on top of `bridgehost`, `localmatrix` and `persons`; no Matrix type leaves it (its tests check every response and event) |
+| `persons` | The persons the user merged conversations into, and their links to conversations, keyed by each conversation's identity on its network, in `musubee_` tables of the core's database (ADR 0017) |
 | `ffi` | The C shared library (`musubee.h`) around `embedded`; with the SQLite driver of Android builds, the only code that needs cgo. On Android it also holds the JNI entry points of the app (`jni_android.go`). `testdata/host.c` is the C host program of its tests |
 
 ## Responsibilities
