@@ -34,10 +34,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/quentinemusee/musubee/core/api"
+	"github.com/quentinemusee/musubee/core/api/apitest"
 	"github.com/quentinemusee/musubee/core/embedded"
 	"github.com/quentinemusee/musubee/infra/telegramtest"
 )
@@ -75,7 +77,7 @@ func TestTelegramOnDevice(t *testing.T) {
 	started := time.Now()
 	c := openCore(t, dataDir, creds)
 	t.Logf("core open in %s", time.Since(started).Round(time.Millisecond))
-	events := pump(c)
+	events := pump(t, c)
 
 	// 1. Telegram is offered, with the bot flow.
 	var networks api.NetworksListResult
@@ -280,7 +282,9 @@ func tryCall(t *testing.T, c *embedded.Core, command string, params, out any) *a
 		Result json.RawMessage `json:"result"`
 		Error  *api.CoreError  `json:"error"`
 	}
-	if err := json.Unmarshal(c.Call(req), &resp); err != nil {
+	raw := c.Call(req)
+	checkNoMatrixIDs(t, command, raw, req)
+	if err := json.Unmarshal(raw, &resp); err != nil {
 		t.Fatalf("%s: %v", command, err)
 	}
 	if resp.Error != nil {
@@ -292,6 +296,20 @@ func tryCall(t *testing.T, c *embedded.Core, command string, params, out any) *a
 		}
 	}
 	return nil
+}
+
+// checkNoMatrixIDs fails if a response or an event shows a Matrix
+// identifier (apitest.MatrixIDs). Only the identifier is reported: the
+// document may hold message text.
+func checkNoMatrixIDs(t *testing.T, what string, document, request []byte) {
+	t.Helper()
+	found, err := apitest.MatrixIDs(document, request)
+	if err != nil {
+		t.Errorf("%s: %v", what, err)
+	}
+	for _, v := range found {
+		t.Errorf("%s: a Matrix identifier reaches the API: %q", what, v)
+	}
 }
 
 type event struct {
@@ -311,8 +329,19 @@ func (e event) decode(t *testing.T, out any) bool {
 // drops them while the test waits on Telegram.
 type events chan event
 
-func pump(c *embedded.Core) events {
+// pump reads the events of a core. It checks each for Matrix identifiers,
+// and reports them when the test ends.
+func pump(t *testing.T, c *embedded.Core) events {
 	ch := make(events, 4096)
+	var mu sync.Mutex
+	var leaks []string
+	t.Cleanup(func() {
+		mu.Lock()
+		defer mu.Unlock()
+		for _, leak := range leaks {
+			t.Errorf("a Matrix identifier reaches the API: %s", leak)
+		}
+	})
 	go func() {
 		defer close(ch)
 		for {
@@ -324,6 +353,12 @@ func pump(c *embedded.Core) events {
 			if json.Unmarshal(data, &e) != nil || e.Type == api.EventCoreClosed {
 				return
 			}
+			found, _ := apitest.MatrixIDs(data, nil)
+			mu.Lock()
+			for _, v := range found {
+				leaks = append(leaks, fmt.Sprintf("%q in a %s event", v, e.Type))
+			}
+			mu.Unlock()
 			ch <- e
 		}
 	}()

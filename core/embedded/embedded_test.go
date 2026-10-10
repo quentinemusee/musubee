@@ -117,6 +117,9 @@ func rawCall(t *testing.T, c *Core, command string, params any) (json.RawMessage
 	if err = schema(t).ValidateResponse(command, out); err != nil {
 		t.Fatalf("%s: the response breaks the contract: %v\n%s", command, err, out)
 	}
+	if command != api.CommandDebugPing {
+		checkNoMatrixIDs(t, out, data)
+	}
 	var resp struct {
 		ID     int64           `json:"id"`
 		Result json.RawMessage `json:"result"`
@@ -171,6 +174,7 @@ func waitEvent(t *testing.T, c *Core, what string, match func(rawEvent) bool) ra
 		if err := schema(t).ValidateEvent(data); err != nil {
 			t.Fatalf("an event breaks the contract: %v\n%s", err, data)
 		}
+		checkNoMatrixIDs(t, data, nil)
 		var evt rawEvent
 		if err := json.Unmarshal(data, &evt); err != nil {
 			t.Fatal(err)
@@ -181,6 +185,19 @@ func waitEvent(t *testing.T, c *Core, what string, match func(rawEvent) bool) ra
 	}
 	t.Fatalf("no %s within %s", what, eventTimeout)
 	return rawEvent{}
+}
+
+// checkNoMatrixIDs fails if a response or an event shows a Matrix
+// identifier (apitest.MatrixIDs).
+func checkNoMatrixIDs(t *testing.T, data, request []byte) {
+	t.Helper()
+	found, err := apitest.MatrixIDs(data, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range found {
+		t.Errorf("a Matrix identifier reaches the API: %q in %s", v, data)
+	}
 }
 
 func decode[T any](t *testing.T, data json.RawMessage) T {
@@ -203,14 +220,21 @@ func messageEvent(t *testing.T, typ string, match func(api.Message) bool) func(r
 // conversations exist.
 func login(t *testing.T, c *Core) string {
 	t.Helper()
+	return loginAs(t, c, "alice", 3)
+}
+
+// loginAs adds an echo account and waits until the core has total
+// conversations.
+func loginAs(t *testing.T, c *Core, username string, total int) string {
+	t.Helper()
 	step := call[api.LoginStep](t, c, api.CommandLoginStart, api.LoginStartParams{NetworkID: "echo", FlowID: "username"})
 	step = call[api.LoginStep](t, c, api.CommandLoginSubmit, api.LoginSubmitParams{
-		ProcessID: step.ProcessID, Values: map[string]string{step.Fields[0].FieldID: "alice"},
+		ProcessID: step.ProcessID, Values: map[string]string{step.Fields[0].FieldID: username},
 	})
 	if step.Type != api.LoginStepTypeComplete || step.AccountID == "" {
 		t.Fatalf("login ended with %+v", step)
 	}
-	waitConversations(t, c, 3)
+	waitConversations(t, c, total)
 	return step.AccountID
 }
 
