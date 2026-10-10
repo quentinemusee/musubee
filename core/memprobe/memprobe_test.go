@@ -19,7 +19,16 @@ func stepNames(r Report) []string {
 	return names
 }
 
+// skipWithoutCore skips a test of the core steps in a memprobe_nocore build.
+func skipWithoutCore(t *testing.T) {
+	t.Helper()
+	if sqliteDriver == "none" {
+		t.Skip("the core is not built in (memprobe_nocore)")
+	}
+}
+
 func TestRunEveryStep(t *testing.T) {
+	skipWithoutCore(t)
 	r := Run(Config{DataDir: t.TempDir(), Core: true, Crypto: true, Messages: 5}, OSFootprint)
 	if r.Error != "" {
 		t.Fatalf("Run failed: %s", r.Error)
@@ -60,11 +69,22 @@ func TestRunOnlyCrypto(t *testing.T) {
 }
 
 func TestRunStopsAtTheFirstFailure(t *testing.T) {
+	skipWithoutCore(t)
 	r := Run(Config{Core: true, Crypto: true}, Unknown)
 	if got := stepNames(r); !slices.Equal(got, []string{"go_runtime", "core_open"}) {
 		t.Fatalf("steps = %v", got)
 	}
 	if !strings.HasPrefix(r.Error, "core_open: ") || !strings.Contains(r.Error, "data_dir") {
 		t.Errorf("error = %q", r.Error)
+	}
+}
+
+func TestRunWithoutTheCore(t *testing.T) {
+	if sqliteDriver != "none" {
+		t.Skip("the core is built in")
+	}
+	r := Run(Config{Core: true, Crypto: true}, Unknown)
+	if got := stepNames(r); !slices.Equal(got, []string{"go_runtime", "core_open"}) || !strings.Contains(r.Error, "memprobe_nocore") {
+		t.Fatalf("steps = %v, error %q", got, r.Error)
 	}
 }
