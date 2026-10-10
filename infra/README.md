@@ -12,6 +12,8 @@ Services started with Docker for integration and end-to-end tests. Principle: **
 | `cmd/testenv/` | Command for manual work: `up`, `status`, `user`, `down` |
 | `compose.telegram.yml`, `telegram/` | Official mautrix-telegram image and its per-run configuration templates ([ADR 0006](../docs/ADR/0006-telegram-e2e-with-test-bots.md)) |
 | `telegramtest/` | Bot API client and the Telegram end-to-end tests of the hosted bridge |
+| `coretest/` | Helpers of the end-to-end tests that drive the core through its API: commands, the event stream, and the check that no Matrix identifier reaches the API |
+| `matrixtest/` | The Matrix account journey of the core against Synapse: sign-in, an encrypted direct conversation, a restart, logout (T2.2, [ADR 0018](../docs/ADR/0018-native-matrix-accounts.md)) |
 | `telegramtest/ondevice/` | The Telegram end-to-end test of the core itself, on the device, without Synapse (T1.6, [ADR 0014](../docs/ADR/0014-telegram-on-device.md)) |
 
 Requirements: Docker with the Compose plugin (Docker Desktop on Windows and macOS), Go 1.27.1 or later (version in `go.mod`; 1.27.0 has a `database/sql` deadlock, see ADR 0009).
@@ -21,11 +23,11 @@ Requirements: Docker with the Compose plugin (Docker Desktop on Windows and macO
 From the repository root:
 
 ```
-go test ./infra/...                          # unit tests, no Docker needed
-go test -tags=integration ./infra/...        # integration tests: starts a fresh environment (about 12 s), then removes it
+go test -tags=goolm ./infra/...              # unit tests, no Docker needed
+go test -tags=goolm,integration ./infra/...  # integration tests: starts a fresh environment (about 12 s), then removes it
 ```
 
-Without Docker the integration tests are skipped; set `MUSUBEE_REQUIRE_INTEGRATION=1` to make them fail instead (CI does).
+The `goolm` build tag (pure-Go Olm) is needed by every package that imports the core (ADR 0018). Without Docker the integration tests are skipped; set `MUSUBEE_REQUIRE_INTEGRATION=1` to make them fail instead (CI does).
 
 ## Telegram end-to-end tests
 
@@ -55,7 +57,7 @@ For local runs, export the same variables. In CI the tests have their own workfl
 The same bots, channel and application credentials drive the Telegram connector inside the core, with no bridge and no Synapse ([ADR 0014](../docs/ADR/0014-telegram-on-device.md)):
 
 ```
-go test -tags=telegram -v ./infra/telegramtest/ondevice/
+go test -tags=goolm,telegram -v ./infra/telegramtest/ondevice/
 ```
 
 It logs in as the bridge bot through the core API, receives a post of the peer bot, answers it, checks that the peer bot sees the answer, logs out, and checks that the core's log holds neither the messages nor the token. Without the variables it is skipped; `MUSUBEE_REQUIRE_TELEGRAM_E2E=1` makes it fail instead (CI does). The workflow then runs the same journey in the desktop app (`apps/desktop/e2e/telegram.spec.ts`, Windows) and in the Android app on an emulator (`TelegramTest`), one after the other: **a bot has one session at a time, so never run two Telegram tests at once**, and every test logs out at the end.
