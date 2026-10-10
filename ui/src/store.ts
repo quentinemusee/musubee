@@ -34,7 +34,10 @@ export interface State {
   inbox: InboxState;
   /** The persons the user merged conversations into, oldest first. */
   persons: readonly Person[];
-  /** Messages read or received so far, by conversation ID, oldest first. */
+  /**
+   * Messages read or received so far, by conversation ID, oldest first: only
+   * for the conversations whose latest messages were read (select).
+   */
   messages: Readonly<Record<string, readonly Message[]>>;
   /**
    * Where the history of each conversation read so far stops: a cursor for
@@ -72,6 +75,13 @@ export class Store {
   readonly #listeners = new Set<() => void>();
   /** Increases on each reload, so that a stale reload does not overwrite a newer one. */
   #generation = 0;
+  /**
+   * The events received while a reload reads the state: applied again on top
+   * of it, since it may have been read before them.
+   */
+  #replay: Event[] | undefined;
+  /** The conversations whose latest messages select() is reading. */
+  readonly #reading = new Set<string>();
 
   constructor(core: ShellCore) {
     this.#core = core;
@@ -106,6 +116,7 @@ export class Store {
    */
   async reload(): Promise<void> {
     const generation = ++this.#generation;
+    this.#replay = [];
     try {
       const hello = await this.client.hello();
       const [networks, accounts, conversations, persons] = await Promise.all([
@@ -138,8 +149,14 @@ export class Store {
         history: keep && latest ? { [selected]: historyAfter(latest.before) } : {},
         ...(keep ? { selected } : {}),
       });
+      const replay = this.#replay ?? [];
+      this.#replay = undefined;
+      for (const event of replay) {
+        this.#apply(event);
+      }
     } catch (error) {
       if (generation === this.#generation) {
+        this.#replay = undefined;
         this.#set({ error: `Could not read your conversations: ${describe(error)}` });
       }
     }
@@ -205,9 +222,10 @@ export class Store {
   /** Shows a conversation, reading its latest messages the first time. */
   async select(conversationId: string): Promise<void> {
     this.#set({ selected: conversationId });
-    if (this.#state.messages[conversationId] !== undefined) {
+    if (this.#state.messages[conversationId] !== undefined || this.#reading.has(conversationId)) {
       return;
     }
+    this.#reading.add(conversationId);
     try {
       const result = await this.client.call("messages.list", { conversation_id: conversationId });
       // Events may have brought messages in the meantime.
@@ -217,6 +235,8 @@ export class Store {
       });
     } catch (error) {
       this.#set({ error: `Could not read the messages: ${describe(error)}` });
+    } finally {
+      this.#reading.delete(conversationId);
     }
   }
 
@@ -288,7 +308,19 @@ export class Store {
     } catch {
       return;
     }
-    switch (event?.type) {
+    if (event === null) {
+      return;
+    }
+    if (event.type === "resync.required") {
+      void this.reload();
+      return;
+    }
+    this.#replay?.push(event);
+    this.#apply(event);
+  }
+
+  #apply(event: Event): void {
+    switch (event.type) {
       case "account.updated": {
         const { account } = event.data;
         // A logged-out account no longer exists in the core.
@@ -319,9 +351,6 @@ export class Store {
         this.#upsertMessage(event.data.message);
         this.#lastMessage(event.data.message, false);
         break;
-      case "resync.required":
-        void this.reload();
-        break;
       default:
         // core.closed: the shell reports the status; unknown types are ignored.
         break;
@@ -351,8 +380,15 @@ export class Store {
     }
   }
 
+  /**
+   * Keeps a message, in a conversation whose latest messages were read or are
+   * being read: the others will be read when shown, with their history.
+   */
   #upsertMessage(message: Message): void {
     const id = message.conversation_id;
+    if (this.#state.messages[id] === undefined && !this.#reading.has(id)) {
+      return;
+    }
     this.#setMessages(id, mergeMessages(this.#state.messages[id] ?? [], [message]));
   }
 

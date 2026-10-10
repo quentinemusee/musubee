@@ -41,7 +41,7 @@ function scriptedShell(results: Record<string, (params: unknown) => unknown>) {
       if (!result) {
         return JSON.stringify({ id: request.id, error: { code: "unknown_command", message: request.command } });
       }
-      return JSON.stringify({ id: request.id, result: result(request.params) });
+      return JSON.stringify({ id: request.id, result: await result(request.params) });
     },
     onEvent(listener) {
       events.add(listener);
@@ -350,6 +350,49 @@ describe("Store's conversation list", () => {
     expect(pages).toEqual([undefined, undefined]);
     expect(conversationIds().slice(0, 3)).toEqual(["c60", "c3", "c1"]);
     expect(conversationIds()).toHaveLength(51);
+  });
+});
+
+describe("Store's events", () => {
+  test("applies again the events received while it reads the state", async () => {
+    let answer: (() => void) | undefined;
+    const shell = scriptedShell({
+      ...coreState([conversation("c1", "Adam", 1)]),
+      // The account's state is read before its event arrives.
+      "accounts.list": () =>
+        new Promise((resolve) => {
+          answer = () => resolve({ accounts: [{ account_id: "a1", network_id: "echo", name: "me", state: "connecting" }] });
+        }),
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    shell.emit("account.updated", { account: { account_id: "a1", network_id: "echo", name: "me", state: "transient_disconnect", error: "No network" } });
+    shell.emit("conversation.updated", { conversation: conversation("c2", "Zoe", 2) });
+    answer!();
+    await settle();
+    expect(store.getState().accounts).toEqual([{ account_id: "a1", network_id: "echo", name: "me", state: "transient_disconnect", error: "No network" }]);
+    expect(store.getState().conversations.map((c) => c.name)).toEqual(["Zoe", "Adam"]);
+  });
+
+  test("keeps messages only for the conversations it read", async () => {
+    const shell = scriptedShell(coreState([conversation("c1", "Adam", 1), conversation("c2", "Zoe", 2)]));
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    // c1 was never shown: its message moves it first, but its messages are
+    // read, with their history, when it is.
+    shell.emit("message.added", { message: message("m9", 9) });
+    expect(store.getState().messages["c1"]).toBeUndefined();
+    expect(store.getState().conversations[0]?.conversation_id).toBe("c1");
+    // A message received while they are read is kept.
+    const selecting = store.select("c1");
+    shell.emit("message.added", { message: message("m10", 10) });
+    await selecting;
+    expect(ids(store.getState().messages["c1"]!)).toEqual(["m1:1:received", "m2:2:received", "m10:10:received"]);
+    expect(store.getState().history["c1"]).toBe("start");
   });
 });
 
