@@ -1,0 +1,60 @@
+# SPDX-FileCopyrightText: 2026 Quentin Raimbaud
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# XcodeGen specification of the memory probe app (T1.7,
+# docs/ADR/0015-ios-nse-memory.md): an app and its Notification Service
+# Extension, both linked with the memory probe that build-go-xcframework.sh
+# builds into build/MusubeeMemProbe.xcframework. "xcodegen generate" writes
+# the Xcode project and the Info.plist files; they are not versioned.
+name: MemoryProbe
+options:
+  bundleIdPrefix: app.musubee
+  deploymentTarget:
+    iOS: "15.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    # A device build needs a team: pass DEVELOPMENT_TEAM=... to xcodebuild
+    # (see the README). The simulator runs ad hoc signed code.
+    CODE_SIGN_STYLE: Automatic
+    # The Go runtime in the library needs these at link time: Security and
+    # CoreFoundation for crypto/x509, libresolv for the DNS resolver.
+    OTHER_LDFLAGS: ["-framework", "Security", "-framework", "CoreFoundation", "-lresolv"]
+    DEAD_CODE_STRIPPING: YES
+targets:
+  MemoryProbe:
+    type: application
+    platform: iOS
+    sources: [App]
+    info:
+      path: build/generated/App-Info.plist
+      properties:
+        CFBundleDisplayName: Memory probe
+        UILaunchScreen: {}
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.musubee.memoryprobe
+    dependencies:
+      - target: MemoryProbeNSE
+      - framework: build/MusubeeMemProbe.xcframework
+        embed: false
+  MemoryProbeNSE:
+    type: app-extension
+    platform: iOS
+    sources:
+      - NSE
+      # The extension shares the probe's Swift wrapper with the app.
+      - App/Probe.swift
+    info:
+      path: build/generated/NSE-Info.plist
+      properties:
+        CFBundleDisplayName: Memory probe extension
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.musubee.memoryprobe.nse
+    dependencies:
+      - framework: build/MusubeeMemProbe.xcframework
+        embed: false
