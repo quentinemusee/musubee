@@ -10,7 +10,8 @@ The probe itself is Go: package [`core/memprobe`](../../../core/memprobe) runs t
 | `project.yml` | [XcodeGen](https://github.com/yonaskolb/XcodeGen) (MIT) specification: the app `MemoryProbe` and its extension `MemoryProbeNSE`. The Xcode project is generated, not versioned. |
 | `App/` | The app: asks for provisional notification authorization (no prompt); with the launch argument `--probe`, runs the probe in its own process. |
 | `NSE/` | The extension: runs the probe for every push with `"mutable-content": 1`, logs the report, writes the peak in the notification. |
-| `run-simulator.sh` | Builds, installs and runs everything on a booted simulator; one fresh extension process per configuration (`simctl push`). |
+| `control/footprint.c` | The control: an empty C program that prints its own footprint. |
+| `run-simulator.sh` | Runs the probe on a booted simulator: as an executable in bare processes (`simctl spawn`), next to the control; in the app; and tries the extension with one `simctl push`. |
 | `reports.py` | Puts the reports back together from the unified log and writes a Markdown table. |
 
 ## Requirements
@@ -24,9 +25,11 @@ apps/mobile/ios-probe/build-go-xcframework.sh ./cmd/memprobe core/cmd/memprobe/m
 apps/mobile/ios-probe/run-simulator.sh <simulator udid> /tmp/ios-memory
 ```
 
-A fifth argument to `build-go-xcframework.sh` sets Go build tags: `musubee_cgo_sqlite` selects the cgo SQLite driver instead of the pure-Go one. The CI job `ios-memory` (`.github/workflows/checks.yml`) runs both and publishes the table in the run summary.
+A fifth argument to `build-go-xcframework.sh`, and a third to `run-simulator.sh`, set Go build tags: `musubee_cgo_sqlite` selects the cgo SQLite driver instead of the pure-Go one. The CI job `ios-memory` (`.github/workflows/checks.yml`) runs both and publishes the tables in the run summary. `MUSUBEE_PROBE_REPETITIONS` sets how many times each bare-process configuration runs (3).
 
 The simulator enforces **no** memory limit: its figures say what the code costs, not whether it fits. `limit_remaining_bytes` reads 0 there.
+
+`xcrun simctl push` delivers the notification **without running the extension** on the simulators tried (Xcode on GitHub's macOS runners, October 2026): the system log shows SpringBoard adding the notification and no extension process. That is why the bare processes stand in for it. The script still tries once and records the outcome in `report.md`.
 
 ## On an iPhone (needs a Mac and an Apple Developer account)
 
