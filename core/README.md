@@ -16,7 +16,8 @@ Requires **Go 1.27.1 or later**: Go 1.27.0's `database/sql` can deadlock (golang
 | `connector/matrix` | The user's own Matrix account: the core signs in to the homeserver, syncs, mirrors the joined rooms as conversations and sends text, with end-to-end encryption (mautrix-go's `cryptohelper` on goolm) and its crypto and state stores in the core's database (ADR 0018) |
 | `connector/telegram` | Telegram on the device: mautrix-telegram's connector with our defaults (credentials, device name, no external sticker converters, no "manual" login flow). Offered only when the core is given the application credentials (ADR 0014) |
 | `replace/webp` | Pure-Go stand-in for `go.mau.fi/webp` (libwebp through cgo), used through a `replace` directive: PNG and JPEG stickers cannot be sent to Telegram (ADR 0014) |
-| `storage/sqlite` | Opens the SQLite database: pure-Go `modernc.org/sqlite` (no cgo), except on Android and with the `musubee_cgo_sqlite` tag, which use `mattn/go-sqlite3` (cgo; ADR 0011) |
+| `storage/sqlite` | Opens the SQLite database: pure-Go `modernc.org/sqlite` (no cgo), except on Android and with the `musubee_cgo_sqlite` tag, which use `mattn/go-sqlite3` (cgo; ADR 0011). `OpenSealed` wraps the driver so that `user_login.metadata` (the accounts' sessions) is sealed on its way to SQLite and opened on its way back (ADR 0019) |
+| `secrets` | The core's secrets at rest (ADR 0019): the master key (given by the app, or kept in `core.key` with DPAPI on Windows, in clear elsewhere), keys derived with HKDF-SHA256, AES-256-GCM sealing, the key check and the migration of plain sessions |
 | `api` | The core API contract: the JSON Schema (`schema/`), shared test examples, and the Go types generated from it (`types.gen.go`, by `go generate ./core/api`) |
 | `api/apitest` | Validates JSON documents against the schema, and finds Matrix identifiers in them, for the contract tests (test code only) |
 | `api/internal/codegen`, `api/apigen` | The generator of the Go and TypeScript types (`ui/src/core-api/types.gen.ts`) |
@@ -32,7 +33,7 @@ Requires **Go 1.27.1 or later**: Go 1.27.0's `database/sql` can deadlock (golang
 - **Domain**: `Account`, `Conversation`, `Message`, `Person`, and merging conversations per person. **No Matrix type leaves this layer towards the UI.**
 - **Connectors**: `bridgev2` bridges from [mautrix-go](https://github.com/mautrix/go) (MPL-2.0), in "on-device" or "hosted bridge" mode.
 - **Encryption**: Olm/Megolm in pure Go (`goolm` build tag, no cgo for libolm).
-- **Storage**: local SQLite.
+- **Storage**: local SQLite; the accounts' sessions are sealed with a master key kept by the OS secure storage (ADR 0019).
 - **Local API**: commands and event streams towards the UI, defined by `api/schema/core-api.schema.json` (ADR 0012).
 
 ## Commands
@@ -54,6 +55,8 @@ golangci-lint run ./core/... ./infra/... ./scripts/licenseaudit/...      (config
 go test -tags=goolm,integration -count=1 -v ./infra/matrixtest/       (Matrix accounts against Synapse, needs Docker; ADR 0018)
 go build -tags=goolm -trimpath -ldflags="-s -w" -o musubee-core.exe ./core/cmd/musubee-core   (stripped, as measured in ADR 0014)
 go test -tags=goolm,telegram -v ./infra/telegramtest/ondevice/            (Telegram on the device with the test bots, see infra/README.md)
+go test -tags=goolm -count=1 ./core/secrets/ ./core/storage/sqlite/      (sealing, DPAPI on Windows; ADR 0019)
+go test -tags=goolm -count=1 -run 'Sealed|KeyFile|Plain' -v ./core/embedded/   (sessions sealed, key file, migration)
 ```
 
 The `replace go.mau.fi/webp => ./replace/webp` directive of `go.mod` is not inherited by modules that import the core: `infra/go.mod` repeats it, and any other module must too.
