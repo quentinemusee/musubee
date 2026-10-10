@@ -12,11 +12,13 @@ import android.content.pm.ServiceInfo
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.util.Base64
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import app.musubee.BuildConfig
 import app.musubee.R
+import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArraySet
@@ -47,21 +49,17 @@ class CoreService : Service() {
         startInForeground()
         opener.execute {
             try {
-                val dataDir = File(filesDir, "core")
-                // The data directory is private to the app; JSONObject
-                // escapes the path.
-                val config = org.json.JSONObject()
-                    .put("data_dir", dataDir.absolutePath)
-                    .put("log_level", "info")
-                if (BuildConfig.TELEGRAM_API_ID != 0) {
-                    config.put(
-                        "telegram",
-                        org.json.JSONObject()
-                            .put("api_id", BuildConfig.TELEGRAM_API_ID)
-                            .put("api_hash", BuildConfig.TELEGRAM_API_HASH),
-                    )
+                val key = CoreKey.forApp(this).load()
+                val config = try {
+                    coreConfig(File(filesDir, "core"), key)
+                } finally {
+                    key.fill(0)
                 }
-                val opened = CoreLibrary.open(config.toString().toByteArray(Charsets.UTF_8))
+                val opened = try {
+                    CoreLibrary.open(config)
+                } finally {
+                    config.fill(0)
+                }
                 core.complete(opened)
                 reader = Thread({ readEvents(opened) }, "musubee-core-events").also { it.start() }
             } catch (e: Throwable) {
@@ -131,6 +129,27 @@ class CoreService : Service() {
     }
 
     companion object {
+        /**
+         * The core's configuration: its data directory, private to the app,
+         * and its master key (docs/ADR/0019). Never log it: it holds the key.
+         */
+        fun coreConfig(dataDir: File, key: ByteArray): ByteArray {
+            // JSONObject escapes the path.
+            val config = JSONObject()
+                .put("data_dir", dataDir.absolutePath)
+                .put("log_level", "info")
+                .put("database_key", Base64.encodeToString(key, Base64.NO_WRAP))
+            if (BuildConfig.TELEGRAM_API_ID != 0) {
+                config.put(
+                    "telegram",
+                    JSONObject()
+                        .put("api_id", BuildConfig.TELEGRAM_API_ID)
+                        .put("api_hash", BuildConfig.TELEGRAM_API_HASH),
+                )
+            }
+            return config.toString().toByteArray(Charsets.UTF_8)
+        }
+
         private const val TAG = "MusubeeCore"
         private const val CHANNEL_ID = "core"
         private const val NOTIFICATION_ID = 1
