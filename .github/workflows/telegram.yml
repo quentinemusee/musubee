@@ -70,7 +70,7 @@ jobs:
           MUSUBEE_TG_API_ID: ${{ secrets.MUSUBEE_TG_API_ID }}
           MUSUBEE_TG_API_HASH: ${{ secrets.MUSUBEE_TG_API_HASH }}
           MUSUBEE_REQUIRE_TELEGRAM_E2E: ${{ (secrets.MUSUBEE_TG_BRIDGE_BOT_TOKEN != '' && secrets.MUSUBEE_TG_PEER_BOT_TOKEN != '') && '1' || '' }}
-        run: go test -tags=telegram -count=1 -v -timeout 25m ./infra/telegramtest/
+        run: go test -tags=goolm,telegram -count=1 -v -timeout 25m ./infra/telegramtest/
 
   on-device-windows:
     name: Telegram on device, core and desktop app (Windows)
@@ -110,7 +110,7 @@ jobs:
       - name: Core end-to-end test
         env:
           CGO_ENABLED: "0"
-        run: go test -tags=telegram -count=1 -v -timeout 15m ./infra/telegramtest/ondevice/
+        run: go test -tags=goolm,telegram -count=1 -v -timeout 15m ./infra/telegramtest/ondevice/
 
       - name: Install npm dependencies
         run: |

@@ -44,8 +44,9 @@ const libName = { win32: "musubee.dll", darwin: "libmusubee.dylib" }[process.pla
 
 function build() {
   const go = (...args) => execFileSync("go", args, { cwd: ROOT, stdio: "inherit" });
-  go("build", "-o", join(work, `transportbench${exe}`), "./core/api/transportbench");
-  go("build", "-buildmode=c-shared", "-o", join(work, libName), "./core/ffi");
+  // goolm: the core's pure-Go Olm (docs/ADR/0018).
+  go("build", "-tags=goolm", "-o", join(work, `transportbench${exe}`), "./core/api/transportbench");
+  go("build", "-tags=goolm", "-buildmode=c-shared", "-o", join(work, libName), "./core/ffi");
 }
 
 // A core behind a transport: request() resolves with the result, events go

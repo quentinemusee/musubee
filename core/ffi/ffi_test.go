@@ -71,7 +71,8 @@ func buildHost(t *testing.T) string {
 	if lib == "" {
 		lib = "libmusubee.so"
 	}
-	buildArgs := []string{"build", "-buildmode=c-shared", "-o", filepath.Join(dir, lib)}
+	// goolm: the core's Matrix encryption is pure Go (docs/ADR/0018).
+	buildArgs := []string{"build", "-tags=goolm", "-buildmode=c-shared", "-o", filepath.Join(dir, lib)}
 	if runtime.GOOS == "darwin" {
 		// Found through the host's rpath, like a library in an app bundle.
 		buildArgs = append(buildArgs, "-ldflags=-extldflags=-Wl,-install_name,@rpath/"+lib)
