@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { Account } from "../core-api/types.gen";
 import type { CoreStatus } from "../shell";
 import { AddAccount } from "./AddAccount";
+import { Inbox } from "./Inbox";
 import { useAppState, useStore } from "./state";
 import { Thread } from "./Thread";
 
@@ -30,7 +31,7 @@ export function App() {
             <button type="button" className="secondary" onClick={() => setAddingAccount(true)}>
               Add an account
             </button>
-            <ConversationList />
+            <Inbox />
           </nav>
           <main className="app-main">
             <Thread />
@@ -147,34 +148,5 @@ function AccountItem({ account, label }: { account: Account; label: string }) {
         </button>
       )}
     </li>
-  );
-}
-
-function ConversationList() {
-  const store = useStore();
-  const conversations = useAppState((s) => s.conversations);
-  const selected = useAppState((s) => s.selected);
-  return (
-    <section aria-labelledby="conversations-title">
-      <h2 id="conversations-title">Conversations</h2>
-      {conversations.length === 0 ? (
-        <p className="empty">No conversations yet.</p>
-      ) : (
-        <ul className="conversations">
-          {conversations.map((conversation) => (
-            <li key={conversation.conversation_id}>
-              <button
-                type="button"
-                className="conversation"
-                aria-current={conversation.conversation_id === selected ? "true" : undefined}
-                onClick={() => void store.select(conversation.conversation_id)}
-              >
-                {conversation.name || "Unnamed conversation"}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
   );
 }

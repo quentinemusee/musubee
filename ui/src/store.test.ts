@@ -7,10 +7,10 @@
 import { describe, expect, test } from "vitest";
 import type { Conversation, Message, Person } from "./core-api/types.gen";
 import type { CoreStatus, ShellCore } from "./shell";
-import { mergeMessages, OLDER_PAGE, Store } from "./store";
+import { INBOX_PAGE, mergeConversations, mergeMessages, OLDER_PAGE, Store } from "./store";
 
-function conversation(id: string, name: string): Conversation {
-  return { conversation_id: id, account_id: "a1", network_id: "echo", name, kind: "direct" };
+function conversation(id: string, name: string, activity?: number): Conversation {
+  return { conversation_id: id, account_id: "a1", network_id: "echo", name, kind: "direct", ...(activity === undefined ? {} : { activity_ms: activity }) };
 }
 
 function message(id: string, timestamp: number, patch: Partial<Message> = {}): Message {
@@ -61,7 +61,7 @@ function scriptedShell(results: Record<string, (params: unknown) => unknown>) {
 }
 
 const coreState = (conversations: Conversation[] = [], persons: Person[] = []) => ({
-  "core.hello": () => ({ api_version: "1.2", core_version: "test" }),
+  "core.hello": () => ({ api_version: "1.3", core_version: "test" }),
   "networks.list": () => ({ networks: [{ network_id: "echo", name: "Echo", login_flows: [] }] }),
   "accounts.list": () => ({ accounts: [] }),
   "conversations.list": () => ({ conversations }),
@@ -80,14 +80,16 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("Store", () => {
   test("reads the state when the core is ready", async () => {
-    const shell = scriptedShell(coreState([conversation("c2", "Zoe"), conversation("c1", "Adam")]));
+    const shell = scriptedShell(coreState([conversation("c2", "Zoe", 1), conversation("c1", "Adam", 2)]));
     const store = new Store(shell.core);
     store.start();
     expect(store.getState()).toMatchObject({ loaded: false, status: { state: "starting" } });
     shell.status({ state: "ready" });
     await settle();
     expect(store.getState()).toMatchObject({ loaded: true, coreVersion: "test", status: { state: "ready" } });
+    // The most recently active first.
     expect(store.getState().conversations.map((c) => c.name)).toEqual(["Adam", "Zoe"]);
+    expect(store.getState().inbox).toBe("end");
   });
 
   test("refuses a core of another major version", async () => {
@@ -118,7 +120,9 @@ describe("Store", () => {
 
     const state = store.getState();
     expect(state.messages["c1"]?.map((m) => `${m.message_id}:${m.status}`)).toEqual(["m1:received", "m2:received", "m3:sent", "m4:received"]);
-    expect(state.conversations.map((c) => c.name)).toEqual(["Aaron", "Adam"]);
+    // Adam's conversation has a new last message: it comes first.
+    expect(state.conversations.map((c) => c.name)).toEqual(["Adam", "Aaron"]);
+    expect(state.conversations[0]).toMatchObject({ activity_ms: 4, last_message: { message_id: "m4" } });
   });
 
   test("reads the persons, and applies their events", async () => {
@@ -265,6 +269,97 @@ describe("Store", () => {
     await store.loadOlder();
     expect(store.getState().history["c1"]).toEqual({ cursor: "9" });
     expect(store.getState().error).toMatch(/older messages/);
+  });
+});
+
+// A core with n conversations, c1 the most recent, listed in pages.
+function pagedCore(n: number) {
+  let conversations = Array.from({ length: n }, (_, i) => conversation(`c${i + 1}`, `Contact ${i + 1}`, 1000 - i));
+  const pages: (string | undefined)[] = [];
+  const shell = scriptedShell({
+    ...coreState(),
+    "conversations.list": (params) => {
+      const { limit, before } = params as { limit?: number; before?: string };
+      pages.push(before);
+      const from = before === undefined ? 0 : Number(before);
+      const end = limit === undefined ? conversations.length : from + limit;
+      return { conversations: conversations.slice(from, end), ...(end < conversations.length ? { before: String(end) } : {}) };
+    },
+  });
+  return { shell, pages, setConversations: (next: Conversation[]) => (conversations = next) };
+}
+
+describe("Store's conversation list", () => {
+  test("reads the conversations page by page, one page at a time", async () => {
+    const { shell, pages } = pagedCore(120);
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    expect(store.getState().conversations).toHaveLength(INBOX_PAGE);
+    expect(store.getState().inbox).toEqual({ cursor: "50" });
+
+    const first = store.loadMoreConversations();
+    void store.loadMoreConversations(); // Ignored: a page is being read.
+    expect(store.getState().inbox).toBe("loading");
+    await first;
+    await store.loadMoreConversations();
+    const state = store.getState();
+    expect(state.conversations.map((c) => c.conversation_id)).toEqual(Array.from({ length: 120 }, (_, i) => `c${i + 1}`));
+    expect(state.inbox).toBe("end");
+    expect(pages).toEqual([undefined, "50", "100"]);
+    await store.loadMoreConversations(); // Nothing more.
+    expect(pages).toHaveLength(3);
+  });
+
+  test("reads as many conversations again after a restart", async () => {
+    const { shell } = pagedCore(120);
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    await store.loadMoreConversations();
+    expect(store.getState().conversations).toHaveLength(100);
+    await store.select("c90");
+    await store.reload();
+    expect(store.getState().conversations).toHaveLength(100);
+    expect(store.getState().selected).toBe("c90");
+  });
+
+  test("moves a conversation first on a new message, and reads one it did not have", async () => {
+    const { shell, pages, setConversations } = pagedCore(60);
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    const conversationIds = () => store.getState().conversations.map((c) => c.conversation_id);
+
+    shell.emit("message.added", { message: message("m1", 2000, { conversation_id: "c3" }) });
+    expect(conversationIds().slice(0, 3)).toEqual(["c3", "c1", "c2"]);
+    shell.emit("message.updated", { message: message("m1", 2000, { conversation_id: "c3", text: "edited" }) });
+    expect(store.getState().conversations[0]?.last_message?.text).toBe("edited");
+    // An update of another message leaves the last one.
+    shell.emit("message.updated", { message: message("m0", 10, { conversation_id: "c3", text: "older" }) });
+    expect(store.getState().conversations[0]?.last_message?.text).toBe("edited");
+
+    // c60 is beyond the first page: its message makes the store read the
+    // first page again, where it now is.
+    setConversations([conversation("c60", "Contact 60", 3000), conversation("c3", "Contact 3", 2000), conversation("c1", "Contact 1", 1000)]);
+    shell.emit("message.added", { message: message("m2", 3000, { conversation_id: "c60" }) });
+    await settle();
+    expect(pages).toEqual([undefined, undefined]);
+    expect(conversationIds().slice(0, 3)).toEqual(["c60", "c3", "c1"]);
+    expect(conversationIds()).toHaveLength(51);
+  });
+});
+
+describe("mergeConversations", () => {
+  test("keeps the most recent version of each conversation, sorted by activity", () => {
+    const merged = mergeConversations(
+      [conversation("c1", "One", 5), conversation("c2", "Two", 3)],
+      [conversation("c2", "Two (page)", 9), conversation("c1", "One (stale page)", 4), conversation("c3", "Three", 1)],
+    );
+    expect(merged.map((c) => c.name)).toEqual(["Two (page)", "One", "Three"]);
   });
 });
 
