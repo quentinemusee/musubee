@@ -236,3 +236,12 @@ stripped core:        go build -trimpath -ldflags="-s -w" -o musubee-core.exe ./
 ```
 
 A bot has one Telegram session at a time: never run two Telegram tests at once.
+
+Verified in T1.7 part 1 (macOS CI runners, Xcode, Go 1.27.1, XcodeGen 2.46.0; see ADR 0015, `apps/mobile/ios-probe/README.md`). iOS builds need a Mac:
+
+```
+memory probe:       go run ./core/cmd/memprobe -core -crypto -data-dir <dir>     (cgo; JSON report)
+probe tests:        go test -count=1 ./core/memprobe/        (-tags=memprobe_nocore: without the core)
+ios xcframework:    apps/mobile/ios-probe/build-go-xcframework.sh ./cmd/memprobe core/cmd/memprobe/memprobe.h MusubeeMemProbe apps/mobile/ios-probe/build musubee_cgo_sqlite
+ios simulator:      apps/mobile/ios-probe/run-simulator.sh <udid> <output-dir> musubee_cgo_sqlite
+```

@@ -468,10 +468,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # budget: the most the median peak of a bare process running
+          # the core and goolm may reach on the simulator, in MiB (ADR 0015:
+          # 28.8 with modernc and 24.7 with mattn on 2026-10-10, plus a
+          # margin of about 20 % for the runners' variation).
           - sqlite: modernc
             tags: ""
+            budget: 35
           - sqlite: mattn
             tags: musubee_cgo_sqlite
+            budget: 30
     runs-on: macos-latest
     timeout-minutes: 40
     steps:
@@ -516,6 +522,11 @@ jobs:
         run: |
           apps/mobile/ios-probe/run-simulator.sh "${{ steps.simulator.outputs.udid }}" "$RUNNER_TEMP/ios-memory" "${{ matrix.tags }}"
           cat "$RUNNER_TEMP/ios-memory/report.md" >> "$GITHUB_STEP_SUMMARY"
+
+      # The regression test of T1.7, on the simulator's figures until the
+      # device measurement sets the real threshold (ADR 0015).
+      - name: Check the memory budget
+        run: python3 apps/mobile/ios-probe/reports.py check "$RUNNER_TEMP/ios-memory" "core + crypto" "${{ matrix.budget }}"
 
       - name: Upload the reports
         if: always()

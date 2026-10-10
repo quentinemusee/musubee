@@ -14,6 +14,12 @@ the log of "log show --style ndjson" and:
                                   step, for the reports of the log and the
                                   bare processes' reports already in
                                   OUTPUT_DIR (process-REP-N.json)
+  reports.py check OUTPUT_DIR RUN MAX_MIB
+                                  exits 1 if the median peak of the bare
+                                  processes labelled RUN (as in report.md,
+                                  without "process: ") is above MAX_MIB, or
+                                  if no such process reported: the
+                                  regression test of the simulator figures
 """
 
 from __future__ import annotations
@@ -146,6 +152,18 @@ def write(log: Path, output: Path) -> None:
     (output / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def check(output: Path, run: str, max_mib: float) -> int:
+    name = f"process: {run}"
+    values = [peak(r) for s, r in process_reports(output) if not r.get("error") and label(s, r) == name]
+    if not values or min(values) < 0:
+        print(f"{name}: no peak measured", file=sys.stderr)
+        return 1
+    median = statistics.median(values) / MIB
+    verdict = "over" if median > max_mib else "within"
+    print(f"{name}: median peak {median:.1f} MiB over {len(values)} runs, {verdict} the budget of {max_mib:g} MiB")
+    return 1 if median > max_mib else 0
+
+
 def main(argv: list[str]) -> int:
     if len(argv) == 5 and argv[1] == "count":
         found = sum(1 for source, _ in read_reports(Path(argv[2])) if source == argv[3])
@@ -153,6 +171,8 @@ def main(argv: list[str]) -> int:
     if len(argv) == 4 and argv[1] == "write":
         write(Path(argv[2]), Path(argv[3]))
         return 0
+    if len(argv) == 5 and argv[1] == "check":
+        return check(Path(argv[2]), argv[3], float(argv[4]))
     print(__doc__, file=sys.stderr)
     return 2
 
