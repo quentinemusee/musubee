@@ -20,7 +20,7 @@ declare module "vitest" {
 export default function setup(project: TestProject): () => void {
   const dir = mkdtempSync(join(tmpdir(), "musubee-desktop-test-"));
   const executable = join(dir, process.platform === "win32" ? "musubee-core.exe" : "musubee-core");
-  execFileSync("go", ["build", "-o", executable, "./core/cmd/musubee-core"], {
+  execFileSync("go", ["build", "-tags=goolm", "-o", executable, "./core/cmd/musubee-core"], {
     cwd: resolve(fileURLToPath(new URL("../../..", import.meta.url))),
     env: { ...process.env, CGO_ENABLED: "0" },
     stdio: "inherit",

@@ -122,7 +122,8 @@ def buildCoreTasks = selectedAbis.collect { abi ->
         environment 'GOOS', 'android'
         environment 'GOARCH', target.goarch
         environment 'CC', ndkClang(target.triple)
-        commandLine goCommand, 'build', '-buildmode=c-shared', '-trimpath', '-ldflags=-s -w',
+        // goolm: mautrix-go's pure-Go Olm (docs/ADR/0018).
+        commandLine goCommand, 'build', '-tags=goolm', '-buildmode=c-shared', '-trimpath', '-ldflags=-s -w',
             '-o', output.get().asFile.absolutePath, './ffi'
         doLast {
             // cgo also writes a C header next to the library; the app does

@@ -33,7 +33,8 @@ rmSync(resources, { recursive: true, force: true });
 rmSync(join(desktop, "dist"), { recursive: true, force: true });
 mkdirSync(join(resources, "core"), { recursive: true });
 
-run("go", ["build", "-trimpath", "-o", join(resources, "core", `musubee-core${exe}`), "./core/cmd/musubee-core"], root, { CGO_ENABLED: "0" });
+// goolm: mautrix-go's pure-Go Olm, for the Matrix encryption (docs/ADR/0018).
+run("go", ["build", "-tags=goolm", "-trimpath", "-o", join(resources, "core", `musubee-core${exe}`), "./core/cmd/musubee-core"], root, { CGO_ENABLED: "0" });
 // The interface's "build" script, run with this Node rather than through a
 // shell (npm is a .cmd script on Windows).
 run(process.execPath, [join(root, "ui", "node_modules", "vite", "bin", "vite.js"), "build"], join(root, "ui"));

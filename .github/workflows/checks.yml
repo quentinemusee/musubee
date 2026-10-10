@@ -101,12 +101,14 @@ jobs:
             echo "Run gofmt on:"; echo "$unformatted"; exit 1
           fi
 
+      # Every build of the core has the goolm tag: mautrix-go's pure-Go
+      # Olm, instead of libolm in C (docs/ADR/0018).
       - name: go vet
         run: |
-          go vet ./core/...
-          go vet -tags=musubee_cgo_sqlite ./core/...
-          go vet -tags=integration ./infra/...
-          go vet -tags=telegram ./infra/...
+          go vet -tags=goolm ./core/...
+          go vet -tags=goolm,musubee_cgo_sqlite ./core/...
+          go vet -tags=goolm,integration ./infra/...
+          go vet -tags=goolm,telegram ./infra/...
           go vet ./scripts/licenseaudit/...
 
       # Configuration: .golangci.yml. Built from source with the job's Go, so
@@ -123,10 +125,10 @@ jobs:
         if: runner.os == 'Linux'
         env:
           CGO_ENABLED: "1"
-        run: golangci-lint run --build-tags=musubee_cgo_sqlite ./core/...
+        run: golangci-lint run --build-tags=goolm,musubee_cgo_sqlite ./core/...
 
       - name: Unit tests (race detector)
-        run: go test -race -count=1 ./core/... ./infra/... ./scripts/licenseaudit/...
+        run: go test -tags=goolm -race -count=1 ./core/... ./infra/... ./scripts/licenseaudit/...
 
       # The core built with -buildmode=c-shared and driven from a C program
       # (docs/ADR/0010-core-shared-library.md). Also part of the race run
@@ -134,7 +136,7 @@ jobs:
       - name: Core as a C shared library
         env:
           CGO_ENABLED: "1"
-        run: go test -count=1 -v -run TestSharedLibrary ./core/ffi/
+        run: go test -tags=goolm -count=1 -v -run TestSharedLibrary ./core/ffi/
 
       # Android builds use github.com/mattn/go-sqlite3 instead of
       # modernc.org/sqlite (docs/ADR/0011-core-on-android.md); the
@@ -143,7 +145,7 @@ jobs:
       - name: Unit tests with the SQLite driver of Android
         env:
           CGO_ENABLED: "1"
-        run: go test -tags=musubee_cgo_sqlite -count=1 ./core/...
+        run: go test -tags=goolm,musubee_cgo_sqlite -count=1 ./core/...
 
       # The core must stay pure Go (docs/ADR/0009-bridgev2-in-process.md):
       # building it with cgo disabled for every target fails if a cgo
@@ -159,10 +161,10 @@ jobs:
           # core/api/transportbench) are development tools, and an iOS
           # executable needs cgo to link. Listed once for the host: with
           # GOOS=ios, go list refuses a pattern that matches a command.
-          packages=$(go list -f '{{if ne .Name "main"}}{{.ImportPath}}{{end}}' ./core/...)
+          packages=$(go list -tags=goolm -f '{{if ne .Name "main"}}{{.ImportPath}}{{end}}' ./core/...)
           for target in linux/amd64 windows/amd64 darwin/arm64 ios/arm64; do
             echo "== $target"
-            GOOS=${target%/*} GOARCH=${target#*/} go build $packages
+            GOOS=${target%/*} GOARCH=${target#*/} go build -tags=goolm $packages
           done
 
   licenses:
@@ -343,7 +345,7 @@ jobs:
           cache-dependency-path: infra/go.sum
 
       - name: Integration tests
-        run: go test -tags=integration -race -count=1 -v ./infra/...
+        run: go test -tags=goolm,integration -race -count=1 -v ./infra/...
 
   android:
     name: Android app (emulator API ${{ matrix.api-level }}, instrumented and Appium tests)
@@ -473,10 +475,10 @@ jobs:
           # 28.8 with modernc and 24.7 with mattn on 2026-10-10, plus a
           # margin of about 20 % for the runners' variation).
           - sqlite: modernc
-            tags: ""
+            tags: goolm
             budget: 35
           - sqlite: mattn
-            tags: musubee_cgo_sqlite
+            tags: goolm,musubee_cgo_sqlite
             budget: 30
     runs-on: macos-latest
     timeout-minutes: 40

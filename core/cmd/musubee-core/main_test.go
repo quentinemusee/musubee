@@ -36,7 +36,9 @@ func TestMain(m *testing.M) {
 	if runtime.GOOS == "windows" {
 		binary += ".exe"
 	}
-	build := exec.Command("go", "build", "-o", binary, ".")
+	// The core's Matrix encryption is mautrix-go's pure-Go Olm, chosen by
+	// the goolm build tag (docs/ADR/0018).
+	build := exec.Command("go", "build", "-tags=goolm", "-o", binary, ".")
 	build.Stdout, build.Stderr = os.Stdout, os.Stderr
 	if err = build.Run(); err != nil {
 		panic(err)

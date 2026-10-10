@@ -6,8 +6,10 @@
 version: "2"
 
 run:
-  # The integration and Telegram tests are linted too.
+  # goolm: the build of the core (docs/ADR/0018). The integration and
+  # Telegram tests are linted too.
   build-tags:
+    - goolm
     - integration
     - telegram
 
