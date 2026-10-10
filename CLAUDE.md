@@ -49,14 +49,16 @@ A local link table `Person ↔ [Conversation]` (stored on the device, syncable i
 - **AGPL and Apple's App Store**: compatibility must be validated before publishing on iOS. It is not resolved. Deferred by the maintainer on 2026-10-07, when the repository was private; it became public on 2026-10-08 and still has no external contributors.
 - I (the design assistant) am not a lawyer: licensing points must be reviewed by a competent human before the public launch.
 
-## 4. Open questions to settle with spikes (see `docs/TASKS.md`, phase 1)
+## 4. Open questions settled by the spikes (phase 1 closed, ADR 0016)
 
-1. Can a `bridgev2` connector run **without a homeserver**, in the same process as the client? (`bridgev2` exposes an abstract "Matrix" interface; to be confirmed by reading the code.)
-2. Does the Go core build cleanly as a shared library for Windows, Android and iOS (size, memory, cgo)?
-3. What is the real memory budget in the iOS NSE? Go (`goolm`) or lighter crypto?
-4. How does the UI talk to the core: FFI + event stream, or a local socket? (Take inspiration from the **gomuks** backend, which exposes an embeddable backend with a C FFI package and web frontends; check its license before reusing any code.)
-5. Conversation merging: data model and sync across devices.
-6. UI: state management and virtualized message list (chosen by ADR, with performance measurements on low-end Android).
+1. Can a `bridgev2` connector run **without a homeserver**, in the same process as the client? **Yes** (ADR 0009): `core/localmatrix` implements the Matrix side; mautrix-telegram's connector runs unchanged (ADR 0014).
+2. Does the Go core build cleanly as a shared library for Windows, Android and iOS (size, memory, cgo)? **Yes**: shared library on Windows and Linux (ADR 0010), with JNI on Android (ADR 0011), XCFramework of static libraries on iOS (ADR 0015).
+3. What is the real memory budget in the iOS NSE? Go (`goolm`) or lighter crypto? **Open**: on the simulator, Go with goolm costs about 4 MiB over an empty process, and the extension will link only what it needs (ADR 0015); the device's limit is measured in E3.3 (paid Apple account).
+4. How does the UI talk to the core? **One JSON API contract** (ADR 0012): in-process on mobile, a supervised child process over stdio on the desktop (ADR 0013).
+5. Conversation merging: data model and sync across devices. **Phase 2** (T2.1).
+6. UI: state management and virtualized message list (chosen by ADR, with performance measurements on low-end Android). **Phase 2** (T2.4).
+
+Not spiked in phase 1 and moved to phase 2: native Matrix accounts (the core as a Matrix client, T2.2) and Signal on the device (libsignal is Rust, T2.6).
 
 ## 5. Repository layout (target)
 
