@@ -101,6 +101,9 @@ func TestMatrixAccount(t *testing.T) {
 	bob := newPeer(t, ctx, bobLocal, bobPassword)
 
 	dataDir := t.TempDir()
+	// Registered before the core opens, so that it runs once the core is
+	// closed.
+	t.Cleanup(func() { reportLog(t, dataDir) })
 	c := coretest.Open(t, embedded.Config{DataDir: dataDir, LogLevel: "debug"})
 	events := coretest.Pump(t, c)
 
@@ -223,6 +226,26 @@ func startLogin(t *testing.T, c *embedded.Core) api.LoginStep {
 	var step api.LoginStep
 	coretest.Call(t, c, api.CommandLoginStart, api.LoginStartParams{NetworkID: "matrix", FlowID: "password"}, &step)
 	return step
+}
+
+// reportLog prints the warnings, the errors and the account state changes
+// of the core's log when the test failed, to diagnose it on CI. These lines
+// carry no message text: the core never logs it, which step 8 checks.
+func reportLog(t *testing.T, dataDir string) {
+	if !t.Failed() {
+		return
+	}
+	data, err := os.ReadFile(filepath.Join(dataDir, "core.log"))
+	if err != nil {
+		t.Logf("reading core.log: %v", err)
+		return
+	}
+	for line := range strings.Lines(string(data)) {
+		if strings.Contains(line, `"level":"warn"`) || strings.Contains(line, `"level":"error"`) ||
+			strings.Contains(line, `"state_event"`) {
+			t.Log(strings.TrimSpace(line))
+		}
+	}
 }
 
 func waitConnected(t *testing.T, ctx context.Context, events coretest.Events, account string) {
