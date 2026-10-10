@@ -56,7 +56,7 @@ A local link table `Person ↔ [Conversation]` (stored on the device, syncable i
 3. What is the real memory budget in the iOS NSE? Go (`goolm`) or lighter crypto? **Open**: on the simulator, Go with goolm costs about 4 MiB over an empty process, and the extension will link only what it needs (ADR 0015); the device's limit is measured in E3.3 (paid Apple account).
 4. How does the UI talk to the core? **One JSON API contract** (ADR 0012): in-process on mobile, a supervised child process over stdio on the desktop (ADR 0013).
 5. Conversation merging: data model and sync across devices. **Settled in T2.1 (ADR 0017)**: links keyed by each conversation's network identity, in the core's database; the encrypted sync is designed, not built.
-6. UI: state management and virtualized message list (chosen by ADR, with performance measurements on low-end Android). **Phase 2** (T2.4).
+6. UI: state management and virtualized message list. **Settled in T2.4 (ADR 0020)**: the app's own store (no state library) and virtua behind `MessageList`, measured on Electron and a throttled Android emulator; the low-end phone measurement is still to come.
 
 Not spiked in phase 1 and moved to phase 2: native Matrix accounts (the core as a Matrix client, T2.2) and Signal on the device (libsignal is Rust, T2.6).
 
@@ -268,4 +268,12 @@ Verified in T2.3 (Windows with DPAPI, Go 1.27.1; Android emulator API 30, JDK 21
 secrets:            go test -tags=goolm -count=1 ./core/secrets/ ./core/storage/sqlite/     (-tags=goolm,musubee_cgo_sqlite: the Android driver)
 sealed sessions:    go test -tags=goolm -count=1 -run 'Sealed|KeyFile|Plain' -v ./core/embedded/
 android key:        ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.musubee.core.CoreKeyTest
+```
+
+Verified in T2.4 (Windows, Node 24.20, Electron 44.7.0; Android emulator API 30; see ADR 0020, `ui/README.md`):
+
+```
+thread list check:  cd ui && npm run bench:build && npm run bench:check     (opens a small Electron window; Linux: xvfb-run)
+thread list bench:  node bench/run.mjs --target electron --n 1000,5000,20000 --throttle 1,4 --runs 3
+android bench:      MUSUBEE_BENCH_TARGET=chrome83 npm run bench:build, then see ui/README.md (the page goes into the debug app)
 ```
