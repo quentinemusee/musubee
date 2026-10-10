@@ -64,10 +64,7 @@ function isRunning(pid: number): boolean {
 
 /** Adds an account on the echo network and opens its Instant Echo conversation. */
 async function addEchoAccount(page: Page, username: string): Promise<void> {
-  await expect(page.getByRole("heading", { name: "Add an account" })).toBeVisible();
-  await page.getByRole("button", { name: "Echo: Username" }).click();
-  await page.getByLabel("Username").fill(username);
-  await page.getByRole("button", { name: "Continue" }).click();
+  await loginEcho(page, username);
   await page.getByRole("button", { name: "Instant Echo" }).click();
   await expect(page.getByRole("heading", { name: "Instant Echo" })).toBeVisible();
 }
@@ -211,6 +208,144 @@ test("the app starts the core again when it stops unexpectedly", async () => {
   // The interface read its state again, and works with the new core.
   await page.getByRole("button", { name: "Instant Echo" }).click();
   await sendAndGetEcho(page, "after the restart");
+  await app.close();
+});
+
+/**
+ * The inbox's rows, in order: each one's button is named by the entry's name.
+ * The list is virtualized: only the rows near the viewport are there, each
+ * with its aria-posinset and the list's aria-setsize.
+ */
+function inboxRows(page: Page) {
+  return page.getByRole("region", { name: "Conversations" }).getByRole("listitem");
+}
+
+/** Logs in on the echo network, without opening a conversation. */
+async function loginEcho(page: Page, username: string): Promise<void> {
+  await expect(page.getByRole("heading", { name: "Add an account" })).toBeVisible();
+  await page.getByRole("button", { name: "Echo: Username" }).click();
+  await page.getByLabel("Username").fill(username);
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Add an account" })).toBeHidden();
+}
+
+/** Calls the core as the interface does, and returns the result. */
+async function coreCall<T>(page: Page, command: string, params?: object): Promise<T> {
+  const response = JSON.parse(
+    (await page.evaluate(
+      ([name, args]) => window.musubee!.core.call(JSON.stringify({ id: 1, command: name, ...(args === undefined ? {} : { params: args }) })),
+      [command, params] as const,
+    )) as string,
+  ) as { result?: T; error?: { message: string } };
+  if (response.result === undefined) {
+    throw new Error(`${command}: ${response.error?.message}`);
+  }
+  return response.result;
+}
+
+test("the inbox shows the most recent conversation first, with its last message", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "inbox");
+  await sendAndGetEcho(page, "first in the inbox");
+  const first = inboxRows(page).first().getByRole("button");
+  await expect(first).toHaveAccessibleName("Instant Echo");
+  await expect(first).toHaveAccessibleDescription(/Echo.*first in the inbox/);
+
+  // In the group, Instant Echo answers: its name comes before the message.
+  await page.getByRole("button", { name: "Echo Group" }).click();
+  await expect(page.getByRole("heading", { name: "Echo Group" })).toBeVisible();
+  await page.getByLabel("Message").fill("hello group");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByRole("log").locator('[data-from-me="false"]', { hasText: "hello group" })).toBeVisible();
+  await expect(first).toHaveAccessibleName("Echo Group");
+  await expect(first).toHaveAccessibleDescription(/Group.*Instant Echo: hello group/);
+  await expect(first).toHaveAttribute("aria-current", "true");
+  await app.close();
+});
+
+test("conversations merged into a person make one entry, and one thread with a switcher", async () => {
+  const { app, page } = await launch(newDataDir());
+  await loginEcho(page, "alpha");
+  await page.getByRole("button", { name: "Add an account" }).click();
+  await loginEcho(page, "beta");
+  type Listed = { conversations: { conversation_id: string; name: string }[] };
+  let instant: string[] = [];
+  await expect
+    .poll(async () => {
+      const { conversations } = await coreCall<Listed>(page, "conversations.list");
+      instant = conversations.filter((c) => c.name === "Instant Echo").map((c) => c.conversation_id);
+      return conversations.length;
+    })
+    .toBe(8);
+  await expect(inboxRows(page).first()).toHaveAttribute("aria-setsize", "8");
+  // instant[1] is alpha's: the core lists the most recent first.
+  await coreCall(page, "persons.create", { name: "Echo Friend", conversation_ids: instant });
+  // A message in alpha's conversation brings the person first.
+  await coreCall(page, "messages.send", { conversation_id: instant[1], text: "to the person" });
+
+  const first = inboxRows(page).first();
+  await expect(first).toHaveAttribute("aria-setsize", "7");
+  await expect(first.getByRole("button")).toHaveAccessibleName("Echo Friend");
+  await expect(first.getByRole("button")).toHaveAccessibleDescription(/Echo.*to the person/);
+  await first.getByRole("button").click();
+  await expect(page.getByRole("heading", { name: "Echo Friend" })).toBeVisible();
+  const switcher = page.getByRole("group", { name: "Conversations with Echo Friend" });
+  // The most recent conversation is open; the other is one click away.
+  await expect(switcher.getByRole("button")).toHaveText(["Echo: alpha", "Echo: beta"]);
+  await expect(switcher.getByRole("button", { name: "Echo: alpha" })).toHaveAttribute("aria-pressed", "true");
+  await switcher.getByRole("button", { name: "Echo: beta" }).click();
+  await expect(switcher.getByRole("button", { name: "Echo: beta" })).toHaveAttribute("aria-pressed", "true");
+  await sendAndGetEcho(page, "through beta");
+  // That conversation is now the person's most recent: still one entry.
+  await expect(switcher.getByRole("button")).toHaveText(["Echo: beta", "Echo: alpha"]);
+  await expect(first.getByRole("button")).toHaveAccessibleName("Echo Friend");
+  await expect(first.getByRole("button")).toHaveAccessibleDescription(/through beta/);
+  await expect(first).toHaveAttribute("aria-setsize", "7");
+  await app.close();
+});
+
+test("the inbox reads more conversations as the user scrolls", async () => {
+  const { app, page } = await launch(newDataDir());
+  await loginEcho(page, "crowd");
+  // The crowd's contacts each sent a message, the first one two hours ago:
+  // the first page (50 conversations) does not reach it. Once they all did:
+  type Listed = { conversations: { last_message?: object }[] };
+  await expect
+    .poll(async () => (await coreCall<Listed>(page, "conversations.list")).conversations.filter((c) => c.last_message).length)
+    .toBe(120);
+  const oldest = page.getByRole("button", { name: "Crowd Contact 001" });
+  const last = inboxRows(page).last();
+  const list = page.locator(".inbox-list");
+  await expect(async () => {
+    await list.evaluate((element) => element.scrollTo(0, element.scrollHeight));
+    await expect(last).toHaveAttribute("aria-posinset", "124", { timeout: 1_000 });
+  }).toPass({ timeout: 60_000 });
+  // The last of the 124 conversations, and few rows in the DOM.
+  await expect(last).toHaveAttribute("aria-setsize", "124");
+  await expect(last.getByRole("button")).toHaveAccessibleName("Crowd Contact 001");
+  await expect(oldest).toHaveAccessibleDescription(/Hello from Crowd Contact 001/);
+  expect(await inboxRows(page).count()).toBeLessThan(60);
+  await app.close();
+});
+
+test("an account without network keeps its conversations and says so", async () => {
+  const dataDir = newDataDir();
+  let { app, page } = await launch(dataDir);
+  await addEchoAccount(page, "offline");
+  await sendAndGetEcho(page, "before the network went away");
+  await app.close();
+
+  // The echo network connects an "offline" account only right after its login.
+  ({ app, page } = await launch(dataDir));
+  await expect(page.getByText("No network: the echo network simulates a device without connection.")).toBeVisible();
+  const first = inboxRows(page).first().getByRole("button");
+  await expect(first).toHaveAccessibleName("Instant Echo");
+  await expect(first).toHaveAccessibleDescription(/before the network went away/);
+  await first.click();
+  await expect(page.getByRole("log").locator(".message", { hasText: "before the network went away" })).toHaveCount(2);
+  await page.getByLabel("Message").fill("while offline");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByRole("log").locator('[data-status="failed"]', { hasText: "while offline" })).toBeVisible();
   await app.close();
 });
 
