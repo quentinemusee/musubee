@@ -161,6 +161,9 @@ func TestMatrixAccount(t *testing.T) {
 	if err := c.Close(); err != nil {
 		t.Fatalf("closing the core: %v", err)
 	}
+	// The access token is sealed (ADR 0019); Synapse's tokens start with
+	// syt_.
+	coretest.CheckSessionsSealed(t, dataDir, "syt_", `"access_token"`)
 	c = coretest.Open(t, embedded.Config{DataDir: dataDir, LogLevel: "debug"})
 	events = coretest.Pump(t, c)
 	waitConnected(t, ctx, events, account)

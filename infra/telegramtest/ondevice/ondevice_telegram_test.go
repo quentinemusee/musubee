@@ -167,6 +167,10 @@ func TestTelegramOnDevice(t *testing.T) {
 	}
 	t.Logf("core -> Telegram, seen by the peer bot: %s", time.Since(sent).Round(time.Millisecond))
 
+	// The session's authorization key is sealed (ADR 0019), checked while
+	// the core runs: its write-ahead log counts too.
+	coretest.CheckSessionsSealed(t, dataDir, `"auth_key"`, `"push_encryption_key"`)
+
 	var stats api.StatsResult
 	coretest.Call(t, c, api.CommandDebugStats, nil, &stats)
 	t.Logf("core memory: heap %.1f MiB in use, %.1f MiB from the system; %d goroutines",
