@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -141,4 +142,64 @@ func (v *Validator) ValidateEvent(data []byte) error {
 		}
 	}
 	return fmt.Errorf("undocumented event type %q", evt.Type)
+}
+
+// matrixID matches the Matrix identifiers of users, rooms and room aliases.
+var matrixID = regexp.MustCompile(`^[@!#][^:\s]+:\S+$`)
+
+// MatrixIDs returns the strings of a response or an event that show a
+// Matrix identifier: no Matrix type may reach the user interface
+// (CLAUDE.md §2). The core's opaque IDs encode Matrix IDs, but in base64,
+// so they pass. The strings of the request, if any, are ignored, since an
+// error message may quote them; short ones, such as "x", would hide too
+// much, and stay checked.
+func MatrixIDs(document, request []byte) ([]string, error) {
+	var quoted []string
+	if request != nil {
+		var req any
+		if err := json.Unmarshal(request, &req); err != nil {
+			return nil, err
+		}
+		for _, q := range jsonStrings(req) {
+			if len(q) >= 8 {
+				quoted = append(quoted, q)
+			}
+		}
+	}
+	var doc any
+	if err := json.Unmarshal(document, &doc); err != nil {
+		return nil, err
+	}
+	var found []string
+	for _, v := range jsonStrings(doc) {
+		for _, q := range quoted {
+			v = strings.ReplaceAll(v, q, "")
+		}
+		if matrixID.MatchString(v) || strings.HasPrefix(v, "$") || strings.Contains(v, "mxc://") || strings.Contains(v, "musubee.local") {
+			found = append(found, v)
+		}
+	}
+	return found, nil
+}
+
+// jsonStrings returns every string of a decoded JSON value, keys included.
+func jsonStrings(v any) []string {
+	switch v := v.(type) {
+	case string:
+		return []string{v}
+	case []any:
+		var all []string
+		for _, item := range v {
+			all = append(all, jsonStrings(item)...)
+		}
+		return all
+	case map[string]any:
+		var all []string
+		for key, item := range v {
+			all = append(all, key)
+			all = append(all, jsonStrings(item)...)
+		}
+		return all
+	}
+	return nil
 }
