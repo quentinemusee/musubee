@@ -20,10 +20,7 @@ package memprobe
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"runtime"
 	"runtime/debug"
 	"runtime/metrics"
@@ -33,10 +30,6 @@ import (
 	"maunium.net/go/mautrix/crypto/goolm/account"
 	"maunium.net/go/mautrix/crypto/goolm/session"
 	"maunium.net/go/mautrix/id"
-
-	"github.com/quentinemusee/musubee/core/api"
-	"github.com/quentinemusee/musubee/core/embedded"
-	"github.com/quentinemusee/musubee/core/storage/sqlite"
 )
 
 // Config selects what Run does. Its JSON form is the argument of the C
@@ -92,7 +85,8 @@ type Report struct {
 	GOOS       string `json:"goos"`
 	GOARCH     string `json:"goarch"`
 	GOMAXPROCS int    `json:"gomaxprocs"`
-	// SQLiteDriver is the SQLite build compiled in (sqlite.Driver).
+	// SQLiteDriver is the SQLite build compiled in (sqlite.Driver), or
+	// "none" without the core.
 	SQLiteDriver string    `json:"sqlite_driver"`
 	Config       Config    `json:"config"`
 	Steps        []Measure `json:"steps"`
@@ -107,10 +101,6 @@ type Footprint func() (current, peak, limitRemaining int64)
 
 // Unknown is a Footprint for platforms without one.
 func Unknown() (current, peak, limitRemaining int64) { return -1, -1, -1 }
-
-// stepTimeout bounds every wait for the core. An NSE has about 30 seconds in
-// all.
-const stepTimeout = 10 * time.Second
 
 // Run performs the steps that cfg selects and measures after each one. It
 // stops at the first failing step and reports its error. A step named
@@ -131,32 +121,14 @@ func Run(cfg Config, footprint Footprint) Report {
 		GOOS:         runtime.GOOS,
 		GOARCH:       runtime.GOARCH,
 		GOMAXPROCS:   runtime.GOMAXPROCS(0),
-		SQLiteDriver: sqlite.Driver,
+		SQLiteDriver: sqliteDriver,
 		Config:       cfg,
 	}
 	p := &prober{footprint: footprint, report: &r}
 	p.step("go_runtime", func() error { return nil })
 
-	if cfg.Core {
-		var c *embedded.Core
-		ok := p.step("core_open", func() (err error) {
-			c, err = openCore(cfg.DataDir)
-			return err
-		})
-		var conv string
-		ok = ok && p.step("echo_login", func() (err error) {
-			conv, err = loginEcho(c)
-			return err
-		})
-		ok = ok && p.step(fmt.Sprintf("echo_messages_%d", cfg.Messages), func() error {
-			return exchangeMessages(c, conv, cfg.Messages)
-		})
-		if c != nil {
-			p.step("core_close", c.Close)
-		}
-		if !ok {
-			return r
-		}
+	if cfg.Core && !p.coreSteps(cfg) {
+		return r
 	}
 
 	if cfg.Crypto {
@@ -239,111 +211,6 @@ func measure(footprint Footprint) Measure {
 	m.GoStackBytes = value(3)
 	m.Goroutines = runtime.NumGoroutine()
 	return m
-}
-
-// openCore opens a core on an empty data directory, so that every run
-// starts from the same state.
-func openCore(dir string) (*embedded.Core, error) {
-	if dir == "" {
-		return nil, errors.New("data_dir is required for the core steps")
-	}
-	if err := os.RemoveAll(dir); err != nil {
-		return nil, err
-	}
-	cfg, err := json.Marshal(embedded.Config{DataDir: filepath.Clean(dir), LogLevel: "warn"})
-	if err != nil {
-		return nil, err
-	}
-	return embedded.Open(cfg)
-}
-
-// call runs one request and decodes its result into result (if not nil).
-func call(c *embedded.Core, command string, params, result any) error {
-	req, err := json.Marshal(map[string]any{"id": 1, "command": command, "params": params})
-	if err != nil {
-		return err
-	}
-	var resp struct {
-		Result json.RawMessage `json:"result"`
-		Error  *api.CoreError  `json:"error"`
-	}
-	if err = json.Unmarshal(c.Call(req), &resp); err != nil {
-		return err
-	}
-	if resp.Error != nil {
-		return fmt.Errorf("%s: %s: %s", command, resp.Error.Code, resp.Error.Message)
-	}
-	if result == nil {
-		return nil
-	}
-	return json.Unmarshal(resp.Result, result)
-}
-
-// loginEcho adds an echo account and returns the ID of its Instant Echo
-// conversation, once it exists.
-func loginEcho(c *embedded.Core) (string, error) {
-	var step api.LoginStep
-	if err := call(c, api.CommandLoginStart, api.LoginStartParams{NetworkID: "echo", FlowID: "username"}, &step); err != nil {
-		return "", err
-	}
-	if len(step.Fields) == 0 {
-		return "", fmt.Errorf("unexpected login step %q", step.Type)
-	}
-	values := map[string]string{step.Fields[0].FieldID: "probe"}
-	if err := call(c, api.CommandLoginSubmit, api.LoginSubmitParams{ProcessID: step.ProcessID, Values: values}, &step); err != nil {
-		return "", err
-	}
-	if step.Type != api.LoginStepTypeComplete {
-		return "", fmt.Errorf("login ended with step %q", step.Type)
-	}
-	deadline := time.Now().Add(stepTimeout)
-	for time.Now().Before(deadline) {
-		var list api.ConversationsListResult
-		if err := call(c, api.CommandConversationsList, nil, &list); err != nil {
-			return "", err
-		}
-		for _, conv := range list.Conversations {
-			if conv.Name == "Instant Echo" {
-				return conv.ConversationID, nil
-			}
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	return "", errors.New("no Instant Echo conversation")
-}
-
-// exchangeMessages sends n messages and waits for the echo of each one.
-func exchangeMessages(c *embedded.Core, conv string, n int) error {
-	for i := range n {
-		marker := fmt.Sprintf("probe-%d", i)
-		if err := call(c, api.CommandMessagesSend, api.MessagesSendParams{ConversationID: conv, Text: marker}, nil); err != nil {
-			return err
-		}
-		if err := waitEcho(c, marker); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func waitEcho(c *embedded.Core, marker string) error {
-	deadline := time.Now().Add(stepTimeout)
-	for {
-		data, ok := c.NextEvent(time.Until(deadline))
-		if !ok {
-			return fmt.Errorf("no echo of %s within %s", marker, stepTimeout)
-		}
-		var evt struct {
-			Type string           `json:"type"`
-			Data api.MessageEvent `json:"data"`
-		}
-		if json.Unmarshal(data, &evt) != nil || evt.Type != api.EventMessageAdded {
-			continue
-		}
-		if m := evt.Data.Message; !m.FromMe && strings.Contains(m.Text, marker) {
-			return nil
-		}
-	}
 }
 
 // newAccount creates an Olm account with one-time keys, as a device does

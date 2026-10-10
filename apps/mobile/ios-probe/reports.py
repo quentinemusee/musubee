@@ -72,7 +72,10 @@ def label(source: str, report: dict) -> str:
     parts = [name for name in ("core", "crypto") if config.get(name)]
     if config.get("memory_limit_mb"):
         parts.append(f"GOMEMLIMIT {config['memory_limit_mb']} MiB")
-    return f"{source}: {' + '.join(parts) or 'Go runtime only'}"
+    what = " + ".join(parts) or "Go runtime only"
+    if report.get("sqlite_driver") == "none":
+        what += " (core not linked)"
+    return f"{source}: {what}"
 
 
 def peak(report: dict) -> int:

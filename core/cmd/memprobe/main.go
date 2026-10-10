@@ -14,6 +14,9 @@
 // it exports musubee_memprobe_run (memprobe.h), which the test app of
 // apps/mobile/ios-probe calls from its Notification Service Extension.
 //
+// With the memprobe_nocore build tag, the core is left out and only goolm
+// remains: the smallest Go program a notification extension could run.
+//
 // The package needs cgo: the iOS library requires it, and so does the
 // footprint on macOS.
 package main

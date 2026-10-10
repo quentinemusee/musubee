@@ -4,9 +4,10 @@
 #
 # Runs the memory probe on a booted simulator, in three kinds of process:
 #
-# 1. Bare processes (simctl spawn): the probe built as an iOS executable, one
-#    new process per configuration and repetition, next to an empty C
-#    program (control/footprint.c). Closest to a notification extension that
+# 1. Bare processes (simctl spawn): the probe built as an iOS executable,
+#    with and without the core linked in (memprobe_nocore), one new process
+#    per configuration and repetition, next to an empty C program
+#    (control/footprint.c). Closest to a notification extension that
 #    the simulator can run: no UIKit, nothing but the probe.
 # 2. The probe app (UIKit), launched with --probe.
 # 3. Its Notification Service Extension, through one simctl push. On the
@@ -42,14 +43,21 @@ min_flag=-mios-simulator-version-min=15.0
 mkdir -p "$output/bin"
 
 # 1. Bare processes.
+# build_probe NAME TAGS: the probe as an iOS simulator executable.
+build_probe() {
+	(
+		cd "$core"
+		CGO_ENABLED=1 GOOS=ios GOARCH=arm64 CC="$cc" \
+			CGO_CFLAGS="-isysroot $sdk_path -arch arm64 $min_flag -O2" \
+			CGO_LDFLAGS="-isysroot $sdk_path -arch arm64 $min_flag" \
+			go build -trimpath -ldflags="-s -w" -tags="$2" -o "$output/bin/$1" ./cmd/memprobe
+	)
+}
 echo "== building the probe and the control for the simulator"
-(
-	cd "$core"
-	CGO_ENABLED=1 GOOS=ios GOARCH=arm64 CC="$cc" \
-		CGO_CFLAGS="-isysroot $sdk_path -arch arm64 $min_flag -O2" \
-		CGO_LDFLAGS="-isysroot $sdk_path -arch arm64 $min_flag" \
-		go build -trimpath -ldflags="-s -w" -tags="$tags" -o "$output/bin/memprobe" ./cmd/memprobe
-)
+build_probe memprobe "$tags"
+# Without the core: the Go runtime with goolm alone, the smallest program an
+# extension written in Go could be.
+build_probe memprobe-nocore "${tags:+$tags,}memprobe_nocore"
 "$cc" -isysroot "$sdk_path" -arch arm64 "$min_flag" -O2 -o "$output/bin/footprint" "$here/control/footprint.c"
 ls -l "$output/bin"
 
@@ -60,9 +68,7 @@ configs=(
 	"-core -crypto"
 	"-core -crypto -memory-limit-mb 8"
 )
-n=0
 for rep in $(seq 1 "$repetitions"); do
-	n=$((n + 1))
 	xcrun simctl spawn "$udid" "$output/bin/footprint" >"$output/process-$rep-0.json"
 	i=0
 	for config in "${configs[@]}"; do
@@ -70,6 +76,11 @@ for rep in $(seq 1 "$repetitions"); do
 		# shellcheck disable=SC2086 # the configuration is a list of flags
 		xcrun simctl spawn "$udid" "$output/bin/memprobe" -data-dir "$output/data" $config \
 			>"$output/process-$rep-$i.json"
+	done
+	for config in "" "-crypto"; do
+		i=$((i + 1))
+		# shellcheck disable=SC2086 # the configuration is a list of flags
+		xcrun simctl spawn "$udid" "$output/bin/memprobe-nocore" $config >"$output/process-$rep-$i.json"
 	done
 	echo "== bare processes, repetition $rep done"
 done
