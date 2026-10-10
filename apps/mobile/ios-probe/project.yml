@@ -31,6 +31,12 @@ targets:
       properties:
         CFBundleDisplayName: Memory probe
         UILaunchScreen: {}
+    # Remote notifications on a device need the push entitlement; automatic
+    # signing provisions it for the team.
+    entitlements:
+      path: build/generated/App.entitlements
+      properties:
+        aps-environment: development
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.musubee.memoryprobe

@@ -31,6 +31,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .provisional]) { granted, error in
             ProbeLog.app.log("notification authorization: granted=\(granted, privacy: .public) error=\(String(describing: error), privacy: .public)")
         }
+        application.registerForRemoteNotifications()
         if ProcessInfo.processInfo.arguments.contains("--probe") {
             DispatchQueue.global(qos: .userInitiated).async {
                 let report = Probe.run(config: Probe.defaultConfig(dataDir: Probe.dataDir()))
@@ -38,5 +39,16 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             }
         }
         return true
+    }
+
+    /// Logs the APNs device token: on an iPhone, the tester sends the probe
+    /// push to it (README).
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+        ProbeLog.app.log("APNs device token: \(token, privacy: .public)")
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        ProbeLog.app.log("APNs registration failed: \(String(describing: error), privacy: .public)")
     }
 }
