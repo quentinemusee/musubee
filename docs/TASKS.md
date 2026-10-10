@@ -84,12 +84,42 @@ Goal: prove that the Go core can run **on the device**. Each spike ends with an 
 
 **T1.8 — Go / no-go decision**
 - Deliverable: a summary ADR in `docs/ADR/`: what is feasible on each platform, what is postponed, fallback plan (hosted-bridge mode).
+- Outcome: **go** (ADR 0016). Windows, Linux and macOS: on the device. Android: on the device, with reservations (Play and `specialUse`, push needed in deep Doze). iOS: hosted mode first; on-device plausible but its extension's memory limit is unmeasured, deferred to E3.3 with the paid Apple account. Not spiked and moved to phase 2: native Matrix accounts (the core as a Matrix client, also the base of the hosted-bridge mode) and Signal on the device (libsignal is Rust).
 
 ---
 
 ## Phase 2 — Android + Windows MVP (networks: native Matrix, Telegram, Signal)
 
-Epics (to be detailed after T1.8):
+Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = needs a manual action of the maintainer (a phone number, a real device).
+
+**T2.1 — Domain model and person links**
+- Deliverable: the domain layer of the core (`Account`, `Conversation`, `Message`, `Person`) and a local link table person ↔ conversations in the core's database; API commands to list persons and to link or unlink a conversation (minor API version); an ADR on the data model and on how the links will sync across devices, encrypted (`CLAUDE.md` §4, question 5).
+- Acceptance: no Matrix identifier or type reaches the API (checked by a test over the echo and Telegram journeys); the links survive a restart.
+- 🧪 Test: unit tests of the domain layer, contract tests of the new commands on both sides.
+
+**T2.2 — Native Matrix accounts**
+- Deliverable: a `matrix` network in the core: sign-in to a homeserver, sync, rooms as conversations, text sent and received, end-to-end encryption with goolm and a crypto store in the core's database; ADR (it is also the client of the hosted-bridge mode).
+- Acceptance: an encrypted conversation between two accounts works through the core API, and survives a restart of the core.
+- 🧪 Test: integration tests against Synapse in Docker (`infra/testenv`), never a mock.
+
+**T2.3 — Secrets at rest** (E2.9)
+- Deliverable: ADR comparing an encrypted database and encrypting the secrets only, with the key in the OS secure storage; implementation on Windows (DPAPI or Credential Manager) and Android (Keystore).
+- Acceptance: no session key (Telegram, Matrix) is readable in the database file.
+- 🧪 Test: on Windows CI and the Android emulator, with the real key stores.
+
+**T2.4 — UI state and virtualized message list**
+- Deliverable: ADR choosing state management and a virtualized list (`CLAUDE.md` §4, question 6), with measurements on a throttled Android emulator, then on a low-end phone 📞 when available.
+- 🧪 Test: a performance test of a long conversation (thousands of messages), kept as a regression test.
+
+**T2.5 — Unified inbox** (E2.3)
+- Deliverable: the conversation list of every account, merged per person (T2.1), with pagination and offline display.
+- 🧪 Test: Playwright on the desktop, Appium on Android.
+
+**T2.6 — Signal on the device** 📞
+- Deliverable: spike, then connector: libsignal (Rust, static C library) built for Windows, Linux, macOS and Android; mautrix-signal's connector in the core; a test account on Signal's staging servers, registered by the maintainer with a real phone number (ADR 0005).
+- 🧪 Test: automated journey against staging, like Telegram's.
+
+Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).
 - **E2.3** Unified inbox, conversation list, pagination, offline.
