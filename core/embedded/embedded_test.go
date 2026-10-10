@@ -329,9 +329,22 @@ func TestInvalidRequests(t *testing.T) {
 func TestNetworksList(t *testing.T) {
 	c := open(t)
 	networks := call[api.NetworksListResult](t, c, api.CommandNetworksList, nil).Networks
-	if len(networks) != 1 || networks[0].NetworkID != "echo" || networks[0].Name != "Echo" || len(networks[0].LoginFlows) != 2 {
+	if len(networks) != 2 || networks[0].NetworkID != "echo" || networks[0].Name != "Echo" || len(networks[0].LoginFlows) != 2 {
 		t.Fatalf("networks = %+v", networks)
 	}
+	if m := networks[1]; m.NetworkID != "matrix" || m.Name != "Matrix" || len(m.LoginFlows) != 1 || m.LoginFlows[0].FlowID != "password" {
+		t.Fatalf("matrix network = %+v", m)
+	}
+	// The password step asks for the server, the username and the password.
+	step := call[api.LoginStep](t, c, api.CommandLoginStart, api.LoginStartParams{NetworkID: "matrix", FlowID: "password"})
+	var fields []string
+	for _, f := range step.Fields {
+		fields = append(fields, f.FieldID+":"+string(f.Type))
+	}
+	if step.Type != api.LoginStepTypeUserInput || strings.Join(fields, ",") != "server:domain,username:username,password:password" {
+		t.Fatalf("matrix login step = %+v", step)
+	}
+	call[api.Empty](t, c, api.CommandLoginCancel, api.LoginProcessParams{ProcessID: step.ProcessID})
 }
 
 // With application credentials, the core also offers Telegram, without its
@@ -348,11 +361,11 @@ func TestTelegramIsOfferedWithCredentials(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = c.Close() })
 	networks := call[api.NetworksListResult](t, c, api.CommandNetworksList, nil).Networks
-	if len(networks) != 2 || networks[1].NetworkID != "telegram" || networks[1].Name != "Telegram" {
+	if len(networks) != 3 || networks[2].NetworkID != "telegram" || networks[2].Name != "Telegram" {
 		t.Fatalf("networks = %+v", networks)
 	}
 	var flows []string
-	for _, flow := range networks[1].LoginFlows {
+	for _, flow := range networks[2].LoginFlows {
 		flows = append(flows, flow.FlowID)
 	}
 	if strings.Join(flows, ",") != "phone,qr,bot" {

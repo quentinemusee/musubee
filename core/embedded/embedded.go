@@ -27,6 +27,7 @@ import (
 	"github.com/quentinemusee/musubee/core/api"
 	"github.com/quentinemusee/musubee/core/bridgehost"
 	"github.com/quentinemusee/musubee/core/connector/echo"
+	"github.com/quentinemusee/musubee/core/connector/matrix"
 	"github.com/quentinemusee/musubee/core/connector/telegram"
 	"github.com/quentinemusee/musubee/core/localmatrix"
 	"github.com/quentinemusee/musubee/core/persons"
@@ -39,8 +40,14 @@ var Version = "dev"
 // The bridge IDs of the networks.
 const (
 	echoBridge     networkid.BridgeID = "echo"
+	matrixBridge   networkid.BridgeID = matrix.NetworkID
 	telegramBridge networkid.BridgeID = "telegram"
 )
+
+// matrixPickleKey encrypts the Matrix accounts' keys in the database. As a
+// constant of the code, it protects nothing: anyone with the database file
+// has the keys. Protecting the secrets at rest is T2.3 (docs/TASKS.md).
+var matrixPickleKey = []byte("musubee: replaced by a key from the OS secure storage in T2.3")
 
 // eventQueueSize bounds the events waiting for the application. When the
 // application stops reading, the oldest events are not kept forever: the
@@ -154,6 +161,10 @@ func (c *Core) start(cfg Config) error {
 		return err
 	}
 	c.networks = append(c.networks, echoBridge)
+	if _, err = host.AddNetwork(matrixBridge, matrix.New(matrix.Config{PickleKey: matrixPickleKey})); err != nil {
+		return err
+	}
+	c.networks = append(c.networks, matrixBridge)
 	if cfg.Telegram != nil {
 		tg, err := telegram.New(telegram.Config{APIID: cfg.Telegram.APIID, APIHash: cfg.Telegram.APIHash})
 		if err != nil {
