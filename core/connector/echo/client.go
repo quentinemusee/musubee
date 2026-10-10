@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,6 +32,9 @@ type client struct {
 
 	lock      sync.Mutex
 	connected bool
+	// fresh is set for a login just made: an offline login (OfflinePrefix)
+	// connects only then.
+	fresh bool
 	// ctx is cancelled on disconnection, which drops the pending echoes.
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -46,12 +51,15 @@ func (c *client) selfID() networkid.UserID {
 	return networkid.UserID(selfIDPrefix + string(c.login.ID))
 }
 
-func (c *client) portalKey(contact networkid.UserID) networkid.PortalKey {
-	return networkid.PortalKey{ID: networkid.PortalID(contact), Receiver: c.login.ID}
+func (c *client) portalKey(portal networkid.PortalID) networkid.PortalKey {
+	return networkid.PortalKey{ID: portal, Receiver: c.login.ID}
 }
 
-// Connect marks the login as connected and announces the conversation with
-// every contact, which creates the rooms on first connection.
+// errOffline is the error of an offline login (OfflinePrefix).
+const errOffline status.BridgeStateErrorCode = "echo-offline"
+
+// Connect marks the login as connected and announces every conversation,
+// which creates the rooms on first connection.
 func (c *client) Connect(ctx context.Context) {
 	c.lock.Lock()
 	// A connection started in the background may run once the bridge is
@@ -60,20 +68,68 @@ func (c *client) Connect(ctx context.Context) {
 		c.lock.Unlock()
 		return
 	}
+	if strings.HasPrefix(c.login.RemoteName, OfflinePrefix) && !c.fresh {
+		c.lock.Unlock()
+		c.login.BridgeState.Send(status.BridgeState{
+			StateEvent: status.StateTransientDisconnect,
+			Error:      errOffline,
+			Message:    "No network: the echo network simulates a device without connection.",
+		})
+		return
+	}
+	c.fresh = false
 	c.connected = true
 	c.ctx, c.cancel = context.WithCancel(c.connector.br.BackgroundCtx)
 	c.lock.Unlock()
 
 	c.login.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
 	c.updateSelfGhost(ctx)
-	for _, contact := range Contacts {
+	contacts := contactsOf(c.login)
+	for _, contact := range contacts {
 		c.login.QueueRemoteEvent(&simplevent.ChatResync{
 			EventMeta: simplevent.EventMeta{
 				Type:         bridgev2.RemoteEventChatResync,
-				PortalKey:    c.portalKey(contact.ID),
+				PortalKey:    c.portalKey(networkid.PortalID(contact.ID)),
 				CreatePortal: true,
 			},
 			ChatInfo: c.chatInfo(contact),
+		})
+	}
+	for _, group := range Groups {
+		c.login.QueueRemoteEvent(&simplevent.ChatResync{
+			EventMeta: simplevent.EventMeta{
+				Type:         bridgev2.RemoteEventChatResync,
+				PortalKey:    c.portalKey(group.ID),
+				CreatePortal: true,
+			},
+			ChatInfo: c.groupInfo(group),
+		})
+	}
+	c.greetFromCrowd(contacts)
+}
+
+// greetFromCrowd sends the one message of each crowd contact, a minute
+// apart, the last contact most recently: their order by activity is the
+// reverse of their names'. The messages have fixed IDs, so that bridgev2
+// drops them as duplicates on the next connections.
+func (c *client) greetFromCrowd(contacts []Contact) {
+	now := time.Now()
+	for _, contact := range contacts {
+		number, ok := strings.CutPrefix(string(contact.ID), crowdIDPrefix)
+		if !ok {
+			continue
+		}
+		n, _ := strconv.Atoi(number)
+		c.login.QueueRemoteEvent(&simplevent.Message[*event.MessageEventContent]{
+			EventMeta: simplevent.EventMeta{
+				Type:      bridgev2.RemoteEventMessage,
+				PortalKey: c.portalKey(networkid.PortalID(contact.ID)),
+				Sender:    bridgev2.EventSender{Sender: contact.ID},
+				Timestamp: now.Add(-time.Duration(CrowdSize-n) * time.Minute),
+			},
+			ID:                 networkid.MessageID("hello-" + number),
+			Data:               &event.MessageEventContent{MsgType: event.MsgText, Body: "Hello from " + contact.Name},
+			ConvertMessageFunc: convertEcho,
 		})
 	}
 }
@@ -141,6 +197,28 @@ func (c *client) chatInfo(contact Contact) *bridgev2.ChatInfo {
 	}
 }
 
+func (c *client) groupInfo(group Group) *bridgev2.ChatInfo {
+	members := bridgev2.ChatMemberMap{
+		c.selfID(): {
+			EventSender: bridgev2.EventSender{IsFromMe: true, Sender: c.selfID()},
+			Membership:  event.MembershipJoin,
+		},
+	}
+	for _, id := range group.Members {
+		contact, _ := findContact(id)
+		members[id] = bridgev2.ChatMember{
+			EventSender: bridgev2.EventSender{Sender: id},
+			Membership:  event.MembershipJoin,
+			UserInfo:    userInfo(contact),
+		}
+	}
+	return &bridgev2.ChatInfo{
+		Name:    ptr.Ptr(group.Name),
+		Type:    ptr.Ptr(database.RoomTypeDefault),
+		Members: &bridgev2.ChatMemberList{IsFull: true, MemberMap: members},
+	}
+}
+
 func userInfo(contact Contact) *bridgev2.UserInfo {
 	return &bridgev2.UserInfo{
 		Name:        ptr.Ptr(contact.Name),
@@ -149,6 +227,9 @@ func userInfo(contact Contact) *bridgev2.UserInfo {
 }
 
 func (c *client) GetChatInfo(_ context.Context, portal *bridgev2.Portal) (*bridgev2.ChatInfo, error) {
+	if group, ok := findGroup(portal.ID); ok {
+		return c.groupInfo(group), nil
+	}
 	contact, ok := findContact(networkid.UserID(portal.ID))
 	if !ok {
 		return nil, fmt.Errorf("unknown conversation %q", portal.ID)
@@ -180,6 +261,10 @@ func (c *client) GetCapabilities(context.Context, *bridgev2.Portal) *event.RoomF
 // depending on the contact.
 func (c *client) HandleMatrixMessage(_ context.Context, msg *bridgev2.MatrixMessage) (*bridgev2.MatrixMessageResponse, error) {
 	contact, ok := findContact(networkid.UserID(msg.Portal.ID))
+	if _, group := findGroup(msg.Portal.ID); group {
+		// In a group, ContactInstant answers.
+		contact, ok = findContact(ContactInstant)
+	}
 	if !ok {
 		return nil, bridgev2.WrapErrorInStatus(fmt.Errorf("unknown conversation %q", msg.Portal.ID)).
 			WithStatus(event.MessageStatusFail).
@@ -201,7 +286,7 @@ func (c *client) HandleMatrixMessage(_ context.Context, msg *bridgev2.MatrixMess
 	}
 	content := *msg.Content
 	content.RelatesTo = nil
-	if err := c.scheduleEcho(contact, &content, delay); err != nil {
+	if err := c.scheduleEcho(msg.Portal.ID, contact, &content, delay); err != nil {
 		return nil, err
 	}
 	return &bridgev2.MatrixMessageResponse{
@@ -226,7 +311,7 @@ var errDisconnected = bridgev2.WrapErrorInStatus(errors.New("the echo network cl
 	WithErrorAsMessage().
 	WithSendNotice(false)
 
-func (c *client) scheduleEcho(contact Contact, content *event.MessageEventContent, delay time.Duration) error {
+func (c *client) scheduleEcho(portal networkid.PortalID, contact Contact, content *event.MessageEventContent, delay time.Duration) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if !c.connected {
@@ -248,7 +333,7 @@ func (c *client) scheduleEcho(contact Contact, content *event.MessageEventConten
 		c.login.QueueRemoteEvent(&simplevent.Message[*event.MessageEventContent]{
 			EventMeta: simplevent.EventMeta{
 				Type:      bridgev2.RemoteEventMessage,
-				PortalKey: c.portalKey(contact.ID),
+				PortalKey: c.portalKey(portal),
 				Sender:    bridgev2.EventSender{Sender: contact.ID},
 				Timestamp: time.Now(),
 			},

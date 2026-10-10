@@ -64,6 +64,32 @@ type Room struct {
 	CreatedAt time.Time
 }
 
+// RoomActivity is a room with its latest message, to rank the rooms like a
+// conversation list does.
+type RoomActivity struct {
+	Room *Room
+	// LastMessage is the room's last stored message event (m.room.message),
+	// or nil if it has none.
+	LastMessage *event.Event
+	// At is when LastMessage was sent, or when the room was created, in
+	// milliseconds since the Unix epoch.
+	At int64
+
+	lastOrder int64
+}
+
+// Cursor returns the position after this room in a ranking by activity.
+func (ra *RoomActivity) Cursor() ActivityCursor {
+	return ActivityCursor{At: ra.At, RoomID: ra.Room.ID}
+}
+
+// ActivityCursor is a position in the rooms ranked by activity: the rooms
+// after it are less recent, or as recent with a smaller room ID.
+type ActivityCursor struct {
+	At     int64
+	RoomID id.RoomID
+}
+
 // MessageStatus is the delivery status of a message sent by the user.
 type MessageStatus struct {
 	RoomID  id.RoomID
@@ -125,6 +151,98 @@ func (s *store) listRooms(ctx context.Context) ([]*Room, error) {
 		rooms = append(rooms, room)
 	}
 	return rooms, rows.Err()
+}
+
+// activityQuery ranks the rooms by the time of their latest message (the
+// last one stored), or their creation time without messages. $1 and $2 are
+// the cursor (0 and "" for the start), $3 the limit (-1: no limit).
+const activityQuery = `
+WITH latest AS (
+	SELECT r.room_id, r.bridge_id, r.creator, r.is_direct, r.created_at,
+		(SELECT MAX(e.stream_order) FROM local_event e
+		 WHERE e.room_id=r.room_id AND e.event_type='m.room.message' AND e.state_key IS NULL) AS last_order
+	FROM local_room r
+), ranked AS (
+	SELECT l.*, COALESCE(e.timestamp, l.created_at) AS activity
+	FROM latest l LEFT JOIN local_event e ON e.stream_order=l.last_order
+)
+SELECT room_id, bridge_id, creator, is_direct, created_at, activity, COALESCE(last_order, 0) FROM ranked
+WHERE ($1=0 AND $2='') OR activity<$1 OR (activity=$1 AND room_id<$2)
+ORDER BY activity DESC, room_id DESC
+LIMIT $3`
+
+// listRoomsByActivity returns the rooms ranked by activity, most recent
+// first, after the cursor (nil for the start); limit <= 0 returns them all.
+func (s *store) listRoomsByActivity(ctx context.Context, after *ActivityCursor, limit int) ([]*RoomActivity, error) {
+	var at int64
+	var roomID id.RoomID
+	if after != nil {
+		at, roomID = after.At, after.RoomID
+	}
+	if limit <= 0 {
+		limit = -1
+	}
+	rows, err := s.db.Query(ctx, activityQuery, at, roomID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var rooms []*RoomActivity
+	for rows.Next() {
+		var ra RoomActivity
+		var room Room
+		var createdAt int64
+		if err = rows.Scan(&room.ID, &room.BridgeID, &room.Creator, &room.IsDirect, &createdAt, &ra.At, &ra.lastOrder); err != nil {
+			return nil, err
+		}
+		room.CreatedAt = time.UnixMilli(createdAt)
+		ra.Room = &room
+		rooms = append(rooms, &ra)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	for _, ra := range rooms {
+		if err = s.fillLastMessage(ctx, ra); err != nil {
+			return nil, err
+		}
+	}
+	return rooms, nil
+}
+
+// roomActivity returns the activity of one room, or an error wrapping
+// ErrNotFound.
+func (s *store) roomActivity(ctx context.Context, roomID id.RoomID) (*RoomActivity, error) {
+	room, err := s.getRoom(ctx, roomID)
+	if err != nil {
+		return nil, err
+	}
+	ra := RoomActivity{Room: room, At: room.CreatedAt.UnixMilli()}
+	err = s.db.QueryRow(ctx,
+		`SELECT COALESCE(MAX(stream_order), 0) FROM local_event WHERE room_id=$1 AND event_type='m.room.message' AND state_key IS NULL`,
+		roomID).Scan(&ra.lastOrder)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.fillLastMessage(ctx, &ra); err != nil {
+		return nil, err
+	}
+	if ra.LastMessage != nil {
+		ra.At = ra.LastMessage.Timestamp
+	}
+	return &ra, nil
+}
+
+func (s *store) fillLastMessage(ctx context.Context, ra *RoomActivity) error {
+	if ra.lastOrder == 0 {
+		return nil
+	}
+	evt, err := scanEvent(s.db.QueryRow(ctx, `SELECT `+eventColumns+` FROM local_event WHERE stream_order=$1`, ra.lastOrder))
+	if err != nil {
+		return fmt.Errorf("reading the latest message of %s: %w", ra.Room.ID, err)
+	}
+	ra.LastMessage = evt
+	return nil
 }
 
 // insertEvent stores an event and, for state events, makes it the current

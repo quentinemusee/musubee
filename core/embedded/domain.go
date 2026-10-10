@@ -25,8 +25,9 @@ import (
 // API's domain objects. No Matrix type crosses it towards the API.
 
 const (
-	defaultMessageLimit = 50
-	maxMessageLimit     = 200
+	defaultMessageLimit  = 50
+	maxMessageLimit      = 200
+	maxConversationLimit = 200
 )
 
 func (c *Core) hello(context.Context, api.Empty) (api.HelloResult, error) {
@@ -120,9 +121,29 @@ func (c *Core) conversationsList(ctx context.Context, p api.ConversationsListPar
 			return result, err
 		}
 	}
-	rooms, err := c.host.Matrix.Rooms(ctx)
+	if p.Limit < 0 || p.Limit > maxConversationLimit {
+		return result, newError(api.ErrorCodeInvalidParams, "limit must be between 1 and %d", maxConversationLimit)
+	}
+	var after *localmatrix.ActivityCursor
+	if p.Before != "" {
+		cur, err := parseActivityCursor(p.Before)
+		if err != nil {
+			return result, err
+		}
+		after = &cur
+	}
+	// One more than asked tells whether more rooms remain.
+	limit := int(p.Limit)
+	if limit > 0 {
+		limit++
+	}
+	rooms, err := c.host.Matrix.RoomsByActivity(ctx, after, limit)
 	if err != nil {
 		return result, err
+	}
+	if p.Limit > 0 && len(rooms) > int(p.Limit) {
+		rooms = rooms[:p.Limit]
+		result.Before = activityCursor(rooms[len(rooms)-1].Cursor())
 	}
 	owners, err := c.persons.Owners(ctx)
 	if err != nil {
@@ -140,11 +161,22 @@ func (c *Core) conversationsList(ctx context.Context, p api.ConversationsListPar
 	return result, nil
 }
 
+// conversationOf returns the conversation of a room, as conversation does,
+// reading the room's activity first.
+func (c *Core) conversationOf(ctx context.Context, roomID id.RoomID, owners map[persons.Key]string) (*api.Conversation, error) {
+	activity, err := c.host.Matrix.RoomActivity(ctx, roomID)
+	if err != nil {
+		return nil, err
+	}
+	return c.conversation(ctx, activity, owners)
+}
+
 // conversation returns the conversation of a room, or nil while the room is
 // not complete yet: bridgev2 names the room and records it as a portal a
 // moment after creating it. owners maps the linked conversations to their
 // persons (persons.Store.Owners); if nil, the person is read from the store.
-func (c *Core) conversation(ctx context.Context, room *localmatrix.Room, owners map[persons.Key]string) (*api.Conversation, error) {
+func (c *Core) conversation(ctx context.Context, activity *localmatrix.RoomActivity, owners map[persons.Key]string) (*api.Conversation, error) {
+	room := activity.Room
 	br := c.host.Bridge(networkid.BridgeID(room.BridgeID))
 	if br == nil {
 		return nil, nil
@@ -177,14 +209,23 @@ func (c *Core) conversation(ctx context.Context, room *localmatrix.Room, owners 
 			return nil, err
 		}
 	}
-	return &api.Conversation{
+	conv := &api.Conversation{
 		ConversationID: conversationID(room.ID),
 		AccountID:      accountID(br.ID, receiver),
 		NetworkID:      string(br.ID),
 		Name:           name.Content.AsRoomName().Name,
 		Kind:           kind,
 		PersonID:       personID,
-	}, nil
+		ActivityMS:     activity.At,
+	}
+	if activity.LastMessage != nil {
+		msg, err := c.message(ctx, activity.LastMessage)
+		if err != nil {
+			return nil, err
+		}
+		conv.LastMessage = &msg
+	}
+	return conv, nil
 }
 
 // room returns the room of a conversation ID, or a not_found error.

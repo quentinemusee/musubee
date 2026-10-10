@@ -334,11 +334,7 @@ func (c *Core) announceConversation(roomID id.RoomID) {
 		defer c.forwarding.Done()
 		deadline := time.Now().Add(conversationWait)
 		for {
-			room, err := c.host.Matrix.Room(c.ctx, roomID)
-			var conv *api.Conversation
-			if err == nil {
-				conv, err = c.conversation(c.ctx, room, nil)
-			}
+			conv, err := c.conversationOf(c.ctx, roomID, nil)
 			if err != nil {
 				if c.ctx.Err() == nil {
 					c.log.Err(err).Stringer("room_id", roomID).Msg("Failed to read a conversation")

@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.2"
+const APIVersion = "1.3"
 
 // Command names.
 const (
@@ -35,7 +35,9 @@ const (
 	// Abandons a login process. Cancelling a finished or unknown process is not
 	// an error.
 	CommandLoginCancel = "login.cancel"
-	// Lists the conversations of every account, or of one account.
+	// Lists the conversations of every account, or of one account, the most
+	// recently active first. Without a limit, returns them all; with one, returns
+	// a page and a cursor to the next. Ordered by activity since API 1.3.
 	CommandConversationsList = "conversations.list"
 	// Returns the latest messages of a conversation, or the ones before a cursor,
 	// oldest first.
@@ -338,6 +340,14 @@ type Conversation struct {
 	Kind           ConversationKind `json:"kind"`
 	// The person this conversation is linked to, if any. Since API 1.2.
 	PersonID string `json:"person_id,omitempty"`
+	// When the last message was sent, or when the conversation was created if it
+	// has none, in milliseconds since the Unix epoch. Conversation lists are
+	// ordered by it. A message.added event makes its message the last one. Since
+	// API 1.3.
+	ActivityMS int64 `json:"activity_ms,omitempty"`
+	// The last message of the conversation, the one its thread shows last, if it
+	// has any. Since API 1.3.
+	LastMessage *Message `json:"last_message,omitempty"`
 }
 
 // ConversationKind is $defs/ConversationKind of the schema.
@@ -350,13 +360,23 @@ const (
 
 // ConversationsListParams is $defs/ConversationsListParams of the schema.
 type ConversationsListParams struct {
-	// Only the conversations of this account.
+	// Only the conversations of this account. A page may then hold fewer
+	// conversations than the limit, even none, with a cursor to the next.
 	AccountID string `json:"account_id,omitempty"`
+	// A cursor from a previous result: return the conversations less recently
+	// active than the last one it returned. Since API 1.3.
+	Before string `json:"before,omitempty"`
+	// At most this many conversations (at most 200). Absent: all of them. Since
+	// API 1.3.
+	Limit int64 `json:"limit,omitempty"`
 }
 
 // ConversationsListResult is $defs/ConversationsListResult of the schema.
 type ConversationsListResult struct {
 	Conversations []Conversation `json:"conversations"`
+	// Present when more conversations may follow: the cursor to read them. Since
+	// API 1.3.
+	Before string `json:"before,omitempty"`
 }
 
 // ConversationEvent is $defs/ConversationEvent of the schema.

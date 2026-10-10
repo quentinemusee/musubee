@@ -14,6 +14,7 @@ import (
 	"maunium.net/go/mautrix/id"
 
 	"github.com/quentinemusee/musubee/core/api"
+	"github.com/quentinemusee/musubee/core/localmatrix"
 )
 
 // The API's IDs are opaque to user interfaces (docs/ADR/0012). They encode
@@ -86,6 +87,24 @@ func parseCursor(value string) (int64, error) {
 		return 0, newError(api.ErrorCodeInvalidParams, "invalid cursor %q", value)
 	}
 	return order, nil
+}
+
+// activityCursor encodes a position in the conversation list: the
+// activity and the room of the last conversation of a page.
+func activityCursor(cur localmatrix.ActivityCursor) string {
+	return encodeID(cursorPrefix, strconv.FormatInt(cur.At, 10), string(cur.RoomID))
+}
+
+func parseActivityCursor(value string) (localmatrix.ActivityCursor, error) {
+	parts, err := decodeID(cursorPrefix, value, 2, "cursor")
+	var at int64
+	if err == nil {
+		at, err = strconv.ParseInt(parts[0], 10, 64)
+	}
+	if err != nil || parts[1] == "" {
+		return localmatrix.ActivityCursor{}, newError(api.ErrorCodeInvalidParams, "invalid cursor %q", value)
+	}
+	return localmatrix.ActivityCursor{At: at, RoomID: id.RoomID(parts[1])}, nil
 }
 
 func newProcessID() string {

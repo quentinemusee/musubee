@@ -156,7 +156,10 @@ describe("the generated types", () => {
       result: { process_id: "p.2", type: "display_and_wait", step_id: "code", instructions: "Enter the code", display: { type: "code", data: "1f2e3d", can_cancel: true } },
     },
     "login.cancel": { params: { process_id: "p.2" }, result: {} },
-    "conversations.list": { params: { account_id: "a.1" }, result: { conversations: [conversation] } },
+    "conversations.list": {
+      params: { account_id: "a.1", limit: 50, before: "k.2" },
+      result: { conversations: [{ ...conversation, activity_ms: 1_791_496_800_000, last_message: message }], before: "k.3" },
+    },
     "messages.list": { params: { conversation_id: "c.1", limit: 50 }, result: { messages: [message], before: "k.1" } },
     "messages.send": {
       params: { conversation_id: "c.1", text: "hello" },

@@ -62,8 +62,8 @@ func waitConversationPerson(t *testing.T, c *Core, conversation, personID string
 // user would.
 func TestPersonsJourney(t *testing.T) {
 	c := open(t)
-	alice := loginAs(t, c, "alice", 3)
-	bob := loginAs(t, c, "bob", 6)
+	alice := loginAs(t, c, "alice", conversationsPerLogin)
+	bob := loginAs(t, c, "bob", 2*conversationsPerLogin)
 	instantA := conversationOf(t, c, alice, "Instant Echo").ConversationID
 	instantB := conversationOf(t, c, bob, "Instant Echo").ConversationID
 	delayedA := conversationOf(t, c, alice, "Delayed Echo").ConversationID
@@ -142,6 +142,10 @@ func TestPersonsRejectBadRequests(t *testing.T) {
 	callFails(t, c, api.CommandPersonsLink, api.PersonsLinkParams{PersonID: p.PersonID, ConversationID: "c.nope"}, api.ErrorCodeNotFound)
 	callFails(t, c, api.CommandPersonsUnlink, api.PersonsUnlinkParams{ConversationID: "c.nope"}, api.ErrorCodeNotFound)
 	callFails(t, c, api.CommandPersonsDelete, api.PersonsDeleteParams{PersonID: "h.nope"}, api.ErrorCodeNotFound)
+	// Only direct conversations belong to a person.
+	group := conversationOf(t, c, account, "Echo Group").ConversationID
+	callFails(t, c, api.CommandPersonsCreate, api.PersonsCreateParams{ConversationIds: []string{group}}, api.ErrorCodeInvalidParams)
+	callFails(t, c, api.CommandPersonsLink, api.PersonsLinkParams{PersonID: p.PersonID, ConversationID: group}, api.ErrorCodeInvalidParams)
 	// Nothing changed.
 	if persons := listPersons(t, c); len(persons) != 1 || !slices.Equal(persons[0].ConversationIds, []string{instant}) || persons[0].Name != "Instant Echo" {
 		t.Fatalf("persons = %+v", persons)
@@ -156,8 +160,8 @@ func TestPersonsRejectBadRequests(t *testing.T) {
 func TestPersonsOutliveRoomsAndRestarts(t *testing.T) {
 	dir := t.TempDir()
 	c := openDir(t, dir)
-	alice := loginAs(t, c, "alice", 3)
-	bob := loginAs(t, c, "bob", 6)
+	alice := loginAs(t, c, "alice", conversationsPerLogin)
+	bob := loginAs(t, c, "bob", 2*conversationsPerLogin)
 	instantA := conversationOf(t, c, alice, "Instant Echo").ConversationID
 	instantB := conversationOf(t, c, bob, "Instant Echo").ConversationID
 	p := call[api.PersonResult](t, c, api.CommandPersonsCreate, api.PersonsCreateParams{Name: "Echo", ConversationIds: []string{instantA, instantB}}).Person
@@ -189,7 +193,7 @@ func TestPersonsOutliveRoomsAndRestarts(t *testing.T) {
 		t.Fatalf("persons without accounts = %+v", persons)
 	}
 
-	if again := loginAs(t, c, "bob", 3); again != bob {
+	if again := loginAs(t, c, "bob", conversationsPerLogin); again != bob {
 		t.Fatalf("bob's account came back as %s, was %s", again, bob)
 	}
 	if conv := conversationOf(t, c, bob, "Instant Echo"); conv.PersonID != p.PersonID {

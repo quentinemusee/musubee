@@ -6,8 +6,10 @@ package localmatrix_test
 import (
 	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix"
@@ -456,4 +458,87 @@ func TestStopDropsBridgeStates(t *testing.T) {
 	if err = conn.SendBridgeStatus(t.Context(), &state.BridgeState); err != nil {
 		t.Errorf("SendBridgeStatus after Stop = %v, want nil", err)
 	}
+}
+
+func TestRoomsByActivity(t *testing.T) {
+	server := newServer(t, localmatrix.Options{})
+	conn := newConnector(t, server, "echo")
+	ctx := t.Context()
+	send := func(roomID id.RoomID, ghost networkid.UserID, body string, at time.Time) id.EventID {
+		t.Helper()
+		resp, err := conn.GhostIntent(ghost).SendMessage(ctx, roomID, event.EventMessage, &event.Content{
+			Parsed: &event.MessageEventContent{MsgType: event.MsgText, Body: body},
+		}, &bridgev2.MatrixSendExtra{Timestamp: at})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resp.EventID
+	}
+	base := time.Now().Add(-time.Hour)
+	alice := createDM(t, server, conn, "alice")
+	bob := createDM(t, server, conn, "bob")
+	carol := createDM(t, server, conn, "carol") // no message: ranked by its creation
+	send(alice, "alice", "a1", base)
+	send(bob, "bob", "b1", base.Add(time.Minute))
+	last := send(alice, "alice", "a2", base.Add(2*time.Minute))
+	// A state event after the last message does not count as activity.
+	if err := conn.GhostIntent("alice").SetDisplayName(ctx, "Alice"); err != nil {
+		t.Fatal(err)
+	}
+
+	all, err := server.RoomsByActivity(ctx, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := roomIDs(all); !slices.Equal(got, []id.RoomID{carol, alice, bob}) {
+		t.Fatalf("ranking = %v, want carol (created last), alice, bob", got)
+	}
+	if all[0].LastMessage != nil {
+		t.Errorf("a room without message has the latest message %v", all[0].LastMessage)
+	}
+	if all[1].LastMessage == nil || all[1].LastMessage.ID != last || all[1].LastMessage.Content.AsMessage().Body != "a2" {
+		t.Errorf("latest message of alice = %v, want a2", all[1].LastMessage)
+	}
+	if want := base.Add(2 * time.Minute).UnixMilli(); all[1].At != want {
+		t.Errorf("activity of alice = %d, want %d", all[1].At, want)
+	}
+
+	// Pages: the cursor of a room continues after it.
+	first, err := server.RoomsByActivity(ctx, nil, 2)
+	if err != nil || len(first) != 2 {
+		t.Fatalf("first page = %d rooms (%v), want 2", len(first), err)
+	}
+	cursor := first[1].Cursor()
+	rest, err := server.RoomsByActivity(ctx, &cursor, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := roomIDs(rest); !slices.Equal(got, []id.RoomID{bob}) {
+		t.Errorf("second page = %v, want bob", got)
+	}
+
+	// A new message moves its room first.
+	send(bob, "bob", "b2", time.Now())
+	all, err = server.RoomsByActivity(ctx, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := roomIDs(all); !slices.Equal(got, []id.RoomID{bob, carol, alice}) {
+		t.Errorf("ranking after a message = %v, want bob, carol, alice", got)
+	}
+	one, err := server.RoomActivity(ctx, bob)
+	if err != nil || one.LastMessage == nil || one.LastMessage.Content.AsMessage().Body != "b2" || one.At != all[0].At {
+		t.Errorf("RoomActivity(bob) = %+v (%v), want b2 at %d", one, err, all[0].At)
+	}
+	if _, err = server.RoomActivity(ctx, "!nope:musubee.local"); !errors.Is(err, localmatrix.ErrNotFound) {
+		t.Errorf("RoomActivity of an unknown room: %v, want ErrNotFound", err)
+	}
+}
+
+func roomIDs(rooms []*localmatrix.RoomActivity) []id.RoomID {
+	ids := make([]id.RoomID, 0, len(rooms))
+	for _, ra := range rooms {
+		ids = append(ids, ra.Room.ID)
+	}
+	return ids
 }
