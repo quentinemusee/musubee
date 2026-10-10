@@ -15,6 +15,7 @@ apps/mobile/
       MainActivity.kt             registers the plugin
       core/CoreLibrary.kt         Kotlin side of the JNI binding (core/ffi/jni_android.go)
       core/CoreService.kt         foreground service (type specialUse) that owns the core
+      core/CoreKey.kt             the core's master key, wrapped by the Android Keystore (ADR 0019)
       core/MusubeeCorePlugin.kt   Capacitor plugin "MusubeeCore": call({request}), "event" listener
     app/src/androidTest/          instrumented tests (core, service, measurements, soak)
     measure-core.sh               measurement runs of ADR 0011
@@ -85,6 +86,7 @@ Without them it is skipped (`musubeeTgRequire=1` makes it fail instead, as in CI
 - Never log message content: no `console` output in the web page (Capacitor forwards it to logcat), no message text in `Log` calls.
 - The service starts from the activity: Android only allows starting a foreground service from the foreground.
 - App data is excluded from backups (`allowBackup=false`, `data_extraction_rules.xml`).
+- The core's master key (ADR 0019) lives in `noBackupFilesDir/core-key`, wrapped by the Android Keystore key `app.musubee.core.key-wrap`; `CoreService` gives it to the core as `database_key`. Never log the core's configuration: it holds the key. Uninstalling the app removes both the key and the database; losing only the Keystore key makes the core refuse to open ("written with another key").
 
 ## Points of attention
 

@@ -261,3 +261,11 @@ Verified in T2.2 (Windows, Go 1.27.1; the Synapse journey on CI only, Docker Des
 matrix unit:        go test -tags=goolm -count=1 ./core/connector/matrix/
 matrix journey:     go test -tags=goolm,integration -count=1 -v ./infra/matrixtest/     (needs Docker; starts its own Synapse)
 ```
+
+Verified in T2.3 (Windows with DPAPI, Go 1.27.1; Android emulator API 30, JDK 21; the Matrix and Telegram journeys check the database files on CI; see ADR 0019):
+
+```
+secrets:            go test -tags=goolm -count=1 ./core/secrets/ ./core/storage/sqlite/     (-tags=goolm,musubee_cgo_sqlite: the Android driver)
+sealed sessions:    go test -tags=goolm -count=1 -run 'Sealed|KeyFile|Plain' -v ./core/embedded/
+android key:        ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.musubee.core.CoreKeyTest
+```
