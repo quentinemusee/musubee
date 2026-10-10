@@ -79,6 +79,8 @@ Goal: prove that the Go core can run **on the device**. Each spike ends with an 
 - Deliverable: core (or lighter crypto) built for iOS arm64 (evaluate `gomobile bind` to an xcframework), integrated into a test NSE; measurement of real memory on an iPhone (tools: `debugging-instruments`, `ios-memgraph-analysis`).
 - Acceptance: a "feature → peak memory" table; written decision: full Go / lighter crypto / hosted mode only for iOS.
 - 🧪 Test: the measured threshold becomes a regression test.
+- Part 1 done (2026-10-10, ADR 0015, proposed): the core and goolm build for iOS as an XCFramework (`apps/mobile/ios-probe/build-go-xcframework.sh`); a test app with a notification extension; the `ios-memory` CI job measures the probe on the simulator for both SQLite drivers. `simctl push` does not run extensions, so the simulator figures come from bare processes. Outcome so far: on the simulator, the Go runtime with goolm costs about 4 MiB over an empty process, linking the whole core another 7 MiB, the work about 4 MiB; the extension will link only what it needs, and iOS will use `mattn/go-sqlite3`. The CI fails if the simulator's peak goes over a budget (30 MiB with mattn).
+- Part 2 (needs the maintainer: a Mac or signing secrets for the macOS CI, a paid Apple Developer account, the test user's iPhone): run the test app on the device (`apps/mobile/ios-probe/README.md`), read the extension's real limit, decide full Go / lighter crypto / hosted mode only, and add the device's threshold to the regression test.
 
 **T1.8 — Go / no-go decision**
 - Deliverable: a summary ADR in `docs/ADR/`: what is feasible on each platform, what is postponed, fallback plan (hosted-bridge mode).

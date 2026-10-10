@@ -27,6 +27,8 @@ apps/mobile/ios-probe/run-simulator.sh <simulator udid> /tmp/ios-memory
 
 A fifth argument to `build-go-xcframework.sh`, and a third to `run-simulator.sh`, set Go build tags: `musubee_cgo_sqlite` selects the cgo SQLite driver instead of the pure-Go one. The CI job `ios-memory` (`.github/workflows/checks.yml`) runs both and publishes the tables in the run summary. `MUSUBEE_PROBE_REPETITIONS` sets how many times each bare-process configuration runs (3).
 
+The job then runs `python3 reports.py check OUTPUT_DIR "core + crypto" BUDGET_MIB`, which fails when the median peak of the bare processes running the core and goolm is over the budget set in the workflow's matrix: the regression test of T1.7 on the simulator (ADR 0015).
+
 The simulator enforces **no** memory limit: its figures say what the code costs, not whether it fits. `limit_remaining_bytes` reads 0 there.
 
 `xcrun simctl push` delivers the notification **without running the extension** on the simulators tried (Xcode on GitHub's macOS runners, October 2026): the system log shows SpringBoard adding the notification and no extension process. That is why the bare processes stand in for it. The script still tries once and records the outcome in `report.md`.
