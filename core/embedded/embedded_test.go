@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -388,6 +389,35 @@ func TestConversationEvents(t *testing.T) {
 	}
 	if !names["Instant Echo"] || !names["Delayed Echo"] || !names["Unreachable Contact"] {
 		t.Errorf("conversation events for %v", names)
+	}
+}
+
+// Closing the core right after a login: the login's connection, which
+// starts in the background, is over once Close returns. Before, it could still
+// use the login's bridge state (a data race with Close) and the database,
+// whose file Windows then refused to delete.
+func TestCloseRightAfterLogin(t *testing.T) {
+	for i := range 10 {
+		dir, err := os.MkdirTemp("", "musubee-close-")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.RemoveAll(dir) })
+		cfg, _ := json.Marshal(Config{DataDir: dir})
+		c, err := Open(cfg)
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		step := call[api.LoginStep](t, c, api.CommandLoginStart, api.LoginStartParams{NetworkID: "echo", FlowID: "username"})
+		call[api.LoginStep](t, c, api.CommandLoginSubmit, api.LoginSubmitParams{
+			ProcessID: step.ProcessID, Values: map[string]string{step.Fields[0].FieldID: "closer"},
+		})
+		if err := c.Close(); err != nil {
+			t.Fatalf("run %d: Close: %v", i, err)
+		}
+		if err := os.RemoveAll(dir); err != nil {
+			t.Fatalf("run %d: the data directory is still in use after Close: %v", i, err)
+		}
 	}
 }
 

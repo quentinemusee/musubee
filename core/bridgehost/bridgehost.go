@@ -8,7 +8,7 @@ package bridgehost
 
 import (
 	"context"
-	"errors"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -178,5 +178,31 @@ func (h *Host) Stop() error {
 			}
 		}
 	}
-	return errors.Join(h.DB.Close())
+	err := h.DB.Close()
+	// database/sql's Close does not wait for the connections in use: the
+	// handlers that bridgev2 leaves running after Bridge.Stop (mautrix/go#602)
+	// may still hold one, or be opening one, and with it the database file,
+	// which Windows then refuses to delete or reopen. Wait, a bounded time,
+	// until they are all released; their next queries fail once the
+	// database is closed.
+	if !waitForConnections(h.DB.RawDB, closeWait) {
+		h.log.Warn().Dur("waited", closeWait).Msg("Database connections still open after closing it")
+	}
+	return err
+}
+
+// closeWait bounds how long Stop waits for the database's connections.
+const closeWait = 5 * time.Second
+
+// waitForConnections waits until db, closed, has no open connection left,
+// at most timeout. It reports whether none is left.
+func waitForConnections(db *sql.DB, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for db.Stats().OpenConnections > 0 {
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return true
 }

@@ -17,6 +17,7 @@ package echo
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"go.mau.fi/util/configupgrade"
@@ -67,9 +68,18 @@ type Config struct {
 type Connector struct {
 	Config Config
 	br     *bridgev2.Bridge
+
+	// connecting tracks the connections started in the background after a
+	// login, so that Stop returns only once they are done: until then, they
+	// use the login's bridge state and the database.
+	connectLock sync.Mutex
+	connecting  sync.WaitGroup
 }
 
-var _ bridgev2.NetworkConnector = (*Connector)(nil)
+var (
+	_ bridgev2.NetworkConnector = (*Connector)(nil)
+	_ bridgev2.StoppableNetwork = (*Connector)(nil)
+)
 
 // New returns a connector for the fake network.
 func New(cfg Config) *Connector {
@@ -82,6 +92,31 @@ func New(cfg Config) *Connector {
 // Init is called by bridgev2.NewBridge.
 func (c *Connector) Init(br *bridgev2.Bridge) {
 	c.br = br
+}
+
+// Stop waits for the connections started in the background. bridgev2
+// calls it once the logins are disconnected, before the database is closed.
+func (c *Connector) Stop() {
+	// The bridge is already stopping: connectLater starts nothing once it
+	// gets the lock, and the connections do not take it.
+	c.connectLock.Lock()
+	defer c.connectLock.Unlock()
+	c.connecting.Wait()
+}
+
+// connectLater connects a new login in the background, unless the bridge is
+// stopping.
+func (c *Connector) connectLater(login *bridgev2.UserLogin) {
+	c.connectLock.Lock()
+	defer c.connectLock.Unlock()
+	if c.br.IsStopping() {
+		return
+	}
+	c.connecting.Add(1)
+	go func() {
+		defer c.connecting.Done()
+		login.Client.Connect(login.Log.WithContext(c.br.BackgroundCtx))
+	}()
 }
 
 // Start does nothing: there is no network to connect to.
