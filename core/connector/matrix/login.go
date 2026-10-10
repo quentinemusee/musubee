@@ -80,7 +80,7 @@ func (lp *passwordLogin) Start(context.Context) (*bridgev2.LoginStep, error) {
 func (lp *passwordLogin) Cancel() {}
 
 func (lp *passwordLogin) SubmitUserInput(ctx context.Context, input map[string]string) (*bridgev2.LoginStep, error) {
-	base, err := discover(ctx, input[fieldServer])
+	base, typed, err := discover(ctx, input[fieldServer])
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,10 @@ func (lp *passwordLogin) SubmitUserInput(ctx context.Context, input map[string]s
 	} else if err != nil {
 		return nil, fmt.Errorf("signing in: %w", err)
 	}
-	if resp.WellKnown != nil && resp.WellKnown.Homeserver.BaseURL != "" {
+	// The server may announce its address in the response (the spec says
+	// clients should use it); a URL the user typed wins, since it is the one
+	// that was just shown to work.
+	if !typed && resp.WellKnown != nil && resp.WellKnown.Homeserver.BaseURL != "" {
 		base = resp.WellKnown.Homeserver.BaseURL
 	}
 	displayName := ""
@@ -141,20 +144,20 @@ func (lp *passwordLogin) SubmitUserInput(ctx context.Context, input map[string]s
 	}, nil
 }
 
-// discover returns the base URL of a homeserver: the URL typed by the user,
-// or for a server name, the one its .well-known file announces, or else
-// https:// and the name.
-func discover(ctx context.Context, server string) (string, error) {
+// discover returns the base URL of a homeserver: the URL typed by the user
+// (typed is then true), or for a server name, the one its .well-known file
+// announces, or else https:// and the name.
+func discover(ctx context.Context, server string) (base string, typed bool, err error) {
 	u, err := homeserverURL(server)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	if strings.Contains(strings.TrimSpace(server), "://") {
-		return u.String(), nil
+		return u.String(), true, nil
 	}
 	wellKnown, err := mautrix.DiscoverClientAPI(ctx, u.Host)
 	if err == nil && wellKnown != nil && wellKnown.Homeserver.BaseURL != "" {
-		return wellKnown.Homeserver.BaseURL, nil
+		return wellKnown.Homeserver.BaseURL, false, nil
 	}
-	return defaultBaseURL + u.Host, nil
+	return defaultBaseURL + u.Host, false, nil
 }
