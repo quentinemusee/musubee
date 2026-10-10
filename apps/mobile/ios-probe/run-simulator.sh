@@ -56,9 +56,20 @@ wait_reports() {
 		fi
 		sleep 2
 	done
-	echo "no report $count from $source within 180 s; log so far:" >&2
-	cat "$output/log.ndjson" >&2
+	echo "no report $count from $source within 180 s" >&2
+	diagnose >&2
 	return 1
+}
+
+# diagnose prints what the system logged about the extension and the
+# notification, and the extension's crash reports, if any.
+diagnose() {
+	echo "== system log about the extension and the push"
+	xcrun simctl spawn "$udid" log show --start "$start" --style compact --info --debug \
+		--predicate "process == \"$nse_process\" OR eventMessage CONTAINS[c] \"memoryprobe\" OR eventMessage CONTAINS[c] \"service extension\"" \
+		2>&1 | tail -150 || true
+	echo "== crash reports"
+	find "$HOME/Library/Logs/DiagnosticReports" -iname "*MemoryProbe*" -newer "$output/push.json" -print -exec head -60 {} \; 2>/dev/null || true
 }
 
 # The app asks for provisional notification authorization, then runs the
