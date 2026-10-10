@@ -45,7 +45,7 @@ async function launch(dataDir: string): Promise<Running> {
     env: { ...process.env, MUSUBEE_USER_DATA_DIR: dataDir, MUSUBEE_E2E: "1" },
   });
   const page = await app.firstWindow();
-  await expect(page.getByRole("status")).toHaveText(/Ready|Loading/);
+  await expect(page.getByRole("status", { name: "App status" })).toHaveText(/Ready|Loading/);
   return { app, page };
 }
 
@@ -205,7 +205,7 @@ test("the app starts the core again when it stops unexpectedly", async () => {
   const pid = await corePid(app);
   process.kill(pid!);
   await expect.poll(async () => (await corePid(app)) ?? pid).not.toBe(pid);
-  await expect(page.getByRole("status")).toHaveText("Ready");
+  await expect(page.getByRole("status", { name: "App status" })).toHaveText("Ready");
   expect(await page.evaluate(() => (window as unknown as { statuses: string[] }).statuses)).toEqual(["ready", "restarting", "ready"]);
 
   // The interface read its state again, and works with the new core.
@@ -312,7 +312,7 @@ test("measure the start-up of the core and the cost of a call through the app", 
   const dataDir = newDataDir();
   for (let i = 0; i < 4; i++) {
     const run = await launch(dataDir);
-    await expect(run.page.getByRole("status")).toHaveText(/Ready/);
+    await expect(run.page.getByRole("status", { name: "App status" })).toHaveText(/Ready/);
     startups.push(...(await run.app.evaluate(() => (globalThis as unknown as { musubeeE2E: { startupTimesMs(): number[] } }).musubeeE2E.startupTimesMs())));
     await run.app.close();
   }

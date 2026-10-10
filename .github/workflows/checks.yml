@@ -315,6 +315,20 @@ jobs:
             npm run test:e2e
           fi
 
+      # The thread list's performance regression test (docs/ADR/0020): the
+      # app's list (MessageList) in Electron, 5000 messages, the CPU
+      # throttled 4 times; limits in ui/bench/run.mjs (CHECKS).
+      - name: Thread list performance check
+        working-directory: ui
+        shell: bash
+        run: |
+          npm run bench:build
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run --auto-servernum npm run bench:check
+          else
+            npm run bench:check
+          fi
+
       # Measurements, and traces of failed tests.
       - name: Upload the end-to-end test results
         if: always()

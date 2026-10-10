@@ -139,6 +139,8 @@ in ui/package-lock.json):
 - React 19.3.0 and React DOM 19.3.0 (with their dependency scheduler
   0.28.0), https://react.dev. Copyright (c) Meta Platforms, Inc. and
   affiliates. MIT.
+- virtua 0.53.3, https://github.com/inokawa/virtua, the virtualized
+  thread list (docs/ADR/0020). Copyright (c) 2022 inokawa. MIT.
 
 Desktop app (apps/desktop; exact versions in apps/desktop/package-lock.json;
 installers come with E3.2):
@@ -218,6 +220,10 @@ Development tools (used to build or check the project, NOT distributed)
   @types/react-dom and @types/node (MIT), and their npm dependencies (MIT,
   Apache-2.0, MPL-2.0 for lightningcss, BSD-3-Clause, ISC). Exact versions:
   ui/package-lock.json.
+- Thread list benchmark (ui/bench, development only, docs/ADR/0020): the
+  lists it compares, react-virtuoso 4.18.16 (MIT) and
+  @tanstack/react-virtual 3.14.14 with @tanstack/virtual-core 3.18.0 (MIT),
+  and its driver, playwright-core 1.64.0 (Apache-2.0).
 - Desktop app tests (apps/desktop, development only): Playwright 1.64.0
   (@playwright/test, Apache-2.0), Vitest 5.0.3 (MIT), TypeScript 7.0.2
   (Apache-2.0). Exact versions: apps/desktop/package-lock.json.
