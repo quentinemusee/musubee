@@ -74,6 +74,21 @@
       "message_id": "m3", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1791496801000, "kind": "text", "text": "Hello 👋", "status": "sending"
     } } },
 
+    { "target": "command:persons.list:params", "value": {} },
+    { "target": "command:persons.list:result", "value": { "persons": [ { "person_id": "h1", "name": "Alice", "conversation_ids": ["c1", "c4"] } ] } },
+    { "target": "command:persons.list:result", "value": { "persons": [] } },
+    { "target": "command:persons.create:params", "value": { "conversation_ids": ["c1", "c4"] } },
+    { "target": "command:persons.create:params", "value": { "name": "Alice", "conversation_ids": ["c1"] } },
+    { "target": "command:persons.create:result", "value": { "person": { "person_id": "h1", "name": "Alice", "conversation_ids": ["c1", "c4"] } } },
+    { "target": "command:persons.rename:params", "value": { "person_id": "h1", "name": "Alice Martin" } },
+    { "target": "command:persons.rename:result", "value": { "person": { "person_id": "h1", "name": "Alice Martin", "conversation_ids": [] } } },
+    { "target": "command:persons.link:params", "value": { "person_id": "h1", "conversation_id": "c4" } },
+    { "target": "command:persons.link:result", "value": { "person": { "person_id": "h1", "name": "Alice", "conversation_ids": ["c1", "c4"] } } },
+    { "target": "command:persons.unlink:params", "value": { "conversation_id": "c4" } },
+    { "target": "command:persons.unlink:result", "value": {} },
+    { "target": "command:persons.delete:params", "value": { "person_id": "h1" } },
+    { "target": "command:persons.delete:result", "value": {} },
+
     { "target": "command:debug.ping:params", "value": { "payload": "x" } },
     { "target": "command:debug.ping:result", "value": { "payload": "x" } },
     { "target": "command:debug.stats:params", "value": {} },
@@ -87,6 +102,9 @@
     { "target": "event:message.updated", "value": { "message": {
       "message_id": "m3", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1791496801000, "kind": "text", "text": "Hello 👋", "status": "failed", "error": "The contact refused the message"
     } } },
+    { "target": "event:conversation.updated", "value": { "conversation": { "conversation_id": "c4", "account_id": "a2", "network_id": "telegram", "name": "Alice", "kind": "direct", "person_id": "h1" } } },
+    { "target": "event:person.updated", "value": { "person": { "person_id": "h1", "name": "Alice", "conversation_ids": ["c1", "c4"] } } },
+    { "target": "event:person.deleted", "value": { "person_id": "h1" } },
     { "target": "event:resync.required", "value": {} },
     { "target": "event:core.closed", "value": {} }
   ],
@@ -119,6 +137,10 @@
     } } },
     { "target": "event:message.added", "why": "timestamps are integers", "value": { "message": {
       "message_id": "m3", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1.5, "kind": "text", "text": "x", "status": "sent"
-    } } }
+    } } },
+    { "target": "command:persons.create:params", "why": "at least one conversation", "value": { "conversation_ids": [] } },
+    { "target": "command:persons.create:params", "why": "a given name is not empty", "value": { "name": "", "conversation_ids": ["c1"] } },
+    { "target": "command:persons.rename:params", "why": "name is required", "value": { "person_id": "h1" } },
+    { "target": "command:persons.list:result", "why": "conversation_ids is required", "value": { "persons": [ { "person_id": "h1", "name": "Alice" } ] } }
   ]
 }

@@ -9,7 +9,7 @@
 // immutable snapshot, replaced on every change.
 
 import { CoreClient, parseEvent } from "./core-api/client";
-import type { Account, Conversation, Event, Message, Network } from "./core-api/types.gen";
+import type { Account, Conversation, Event, Message, Network, Person } from "./core-api/types.gen";
 import type { CoreStatus, ShellCore } from "./shell";
 
 export interface State {
@@ -23,6 +23,8 @@ export interface State {
   accounts: readonly Account[];
   /** Sorted by name. */
   conversations: readonly Conversation[];
+  /** The persons the user merged conversations into, oldest first. */
+  persons: readonly Person[];
   /** Messages read or received so far, by conversation ID, oldest first. */
   messages: Readonly<Record<string, readonly Message[]>>;
   selected?: string;
@@ -34,6 +36,7 @@ const initialState: State = {
   networks: [],
   accounts: [],
   conversations: [],
+  persons: [],
   messages: {},
 };
 
@@ -80,10 +83,11 @@ export class Store {
     const generation = ++this.#generation;
     try {
       const hello = await this.client.hello();
-      const [networks, accounts, conversations] = await Promise.all([
+      const [networks, accounts, conversations, persons] = await Promise.all([
         this.client.call("networks.list"),
         this.client.call("accounts.list"),
         this.client.call("conversations.list"),
+        this.client.call("persons.list"),
       ]);
       const selected = this.#state.selected;
       const keep = selected !== undefined && conversations.conversations.some((c) => c.conversation_id === selected);
@@ -99,6 +103,7 @@ export class Store {
         networks: networks.networks,
         accounts: accounts.accounts,
         conversations: sortConversations(conversations.conversations),
+        persons: persons.persons,
         // Only the shown conversation is read again; the others will be when
         // shown. Messages received while reading are kept.
         messages: keep && latest ? { [selected]: mergeMessages(this.#state.messages[selected] ?? [], latest.messages) } : {},
@@ -140,7 +145,11 @@ export class Store {
     }
   }
 
-  /** Logs an account out: the core removes it, with its conversations. */
+  /**
+   * Logs an account out: the core removes it, with its conversations. The
+   * persons are read again too: those left without a conversation here are
+   * no longer listed.
+   */
   async logout(accountId: string): Promise<void> {
     try {
       await this.client.call("accounts.logout", { account_id: accountId });
@@ -179,6 +188,14 @@ export class Store {
           conversations: sortConversations(upsert(this.#state.conversations, event.data.conversation, (c) => c.conversation_id)),
         });
         break;
+      case "person.updated":
+        this.#set({ persons: upsert(this.#state.persons, event.data.person, (p) => p.person_id) });
+        break;
+      case "person.deleted": {
+        const { person_id } = event.data;
+        this.#set({ persons: this.#state.persons.filter((p) => p.person_id !== person_id) });
+        break;
+      }
       case "message.added":
       case "message.updated":
         this.#upsertMessage(event.data.message);

@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.1"
+const APIVersion = "1.2"
 
 // Command names.
 const (
@@ -43,6 +43,24 @@ const (
 	// Sends a text message. The message is stored at once with status sending;
 	// its delivery is reported later by message.updated events.
 	CommandMessagesSend = "messages.send"
+	// Lists the persons the user merged conversations into, with their
+	// conversations on this device. A person whose conversations are all absent
+	// from this device (an account not added here) is not listed. Since API 1.2.
+	CommandPersonsList = "persons.list"
+	// Creates a person from one or more direct conversations, taken from the
+	// persons they belonged to. A person left without conversations is deleted
+	// (person.deleted). Since API 1.2.
+	CommandPersonsCreate = "persons.create"
+	// Renames a person. Since API 1.2.
+	CommandPersonsRename = "persons.rename"
+	// Links a direct conversation to a person, taking it from the person it
+	// belonged to. Since API 1.2.
+	CommandPersonsLink = "persons.link"
+	// Unlinks a conversation from its person, if it has one. A person left
+	// without conversations is deleted. Since API 1.2.
+	CommandPersonsUnlink = "persons.unlink"
+	// Deletes a person. Their conversations stay, unlinked. Since API 1.2.
+	CommandPersonsDelete = "persons.delete"
 	// Returns its payload unchanged. Used to measure the cost of a call.
 	CommandDebugPing = "debug.ping"
 	// Returns the memory of the Go runtime after a garbage collection, for leak
@@ -60,8 +78,15 @@ const (
 	EventMessageAdded = "message.added"
 	// A stored message changed, for example its delivery status.
 	EventMessageUpdated = "message.updated"
+	// A person was created, renamed, or their conversations changed. The
+	// conversations whose person changed are sent again in conversation.updated
+	// events. Since API 1.2.
+	EventPersonUpdated = "person.updated"
+	// A person was deleted, lost their last conversation, or has none left on
+	// this device. Since API 1.2.
+	EventPersonDeleted = "person.deleted"
 	// The user interface read events too slowly and some were dropped: it must
-	// read the state again (accounts, conversations, messages).
+	// read the state again (accounts, conversations, persons, messages).
 	EventResyncRequired = "resync.required"
 	// The core was closed. It is the last event.
 	EventCoreClosed = "core.closed"
@@ -80,6 +105,12 @@ var Commands = []CommandSpec{
 	{Name: CommandConversationsList, Params: reflect.TypeFor[ConversationsListParams](), Result: reflect.TypeFor[ConversationsListResult]()},
 	{Name: CommandMessagesList, Params: reflect.TypeFor[MessagesListParams](), Result: reflect.TypeFor[MessagesListResult]()},
 	{Name: CommandMessagesSend, Params: reflect.TypeFor[MessagesSendParams](), Result: reflect.TypeFor[MessagesSendResult]()},
+	{Name: CommandPersonsList, Params: reflect.TypeFor[Empty](), Result: reflect.TypeFor[PersonsListResult]()},
+	{Name: CommandPersonsCreate, Params: reflect.TypeFor[PersonsCreateParams](), Result: reflect.TypeFor[PersonResult]()},
+	{Name: CommandPersonsRename, Params: reflect.TypeFor[PersonsRenameParams](), Result: reflect.TypeFor[PersonResult]()},
+	{Name: CommandPersonsLink, Params: reflect.TypeFor[PersonsLinkParams](), Result: reflect.TypeFor[PersonResult]()},
+	{Name: CommandPersonsUnlink, Params: reflect.TypeFor[PersonsUnlinkParams](), Result: reflect.TypeFor[Empty]()},
+	{Name: CommandPersonsDelete, Params: reflect.TypeFor[PersonsDeleteParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandDebugPing, Params: reflect.TypeFor[PingPayload](), Result: reflect.TypeFor[PingPayload]()},
 	{Name: CommandDebugStats, Params: reflect.TypeFor[Empty](), Result: reflect.TypeFor[StatsResult]()},
 }
@@ -90,6 +121,8 @@ var Events = []EventSpec{
 	{Type: EventConversationUpdated, Data: reflect.TypeFor[ConversationEvent]()},
 	{Type: EventMessageAdded, Data: reflect.TypeFor[MessageEvent]()},
 	{Type: EventMessageUpdated, Data: reflect.TypeFor[MessageEvent]()},
+	{Type: EventPersonUpdated, Data: reflect.TypeFor[PersonEvent]()},
+	{Type: EventPersonDeleted, Data: reflect.TypeFor[PersonDeletedEvent]()},
 	{Type: EventResyncRequired, Data: reflect.TypeFor[Empty]()},
 	{Type: EventCoreClosed, Data: reflect.TypeFor[Empty]()},
 }
@@ -303,6 +336,8 @@ type Conversation struct {
 	NetworkID      string           `json:"network_id"`
 	Name           string           `json:"name"`
 	Kind           ConversationKind `json:"kind"`
+	// The person this conversation is linked to, if any. Since API 1.2.
+	PersonID string `json:"person_id,omitempty"`
 }
 
 // ConversationKind is $defs/ConversationKind of the schema.
@@ -403,6 +438,69 @@ type MessagesSendResult struct {
 // MessageEvent is $defs/MessageEvent of the schema.
 type MessageEvent struct {
 	Message Message `json:"message"`
+}
+
+// Person: A person of the user's, and the conversations with them that the
+// user merged. Since API 1.2.
+type Person struct {
+	// Opaque: user interfaces must not parse it.
+	PersonID string `json:"person_id"`
+	Name     string `json:"name"`
+	// The person's conversations on this device, in the order they were linked.
+	ConversationIds []string `json:"conversation_ids"`
+}
+
+// PersonsListResult is $defs/PersonsListResult of the schema.
+type PersonsListResult struct {
+	Persons []Person `json:"persons"`
+}
+
+// PersonsCreateParams is $defs/PersonsCreateParams of the schema.
+type PersonsCreateParams struct {
+	// Not blank, at most 256 bytes in UTF-8. The name of the first conversation
+	// if absent.
+	Name string `json:"name,omitempty"`
+	// Direct conversations only.
+	ConversationIds []string `json:"conversation_ids"`
+}
+
+// PersonsRenameParams is $defs/PersonsRenameParams of the schema.
+type PersonsRenameParams struct {
+	PersonID string `json:"person_id"`
+	// Not blank, at most 256 bytes in UTF-8.
+	Name string `json:"name"`
+}
+
+// PersonsLinkParams is $defs/PersonsLinkParams of the schema.
+type PersonsLinkParams struct {
+	PersonID string `json:"person_id"`
+	// A direct conversation.
+	ConversationID string `json:"conversation_id"`
+}
+
+// PersonsUnlinkParams is $defs/PersonsUnlinkParams of the schema.
+type PersonsUnlinkParams struct {
+	ConversationID string `json:"conversation_id"`
+}
+
+// PersonsDeleteParams is $defs/PersonsDeleteParams of the schema.
+type PersonsDeleteParams struct {
+	PersonID string `json:"person_id"`
+}
+
+// PersonResult is $defs/PersonResult of the schema.
+type PersonResult struct {
+	Person Person `json:"person"`
+}
+
+// PersonEvent is $defs/PersonEvent of the schema.
+type PersonEvent struct {
+	Person Person `json:"person"`
+}
+
+// PersonDeletedEvent is $defs/PersonDeletedEvent of the schema.
+type PersonDeletedEvent struct {
+	PersonID string `json:"person_id"`
 }
 
 // PingPayload is $defs/PingPayload of the schema.

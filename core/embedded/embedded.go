@@ -29,6 +29,7 @@ import (
 	"github.com/quentinemusee/musubee/core/connector/echo"
 	"github.com/quentinemusee/musubee/core/connector/telegram"
 	"github.com/quentinemusee/musubee/core/localmatrix"
+	"github.com/quentinemusee/musubee/core/persons"
 )
 
 // Version is the version of the core build, reported by core.hello. Release
@@ -81,11 +82,19 @@ type Core struct {
 	loginsMu sync.Mutex
 	logins   map[string]*loginProcess
 
-	events      chan []byte
-	unsubscribe func()
-	forwarding  sync.WaitGroup
-	closeOnce   sync.Once
-	closeErr    error
+	persons *persons.Store
+	// personsMu orders the persons commands, and so their events.
+	personsMu sync.Mutex
+
+	events chan []byte
+	// eventsMu guards eventsClosed: commands may push events while Close
+	// closes the queue.
+	eventsMu     sync.RWMutex
+	eventsClosed bool
+	unsubscribe  func()
+	forwarding   sync.WaitGroup
+	closeOnce    sync.Once
+	closeErr     error
 }
 
 // Open starts a core from a JSON Config.
@@ -136,6 +145,10 @@ func (c *Core) start(cfg Config) error {
 		return err
 	}
 	c.host = host
+	c.persons = persons.New(host.DB)
+	if err = c.persons.Upgrade(c.ctx); err != nil {
+		return err
+	}
 	network := echo.New(echo.Config{EchoDelay: time.Duration(cfg.EchoDelayMS) * time.Millisecond})
 	if _, err = host.AddNetwork(echoBridge, network); err != nil {
 		return err
@@ -167,7 +180,10 @@ func (c *Core) Close() error {
 		c.closeErr = c.host.Stop()
 		c.unsubscribe()
 		c.forwarding.Wait()
+		c.eventsMu.Lock()
+		c.eventsClosed = true
 		close(c.events)
+		c.eventsMu.Unlock()
 		if err := c.logs.close(); c.closeErr == nil {
 			c.closeErr = err
 		}
@@ -271,7 +287,7 @@ func (c *Core) announceConversation(roomID id.RoomID) {
 			room, err := c.host.Matrix.Room(c.ctx, roomID)
 			var conv *api.Conversation
 			if err == nil {
-				conv, err = c.conversation(c.ctx, room)
+				conv, err = c.conversation(c.ctx, room, nil)
 			}
 			if err != nil {
 				if c.ctx.Err() == nil {
@@ -339,6 +355,11 @@ func mustJSON(v any) []byte {
 // push queues an event without ever blocking the core: when the queue is
 // full, the oldest event is dropped and resync.required is queued instead.
 func (c *Core) push(data []byte) {
+	c.eventsMu.RLock()
+	defer c.eventsMu.RUnlock()
+	if c.eventsClosed {
+		return
+	}
 	for {
 		select {
 		case c.events <- data:
@@ -421,6 +442,18 @@ func (c *Core) dispatch(ctx context.Context, command string, params json.RawMess
 		return handle(ctx, params, c.messagesList)
 	case api.CommandMessagesSend:
 		return handle(ctx, params, c.messagesSend)
+	case api.CommandPersonsList:
+		return handle(ctx, params, c.personsList)
+	case api.CommandPersonsCreate:
+		return handle(ctx, params, c.personsCreate)
+	case api.CommandPersonsRename:
+		return handle(ctx, params, c.personsRename)
+	case api.CommandPersonsLink:
+		return handle(ctx, params, c.personsLink)
+	case api.CommandPersonsUnlink:
+		return handle(ctx, params, c.personsUnlink)
+	case api.CommandPersonsDelete:
+		return handle(ctx, params, c.personsDelete)
 	case api.CommandDebugPing:
 		return handle(ctx, params, c.ping)
 	case api.CommandDebugStats:
@@ -458,7 +491,7 @@ func (c *Core) coreError(err error) *api.CoreError {
 		return coreErr
 	case errors.Is(err, context.DeadlineExceeded):
 		return newError(api.ErrorCodeTimeout, "%v", err)
-	case errors.Is(err, localmatrix.ErrNotFound):
+	case errors.Is(err, localmatrix.ErrNotFound), errors.Is(err, persons.ErrNotFound):
 		return newError(api.ErrorCodeNotFound, "%v", err)
 	default:
 		return newError(api.ErrorCodeInternal, "%v", err)

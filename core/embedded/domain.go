@@ -18,6 +18,7 @@ import (
 
 	"github.com/quentinemusee/musubee/core/api"
 	"github.com/quentinemusee/musubee/core/localmatrix"
+	"github.com/quentinemusee/musubee/core/persons"
 )
 
 // This file translates the bridges and the local Matrix storage into the
@@ -123,8 +124,12 @@ func (c *Core) conversationsList(ctx context.Context, p api.ConversationsListPar
 	if err != nil {
 		return result, err
 	}
+	owners, err := c.persons.Owners(ctx)
+	if err != nil {
+		return result, err
+	}
 	for _, room := range rooms {
-		conv, err := c.conversation(ctx, room)
+		conv, err := c.conversation(ctx, room, owners)
 		if err != nil {
 			return result, err
 		}
@@ -137,8 +142,9 @@ func (c *Core) conversationsList(ctx context.Context, p api.ConversationsListPar
 
 // conversation returns the conversation of a room, or nil while the room is
 // not complete yet: bridgev2 names the room and records it as a portal a
-// moment after creating it.
-func (c *Core) conversation(ctx context.Context, room *localmatrix.Room) (*api.Conversation, error) {
+// moment after creating it. owners maps the linked conversations to their
+// persons (persons.Store.Owners); if nil, the person is read from the store.
+func (c *Core) conversation(ctx context.Context, room *localmatrix.Room, owners map[persons.Key]string) (*api.Conversation, error) {
 	br := c.host.Bridge(networkid.BridgeID(room.BridgeID))
 	if br == nil {
 		return nil, nil
@@ -164,12 +170,20 @@ func (c *Core) conversation(ctx context.Context, room *localmatrix.Room) (*api.C
 	if portal.RoomType == database.RoomTypeDM {
 		kind = api.ConversationKindDirect
 	}
+	key := portalKey(br, portal)
+	personID := owners[key]
+	if owners == nil {
+		if personID, err = c.persons.Owner(ctx, key); err != nil {
+			return nil, err
+		}
+	}
 	return &api.Conversation{
 		ConversationID: conversationID(room.ID),
 		AccountID:      accountID(br.ID, receiver),
 		NetworkID:      string(br.ID),
 		Name:           name.Content.AsRoomName().Name,
 		Kind:           kind,
+		PersonID:       personID,
 	}, nil
 }
 

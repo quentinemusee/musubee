@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.1",
+  "x-musubee-api-version": "1.2",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -178,6 +178,66 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "persons.list": {
+          "description": "Lists the persons the user merged conversations into, with their conversations on this device. A person whose conversations are all absent from this device (an account not added here) is not listed. Since API 1.2.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/Empty" },
+            "result": { "$ref": "#/$defs/PersonsListResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "persons.create": {
+          "description": "Creates a person from one or more direct conversations, taken from the persons they belonged to. A person left without conversations is deleted (person.deleted). Since API 1.2.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/PersonsCreateParams" },
+            "result": { "$ref": "#/$defs/PersonResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "persons.rename": {
+          "description": "Renames a person. Since API 1.2.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/PersonsRenameParams" },
+            "result": { "$ref": "#/$defs/PersonResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "persons.link": {
+          "description": "Links a direct conversation to a person, taking it from the person it belonged to. Since API 1.2.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/PersonsLinkParams" },
+            "result": { "$ref": "#/$defs/PersonResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "persons.unlink": {
+          "description": "Unlinks a conversation from its person, if it has one. A person left without conversations is deleted. Since API 1.2.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/PersonsUnlinkParams" },
+            "result": { "$ref": "#/$defs/Empty" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "persons.delete": {
+          "description": "Deletes a person. Their conversations stay, unlinked. Since API 1.2.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/PersonsDeleteParams" },
+            "result": { "$ref": "#/$defs/Empty" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "debug.ping": {
           "description": "Returns its payload unchanged. Used to measure the cost of a call.",
           "type": "object",
@@ -222,8 +282,16 @@
           "description": "A stored message changed, for example its delivery status.",
           "$ref": "#/$defs/MessageEvent"
         },
+        "person.updated": {
+          "description": "A person was created, renamed, or their conversations changed. The conversations whose person changed are sent again in conversation.updated events. Since API 1.2.",
+          "$ref": "#/$defs/PersonEvent"
+        },
+        "person.deleted": {
+          "description": "A person was deleted, lost their last conversation, or has none left on this device. Since API 1.2.",
+          "$ref": "#/$defs/PersonDeletedEvent"
+        },
         "resync.required": {
-          "description": "The user interface read events too slowly and some were dropped: it must read the state again (accounts, conversations, messages).",
+          "description": "The user interface read events too slowly and some were dropped: it must read the state again (accounts, conversations, persons, messages).",
           "$ref": "#/$defs/Empty"
         },
         "core.closed": {
@@ -510,7 +578,11 @@
         "account_id": { "type": "string" },
         "network_id": { "type": "string" },
         "name": { "type": "string" },
-        "kind": { "$ref": "#/$defs/ConversationKind" }
+        "kind": { "$ref": "#/$defs/ConversationKind" },
+        "person_id": {
+          "description": "The person this conversation is linked to, if any. Since API 1.2.",
+          "type": "string"
+        }
       },
       "required": ["conversation_id", "account_id", "network_id", "name", "kind"],
       "additionalProperties": false
@@ -653,6 +725,119 @@
         "message": { "$ref": "#/$defs/Message" }
       },
       "required": ["message"],
+      "additionalProperties": false
+    },
+
+    "Person": {
+      "description": "A person of the user's, and the conversations with them that the user merged. Since API 1.2.",
+      "type": "object",
+      "properties": {
+        "person_id": {
+          "description": "Opaque: user interfaces must not parse it.",
+          "type": "string"
+        },
+        "name": { "type": "string" },
+        "conversation_ids": {
+          "description": "The person's conversations on this device, in the order they were linked.",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["person_id", "name", "conversation_ids"],
+      "additionalProperties": false
+    },
+    "PersonsListResult": {
+      "type": "object",
+      "properties": {
+        "persons": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Person" }
+        }
+      },
+      "required": ["persons"],
+      "additionalProperties": false
+    },
+    "PersonsCreateParams": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Not blank, at most 256 bytes in UTF-8. The name of the first conversation if absent.",
+          "type": "string",
+          "minLength": 1
+        },
+        "conversation_ids": {
+          "description": "Direct conversations only.",
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        }
+      },
+      "required": ["conversation_ids"],
+      "additionalProperties": false
+    },
+    "PersonsRenameParams": {
+      "type": "object",
+      "properties": {
+        "person_id": { "type": "string" },
+        "name": {
+          "description": "Not blank, at most 256 bytes in UTF-8.",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["person_id", "name"],
+      "additionalProperties": false
+    },
+    "PersonsLinkParams": {
+      "type": "object",
+      "properties": {
+        "person_id": { "type": "string" },
+        "conversation_id": {
+          "description": "A direct conversation.",
+          "type": "string"
+        }
+      },
+      "required": ["person_id", "conversation_id"],
+      "additionalProperties": false
+    },
+    "PersonsUnlinkParams": {
+      "type": "object",
+      "properties": {
+        "conversation_id": { "type": "string" }
+      },
+      "required": ["conversation_id"],
+      "additionalProperties": false
+    },
+    "PersonsDeleteParams": {
+      "type": "object",
+      "properties": {
+        "person_id": { "type": "string" }
+      },
+      "required": ["person_id"],
+      "additionalProperties": false
+    },
+    "PersonResult": {
+      "type": "object",
+      "properties": {
+        "person": { "$ref": "#/$defs/Person" }
+      },
+      "required": ["person"],
+      "additionalProperties": false
+    },
+    "PersonEvent": {
+      "type": "object",
+      "properties": {
+        "person": { "$ref": "#/$defs/Person" }
+      },
+      "required": ["person"],
+      "additionalProperties": false
+    },
+    "PersonDeletedEvent": {
+      "type": "object",
+      "properties": {
+        "person_id": { "type": "string" }
+      },
+      "required": ["person_id"],
       "additionalProperties": false
     },
 

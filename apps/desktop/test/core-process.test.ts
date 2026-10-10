@@ -106,7 +106,7 @@ describe("CoreProcess", () => {
     expect(JSON.parse(await waiting)).toMatchObject({ id: 2, error: { code: "closed" } });
     await until(() => core.status.state === "ready" && core.pid !== pid, "the restarted core");
     expect(statuses).toEqual([{ state: "ready" }, { state: "restarting", attempt: 1 }, { state: "ready" }]);
-    expect(JSON.parse(await core.call({ id: 3, command: "core.hello" }))).toMatchObject({ id: 3, result: { api_version: "1.1" } });
+    expect(JSON.parse(await core.call({ id: 3, command: "core.hello" }))).toMatchObject({ id: 3, result: { api_version: "1.2" } });
   });
 
   test("gives up when the core keeps failing", async () => {
