@@ -1,0 +1,40 @@
+/* SPDX-FileCopyrightText: 2026 Quentin Raimbaud */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+/* The benchmark page: the thread fills the window, as in the app. */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+.bench-main {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.bench-scroller {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.bench-sizer {
+  position: relative;
+  width: 100%;
+}
+
+.bench-window {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+/* The browser skips the layout and paint of the rows off screen. */
+.deferred > .message-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 64px;
+}

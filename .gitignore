@@ -19,6 +19,9 @@
 # Dependencies and build artifacts
 node_modules/
 dist/
+dist-bench/
+# The thread list benchmark page, copied into the debug app to measure it (ui/README.md).
+apps/mobile/www/bench/
 build/
 *.exe
 *.dll

@@ -58,7 +58,7 @@ function StatusLine() {
   const status = useAppState((s) => s.status);
   const loaded = useAppState((s) => s.loaded);
   return (
-    <output className="status" data-state={status.state}>
+    <output className="status" aria-label="App status" data-state={status.state}>
       {statusText(status, loaded)}
     </output>
   );

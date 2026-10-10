@@ -253,13 +253,41 @@ ol {
   min-height: 0;
 }
 
-.messages {
+/* The virtualized list (MessageList) scrolls itself and positions its rows:
+   no padding or gap here, the rows carry the spacing. */
+.messages-frame {
+  position: relative;
   display: flex;
-  flex: 1;
+  flex: 1 1 0;
   flex-direction: column;
-  gap: var(--space);
-  overflow-y: auto;
-  padding: var(--space) 0;
+  min-height: 0;
+}
+
+.messages {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.messages-loading {
+  position: absolute;
+  z-index: 1;
+  top: var(--space);
+  left: 50%;
+  translate: -50% 0;
+  padding: calc(var(--space) / 2) var(--space);
+  border-radius: 999px;
+  background: var(--color-surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 20%);
+  color: var(--color-muted);
+  font-size: 0.875em;
+}
+
+/* A full-width row around each bubble, with padding rather than margins or
+   gaps, so that a virtualized list measures it whole. */
+.message-row {
+  display: flex;
+  flex-direction: column;
+  padding: calc(var(--space) / 2) 0;
 }
 
 .message {
