@@ -56,10 +56,16 @@
 
     { "target": "command:conversations.list:params", "value": {} },
     { "target": "command:conversations.list:params", "value": { "account_id": "a1" } },
+    { "target": "command:conversations.list:params", "value": { "before": "k7", "limit": 50 } },
     { "target": "command:conversations.list:result", "value": { "conversations": [
       { "conversation_id": "c1", "account_id": "a1", "network_id": "echo", "name": "Instant Echo", "kind": "direct" },
       { "conversation_id": "c2", "account_id": "a1", "network_id": "echo", "name": "Family", "kind": "group" }
     ] } },
+    { "target": "command:conversations.list:result", "value": { "conversations": [
+      { "conversation_id": "c1", "account_id": "a1", "network_id": "echo", "name": "Instant Echo", "kind": "direct", "person_id": "h1", "activity_ms": 1791496800120,
+        "last_message": { "message_id": "m2", "conversation_id": "c1", "from_me": false, "sender_name": "Instant Echo", "timestamp_ms": 1791496800120, "kind": "text", "text": "Hi", "status": "received" } },
+      { "conversation_id": "c2", "account_id": "a1", "network_id": "echo", "name": "Family", "kind": "group", "activity_ms": 1791496000000 }
+    ], "before": "k8" } },
 
     { "target": "command:messages.list:params", "value": { "conversation_id": "c1" } },
     { "target": "command:messages.list:params", "value": { "conversation_id": "c1", "before": "k42", "limit": 200 } },
@@ -117,6 +123,7 @@
     { "target": "Event", "why": "data is required", "value": { "type": "core.closed" } },
     { "target": "command:core.hello:result", "why": "api_version is major.minor", "value": { "api_version": "1", "core_version": "dev" } },
     { "target": "command:core.hello:params", "why": "no params", "value": { "verbose": true } },
+    { "target": "command:conversations.list:params", "why": "at most 200 conversations per page", "value": { "limit": 201 } },
     { "target": "command:accounts.list:result", "why": "unknown state", "value": { "accounts": [ { "account_id": "a1", "network_id": "echo", "name": "", "state": "online" } ] } },
     { "target": "command:accounts.list:result", "why": "accounts is required", "value": {} },
     { "target": "command:accounts.logout:params", "why": "account_id is required", "value": {} },

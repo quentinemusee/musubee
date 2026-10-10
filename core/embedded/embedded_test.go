@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/quentinemusee/musubee/core/api"
 	"github.com/quentinemusee/musubee/core/api/apitest"
+	"github.com/quentinemusee/musubee/core/connector/echo"
 )
 
 // These tests are the Go side of the contract tests (docs/ADR/0012): every
@@ -220,7 +222,7 @@ func messageEvent(t *testing.T, typ string, match func(api.Message) bool) func(r
 // conversations exist.
 func login(t *testing.T, c *Core) string {
 	t.Helper()
-	return loginAs(t, c, "alice", 3)
+	return loginAs(t, c, "alice", conversationsPerLogin)
 }
 
 // loginAs adds an echo account and waits until the core has total
@@ -237,6 +239,10 @@ func loginAs(t *testing.T, c *Core, username string, total int) string {
 	waitConversations(t, c, total)
 	return step.AccountID
 }
+
+// conversationsPerLogin is the number of conversations of an echo login:
+// three contacts and a group.
+const conversationsPerLogin = 4
 
 func waitConversations(t *testing.T, c *Core, n int) []api.Conversation {
 	t.Helper()
@@ -255,7 +261,7 @@ func waitConversations(t *testing.T, c *Core, n int) []api.Conversation {
 
 func conversationNamed(t *testing.T, c *Core, name string) api.Conversation {
 	t.Helper()
-	for _, conv := range waitConversations(t, c, 3) {
+	for _, conv := range waitConversations(t, c, conversationsPerLogin) {
 		if conv.Name == name {
 			return conv
 		}
@@ -403,16 +409,26 @@ func TestLoginWithUsername(t *testing.T) {
 	if len(accounts) != 1 || accounts[0].AccountID != done.AccountID || accounts[0].Name != "alice" || accounts[0].NetworkID != "echo" || accounts[0].State != api.AccountStateConnected {
 		t.Errorf("accounts = %+v", accounts)
 	}
-	convs := waitConversations(t, c, 3)
+	convs := waitConversations(t, c, conversationsPerLogin)
+	groups := 0
 	for _, conv := range convs {
-		if conv.AccountID != done.AccountID || conv.NetworkID != "echo" || conv.Kind != api.ConversationKindDirect || conv.Name == "" {
+		if conv.AccountID != done.AccountID || conv.NetworkID != "echo" || conv.Name == "" {
 			t.Errorf("conversation %+v", conv)
 		}
+		if conv.Kind == api.ConversationKindGroup {
+			groups++
+			if conv.Name != "Echo Group" {
+				t.Errorf("group %+v, want Echo Group", conv)
+			}
+		}
+	}
+	if groups != 1 {
+		t.Errorf("%d groups, want 1", groups)
 	}
 	mine := call[api.ConversationsListResult](t, c, api.CommandConversationsList, api.ConversationsListParams{AccountID: done.AccountID}).Conversations
 	others := call[api.ConversationsListResult](t, c, api.CommandConversationsList, api.ConversationsListParams{AccountID: accountID("echo", "bob")}).Conversations
-	if len(mine) != 3 || len(others) != 0 {
-		t.Errorf("filtered conversations: %d for alice, %d for bob; want 3 and 0", len(mine), len(others))
+	if len(mine) != conversationsPerLogin || len(others) != 0 {
+		t.Errorf("filtered conversations: %d for alice, %d for bob; want %d and 0", len(mine), len(others), conversationsPerLogin)
 	}
 }
 
@@ -420,11 +436,11 @@ func TestConversationEvents(t *testing.T) {
 	c := open(t)
 	login(t, c)
 	names := map[string]bool{}
-	for len(names) < 3 {
+	for len(names) < conversationsPerLogin {
 		e := waitEvent(t, c, "conversation event", func(e rawEvent) bool { return e.Type == api.EventConversationUpdated })
 		names[decode[api.ConversationEvent](t, e.Data).Conversation.Name] = true
 	}
-	if !names["Instant Echo"] || !names["Delayed Echo"] || !names["Unreachable Contact"] {
+	if !names["Instant Echo"] || !names["Delayed Echo"] || !names["Unreachable Contact"] || !names["Echo Group"] {
 		t.Errorf("conversation events for %v", names)
 	}
 }
@@ -622,6 +638,181 @@ func TestMessagesListPages(t *testing.T) {
 	}
 }
 
+func TestConversationsByActivity(t *testing.T) {
+	c := open(t)
+	alice := login(t, c)
+	loginAs(t, c, "bob", 2*conversationsPerLogin)
+	all := call[api.ConversationsListResult](t, c, api.CommandConversationsList, nil)
+	if len(all.Conversations) != 2*conversationsPerLogin || all.Before != "" {
+		t.Fatalf("all conversations = %d, before %q; want %d and no cursor", len(all.Conversations), all.Before, 2*conversationsPerLogin)
+	}
+	for i, conv := range all.Conversations {
+		if conv.ActivityMS == 0 {
+			t.Errorf("%s has no activity", conv.Name)
+		}
+		if i > 0 && conv.ActivityMS > all.Conversations[i-1].ActivityMS {
+			t.Errorf("%s (%d) is after a less active conversation (%d)", conv.Name, conv.ActivityMS, all.Conversations[i-1].ActivityMS)
+		}
+	}
+
+	// A message makes its conversation the most recent one, and its last.
+	var target api.Conversation
+	for _, conv := range all.Conversations {
+		if conv.AccountID == alice && conv.Name == "Unreachable Contact" {
+			target = conv
+		}
+	}
+	if target.LastMessage != nil {
+		t.Errorf("a new conversation has the last message %+v", target.LastMessage)
+	}
+	sent := call[api.MessagesSendResult](t, c, api.CommandMessagesSend, api.MessagesSendParams{ConversationID: target.ConversationID, Text: "latest"}).Message
+	all = call[api.ConversationsListResult](t, c, api.CommandConversationsList, nil)
+	first := all.Conversations[0]
+	if first.ConversationID != target.ConversationID || first.LastMessage == nil || first.LastMessage.MessageID != sent.MessageID ||
+		first.LastMessage.Text != "latest" || first.ActivityMS != sent.TimestampMS {
+		t.Fatalf("first conversation = %+v, want %s with the message just sent", first, target.Name)
+	}
+
+	// Pages of 3 give the same conversations in the same order.
+	var paged []string
+	before := ""
+	for pages := 0; ; pages++ {
+		if pages > 2*conversationsPerLogin {
+			t.Fatal("paging does not end")
+		}
+		page := call[api.ConversationsListResult](t, c, api.CommandConversationsList, api.ConversationsListParams{Before: before, Limit: 3})
+		if len(page.Conversations) > 3 {
+			t.Fatalf("page of %d conversations, limit 3", len(page.Conversations))
+		}
+		for _, conv := range page.Conversations {
+			paged = append(paged, conv.ConversationID)
+		}
+		if page.Before == "" {
+			break
+		}
+		before = page.Before
+	}
+	var want []string
+	for _, conv := range all.Conversations {
+		want = append(want, conv.ConversationID)
+	}
+	if !slices.Equal(paged, want) {
+		t.Errorf("paged conversations = %v, want %v", paged, want)
+	}
+
+	// With an account, pages hold that account's conversations only.
+	page := call[api.ConversationsListResult](t, c, api.CommandConversationsList, api.ConversationsListParams{AccountID: alice, Limit: 2})
+	if len(page.Conversations) == 0 || page.Before == "" {
+		t.Fatalf("first page of alice = %+v, want conversations and a cursor", page)
+	}
+	for _, conv := range page.Conversations {
+		if conv.AccountID != alice {
+			t.Errorf("page of alice holds %s of another account", conv.Name)
+		}
+	}
+
+	callFails(t, c, api.CommandConversationsList, map[string]any{"limit": 201}, api.ErrorCodeInvalidParams)
+	callFails(t, c, api.CommandConversationsList, api.ConversationsListParams{Before: "nonsense"}, api.ErrorCodeInvalidParams)
+	// A cursor of messages is not one of conversations.
+	call[api.MessagesSendResult](t, c, api.CommandMessagesSend, api.MessagesSendParams{ConversationID: target.ConversationID, Text: "again"})
+	messages := call[api.MessagesListResult](t, c, api.CommandMessagesList, api.MessagesListParams{ConversationID: target.ConversationID, Limit: 1})
+	callFails(t, c, api.CommandConversationsList, api.ConversationsListParams{Before: messages.Before}, api.ErrorCodeInvalidParams)
+}
+
+func TestGroupEcho(t *testing.T) {
+	c := open(t)
+	login(t, c)
+	group := conversationNamed(t, c, "Echo Group")
+	call[api.MessagesSendResult](t, c, api.CommandMessagesSend, api.MessagesSendParams{ConversationID: group.ConversationID, Text: "hi all"})
+	echo := waitEvent(t, c, "echo in the group", messageEvent(t, api.EventMessageAdded, func(m api.Message) bool {
+		return !m.FromMe && m.ConversationID == group.ConversationID
+	}))
+	if msg := decode[api.MessageEvent](t, echo.Data).Message; msg.SenderName != "Instant Echo" || !strings.Contains(msg.Text, "hi all") {
+		t.Errorf("echo in the group = %+v, want Instant Echo's", msg)
+	}
+}
+
+// A crowd login has CrowdSize more contacts, each with one message, the
+// last contact most recently: the conversations come by activity, not by
+// name. (The other conversations, created after these messages, come
+// first.)
+func TestCrowdIsOrderedByActivity(t *testing.T) {
+	c := open(t)
+	loginAs(t, c, "crowd", conversationsPerLogin+echo.CrowdSize)
+	deadline := time.Now().Add(eventTimeout)
+	var crowd []api.Conversation
+	for {
+		crowd = crowd[:0]
+		for _, conv := range call[api.ConversationsListResult](t, c, api.CommandConversationsList, nil).Conversations {
+			if strings.HasPrefix(conv.Name, "Crowd Contact") && conv.LastMessage != nil {
+				crowd = append(crowd, conv)
+			}
+		}
+		if len(crowd) == echo.CrowdSize {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%d crowd contacts with a message, want %d", len(crowd), echo.CrowdSize)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	for i, conv := range crowd {
+		want := fmt.Sprintf("Crowd Contact %03d", echo.CrowdSize-i)
+		if conv.Name != want || conv.LastMessage.Text != "Hello from "+want || conv.ActivityMS != conv.LastMessage.TimestampMS {
+			t.Fatalf("crowd conversation %d = %+v, want %s with its message", i, conv, want)
+		}
+	}
+	if gap := crowd[0].ActivityMS - crowd[1].ActivityMS; gap != 60_000 {
+		t.Errorf("activities %d ms apart, want a minute", gap)
+	}
+}
+
+// An offline login connects once, then stays disconnected; its
+// conversations and messages are still listed from the device.
+func TestOfflineLoginKeepsItsConversations(t *testing.T) {
+	dir := t.TempDir()
+	c := openDir(t, dir)
+	account := loginAs(t, c, "offline", conversationsPerLogin)
+	conv := conversationNamed(t, c, "Instant Echo")
+	// An echo in every conversation that echoes tells that bridgev2 is done
+	// creating them: a creation that Close interrupts is only completed when
+	// the account connects again, which an offline account never does.
+	group := conversationNamed(t, c, "Echo Group")
+	for _, id := range []string{group.ConversationID, conv.ConversationID} {
+		call[api.MessagesSendResult](t, c, api.CommandMessagesSend, api.MessagesSendParams{ConversationID: id, Text: "before"})
+		waitEvent(t, c, "echo", messageEvent(t, api.EventMessageAdded, func(m api.Message) bool { return !m.FromMe && m.ConversationID == id }))
+	}
+	if err := c.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	c = openDir(t, dir)
+	waitEvent(t, c, "offline state", func(e rawEvent) bool {
+		a := decode[api.AccountEvent](t, e.Data).Account
+		return e.Type == api.EventAccountUpdated && a.AccountID == account && a.State == api.AccountStateTransientDisconnect
+	})
+	accounts := call[api.AccountsListResult](t, c, api.CommandAccountsList, nil).Accounts
+	if len(accounts) != 1 || accounts[0].State != api.AccountStateTransientDisconnect || accounts[0].Error == "" {
+		t.Errorf("accounts while offline = %+v", accounts)
+	}
+	convs := call[api.ConversationsListResult](t, c, api.CommandConversationsList, nil).Conversations
+	if len(convs) != conversationsPerLogin || convs[0].ConversationID != conv.ConversationID || convs[0].LastMessage == nil || convs[0].LastMessage.FromMe {
+		t.Fatalf("conversations while offline = %+v, want Instant Echo first with its echo", convs)
+	}
+	messages := call[api.MessagesListResult](t, c, api.CommandMessagesList, api.MessagesListParams{ConversationID: conv.ConversationID}).Messages
+	if len(messages) != 2 || messages[0].Text != "before" {
+		t.Errorf("messages while offline = %+v", messages)
+	}
+	// Sending fails: there is no network.
+	sent := call[api.MessagesSendResult](t, c, api.CommandMessagesSend, api.MessagesSendParams{ConversationID: conv.ConversationID, Text: "now"}).Message
+	failure := waitEvent(t, c, "failure", messageEvent(t, api.EventMessageUpdated, func(m api.Message) bool {
+		return m.MessageID == sent.MessageID && m.Status != api.MessageStatusSending
+	}))
+	if msg := decode[api.MessageEvent](t, failure.Data).Message; msg.Status != api.MessageStatusFailed {
+		t.Errorf("message sent offline = %+v, want failed", msg)
+	}
+}
+
 func TestStats(t *testing.T) {
 	c := open(t)
 	if s := call[api.StatsResult](t, c, api.CommandDebugStats, nil); s.HeapAllocBytes == 0 || s.Goroutines == 0 {
@@ -665,7 +856,7 @@ func TestReopenKeepsTheLogin(t *testing.T) {
 	}
 	// A portal whose creation the first Close interrupted is created again
 	// when the account reconnects.
-	waitConversations(t, c, 3)
+	waitConversations(t, c, conversationsPerLogin)
 }
 
 // Logging out removes the account and its conversations, reports the

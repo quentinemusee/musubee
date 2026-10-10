@@ -11,12 +11,26 @@
 //   - ContactDelayed echoes every message back after Config.EchoDelay;
 //   - ContactUnreachable rejects every message: sending fails.
 //
+// and one group conversation, GroupEcho, with ContactInstant and
+// ContactDelayed, where ContactInstant echoes every message back.
+//
+// The username selects behaviours for the tests of user interfaces:
+//
+//   - a username starting with CrowdPrefix also has CrowdSize contacts who
+//     each sent one message, a minute apart, the last one most recently;
+//   - a username starting with OfflinePrefix connects right after the login,
+//     but never again: from the next start of the core on, it stays
+//     disconnected, as on a device without network.
+//
 // It replaces Beeper's dummybridge, which has no license (docs/ADR/0004).
 package echo
 
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -52,7 +66,64 @@ func findContact(userID networkid.UserID) (Contact, bool) {
 			return contact, true
 		}
 	}
-	return Contact{}, false
+	return crowdContact(userID)
+}
+
+// GroupEcho is the portal ID of the group conversation of every login.
+const GroupEcho networkid.PortalID = "group-echo"
+
+// Group is a fake group conversation.
+type Group struct {
+	ID      networkid.PortalID
+	Name    string
+	Members []networkid.UserID
+}
+
+// Groups lists the group conversations of every login.
+var Groups = []Group{
+	{ID: GroupEcho, Name: "Echo Group", Members: []networkid.UserID{ContactInstant, ContactDelayed}},
+}
+
+func findGroup(portalID networkid.PortalID) (Group, bool) {
+	for _, group := range Groups {
+		if group.ID == portalID {
+			return group, true
+		}
+	}
+	return Group{}, false
+}
+
+// Behaviours selected by the username (see the package documentation).
+const (
+	CrowdPrefix   = "crowd"
+	CrowdSize     = 120
+	OfflinePrefix = "offline"
+
+	crowdIDPrefix = "echo-crowd-"
+)
+
+// crowdContact returns the contact of a crowd contact's ID: a contact who
+// echoes like ContactInstant, named after their number.
+func crowdContact(userID networkid.UserID) (Contact, bool) {
+	number, ok := strings.CutPrefix(string(userID), crowdIDPrefix)
+	if n, err := strconv.Atoi(number); !ok || err != nil || n < 1 || n > CrowdSize || number != fmt.Sprintf("%03d", n) {
+		return Contact{}, false
+	}
+	return Contact{ID: userID, Name: "Crowd Contact " + number}, true
+}
+
+// contactsOf returns the contacts of a login: Contacts, then the crowd
+// for a username starting with CrowdPrefix.
+func contactsOf(login *bridgev2.UserLogin) []Contact {
+	if !strings.HasPrefix(login.RemoteName, CrowdPrefix) {
+		return Contacts
+	}
+	contacts := slices.Clone(Contacts)
+	for n := 1; n <= CrowdSize; n++ {
+		contact, _ := crowdContact(networkid.UserID(fmt.Sprintf("%s%03d", crowdIDPrefix, n)))
+		contacts = append(contacts, contact)
+	}
+	return contacts
 }
 
 // DefaultEchoDelay is the delay of ContactDelayed when Config.EchoDelay is zero.

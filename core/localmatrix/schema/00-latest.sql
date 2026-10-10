@@ -1,4 +1,4 @@
--- v0 -> v1: Latest revision
+-- v0 -> v2 (compatible with v1+): Latest revision
 -- SPDX-FileCopyrightText: 2026 Quentin Raimbaud
 -- SPDX-License-Identifier: AGPL-3.0-or-later
 --
@@ -28,6 +28,8 @@ CREATE TABLE local_event (
     timestamp    BIGINT  NOT NULL
 );
 CREATE INDEX local_event_room_idx ON local_event (room_id, stream_order);
+-- The latest message of each room, for the conversation list (v2).
+CREATE INDEX local_event_type_idx ON local_event (room_id, event_type, stream_order);
 
 -- Current state of every room (latest state event per type and state key).
 CREATE TABLE local_state (

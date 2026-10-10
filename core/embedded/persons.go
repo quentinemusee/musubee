@@ -148,11 +148,7 @@ func (c *Core) conversationName(ctx context.Context, conversation string) (strin
 	if err != nil {
 		return "", err
 	}
-	room, err := c.host.Matrix.Room(ctx, roomID)
-	if err != nil {
-		return "", err
-	}
-	conv, err := c.conversation(ctx, room, nil)
+	conv, err := c.conversationOf(ctx, roomID, nil)
 	if err != nil {
 		return "", err
 	}
@@ -261,11 +257,7 @@ func (c *Core) personChanged(ctx context.Context, change persons.Change, moved [
 		if roomID == "" {
 			continue
 		}
-		room, err := c.host.Matrix.Room(ctx, roomID)
-		if err != nil {
-			return result, c.missedEvents(err)
-		}
-		conv, err := c.conversation(ctx, room, owners)
+		conv, err := c.conversationOf(ctx, roomID, owners)
 		if err != nil {
 			return result, c.missedEvents(err)
 		}

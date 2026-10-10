@@ -192,9 +192,14 @@ func (h *harness) waitConnected(bridgeID networkid.BridgeID, loginID networkid.U
 // room returns the room of the conversation with a contact, once it exists.
 func (h *harness) room(bridgeID networkid.BridgeID, loginID networkid.UserLoginID, contact networkid.UserID) id.RoomID {
 	h.t.Helper()
-	key := networkid.PortalKey{ID: networkid.PortalID(contact), Receiver: loginID}
+	return h.portalRoom(bridgeID, networkid.PortalKey{ID: networkid.PortalID(contact), Receiver: loginID}, contact)
+}
+
+// portalRoom returns the room of a portal, once contact joined it.
+func (h *harness) portalRoom(bridgeID networkid.BridgeID, key networkid.PortalKey, contact networkid.UserID) id.RoomID {
+	h.t.Helper()
 	roomID := h.host.Bridge(bridgeID).Matrix.GenerateDeterministicRoomID(key)
-	waitFor(h.t, "the room with "+string(contact), func() (bool, error) {
+	waitFor(h.t, "the room "+string(key.ID), func() (bool, error) {
 		members, err := h.host.Matrix.Members(h.t.Context(), roomID)
 		if err != nil {
 			return false, err
@@ -205,14 +210,21 @@ func (h *harness) room(bridgeID networkid.BridgeID, loginID networkid.UserLoginI
 	return roomID
 }
 
-// allRooms waits for the room of every echo contact of a login: the
-// connector announces them together, but bridgev2 creates them in parallel.
+// allRooms waits for the room of every echo contact and group of a login:
+// the connector announces them together, but bridgev2 creates them in
+// parallel.
 func (h *harness) allRooms(bridgeID networkid.BridgeID, loginID networkid.UserLoginID) {
 	h.t.Helper()
 	for _, contact := range echo.Contacts {
 		h.room(bridgeID, loginID, contact.ID)
 	}
+	for _, group := range echo.Groups {
+		h.portalRoom(bridgeID, networkid.PortalKey{ID: group.ID, Receiver: loginID}, group.Members[0])
+	}
 }
+
+// roomsPerLogin is the number of rooms of an echo login.
+var roomsPerLogin = len(echo.Contacts) + len(echo.Groups)
 
 func (h *harness) send(roomID id.RoomID, text string) id.EventID {
 	h.t.Helper()
@@ -307,9 +319,11 @@ func TestMessageGoesThroughTheConnectorToLocalStorage(t *testing.T) {
 			t.Errorf("profile of %s = %+v (%v), want %q", ghost, profile, err, contact.Name)
 		}
 	}
+	// And one group.
+	h.allRooms(echoBridge, login.ID)
 	rooms, err := h.host.Matrix.Rooms(ctx)
-	if err != nil || len(rooms) != len(echo.Contacts) {
-		t.Fatalf("rooms = %d (%v), want %d", len(rooms), err, len(echo.Contacts))
+	if err != nil || len(rooms) != roomsPerLogin {
+		t.Fatalf("rooms = %d (%v), want %d", len(rooms), err, roomsPerLogin)
 	}
 
 	roomID := h.room(echoBridge, login.ID, echo.ContactInstant)
@@ -468,8 +482,8 @@ func TestRestartKeepsHistoryAndLogin(t *testing.T) {
 	h.waitConnected(echoBridge, login.ID)
 	h.allRooms(echoBridge, login.ID)
 	rooms, err := h.host.Matrix.Rooms(t.Context())
-	if err != nil || len(rooms) != len(echo.Contacts) {
-		t.Fatalf("rooms after restart = %d (%v), want %d (no duplicates)", len(rooms), err, len(echo.Contacts))
+	if err != nil || len(rooms) != roomsPerLogin {
+		t.Fatalf("rooms after restart = %d (%v), want %d (no duplicates)", len(rooms), err, roomsPerLogin)
 	}
 	h.waitForStatus(h.send(roomID, "after restart"), event.MessageStatusSuccess)
 	h.waitForMessageFrom(roomID, ghost, "after restart")
@@ -514,8 +528,8 @@ func TestTwoNetworksShareOneProcess(t *testing.T) {
 	h.allRooms("echoa", loginA.ID)
 	h.allRooms("echob", loginB.ID)
 	rooms, err := h.host.Matrix.Rooms(t.Context())
-	if err != nil || len(rooms) != 2*len(echo.Contacts) {
-		t.Errorf("rooms = %d (%v), want %d", len(rooms), err, 2*len(echo.Contacts))
+	if err != nil || len(rooms) != 2*roomsPerLogin {
+		t.Errorf("rooms = %d (%v), want %d", len(rooms), err, 2*roomsPerLogin)
 	}
 }
 

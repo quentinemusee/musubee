@@ -376,6 +376,19 @@ func (s *Server) Room(ctx context.Context, roomID id.RoomID) (*Room, error) {
 	return s.store.getRoom(ctx, roomID)
 }
 
+// RoomsByActivity returns the rooms ranked by the time of their latest
+// message (or of their creation), most recent first, starting after the
+// cursor (nil for the start). limit <= 0 returns them all.
+func (s *Server) RoomsByActivity(ctx context.Context, after *ActivityCursor, limit int) ([]*RoomActivity, error) {
+	return s.store.listRoomsByActivity(ctx, after, limit)
+}
+
+// RoomActivity returns one room with its latest message, or an error
+// wrapping ErrNotFound.
+func (s *Server) RoomActivity(ctx context.Context, roomID id.RoomID) (*RoomActivity, error) {
+	return s.store.roomActivity(ctx, roomID)
+}
+
 // Timeline returns up to limit events of a room stored after the given
 // stream order (0 for the start), oldest first.
 func (s *Server) Timeline(ctx context.Context, roomID id.RoomID, after int64, limit int) ([]*event.Event, error) {
