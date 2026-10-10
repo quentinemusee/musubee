@@ -67,7 +67,7 @@ jobs:
             sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
           fi
           shellcheck --version | head -2
-          shellcheck scripts/*.sh
+          shellcheck scripts/*.sh apps/mobile/ios-probe/*.sh
 
       - name: Tests of the checks and install scripts
         run: python -m unittest discover -s scripts/tests -v
@@ -456,3 +456,70 @@ jobs:
         env:
           MUSUBEE_IOS_UDID: ${{ steps.simulator.outputs.udid }}
         run: npm run test:ios
+
+  # T1.7 (docs/ADR/0015-ios-nse-memory.md): the memory probe built as an iOS
+  # static library, run in an app and in its Notification Service Extension
+  # on the simulator, once per SQLite driver. The simulator enforces no
+  # memory limit: the figures show what the code costs, not whether it fits.
+  ios-memory:
+    name: iOS memory probe (simulator, SQLite ${{ matrix.sqlite }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sqlite: modernc
+            tags: ""
+          - sqlite: mattn
+            tags: musubee_cgo_sqlite
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+
+      # XcodeGen (MIT) generates the Xcode project; pinned by version and
+      # by the SHA-256 that GitHub publishes for the release asset.
+      - name: Install XcodeGen
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
+          echo "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806  $RUNNER_TEMP/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
+
+      - name: Probe on the Mac (for comparison)
+        working-directory: core
+        run: go run -tags="${{ matrix.tags }}" ./cmd/memprobe -data-dir "$RUNNER_TEMP/macprobe" -core -crypto
+
+      - name: Build the probe for iOS (XCFramework)
+        run: apps/mobile/ios-probe/build-go-xcframework.sh ./cmd/memprobe core/cmd/memprobe/memprobe.h MusubeeMemProbe apps/mobile/ios-probe/build "${{ matrix.tags }}"
+
+      - name: Boot an iPhone simulator
+        id: simulator
+        run: |
+          xcodebuild -version
+          udid=$(xcrun simctl list devices available --json             | jq -r '[.devices | to_entries[] | select(.key | test("iOS")) | .value[] | select(.name | startswith("iPhone"))][0].udid')
+          if [ -z "$udid" ] || [ "$udid" = "null" ]; then
+            echo "no available iPhone simulator"; xcrun simctl list devices available; exit 1
+          fi
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      - name: Probe in the app and its extension (simulator)
+        run: |
+          apps/mobile/ios-probe/run-simulator.sh "${{ steps.simulator.outputs.udid }}" "$RUNNER_TEMP/ios-memory"
+          cat "$RUNNER_TEMP/ios-memory/report.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-memory-${{ matrix.sqlite }}
+          path: ${{ runner.temp }}/ios-memory/
+          if-no-files-found: ignore
