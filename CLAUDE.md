@@ -145,10 +145,10 @@ plugins:    scripts/install-plugins.ps1 | .bat | .sh
 Verified in T0.3 (Windows, Go 1.27, Docker Desktop; see `infra/README.md`):
 
 ```
-infra unit:         go test ./infra/...
-infra integration:  go test -tags=integration ./infra/...       (needs Docker; about 20 s)
+infra unit:         go test -tags=goolm ./infra/...
+infra integration:  go test -tags=goolm,integration ./infra/...   (needs Docker; about 20 s)
 test homeserver:    go run ./infra/cmd/testenv up | status | user NAME PASS | down
-vet:                go vet -tags=integration ./infra/...    go vet -tags=telegram ./infra/...
+vet:                go vet -tags=goolm,integration ./infra/...    go vet -tags=goolm,telegram ./infra/...
 ```
 
 Verified in T0.4 (see `infra/README.md` for the test bots):
@@ -176,19 +176,19 @@ dependency licenses: go run ./scripts/licenseaudit        (-v lists every depend
 Verified in T1.1 (Windows, Go 1.27.1; see `core/README.md`). **Go 1.27.1 or later is required**: 1.27.0 has a `database/sql` deadlock (ADR 0009).
 
 ```
-core tests:         go test -count=1 ./core/...
-core vet / format:  go vet ./core/...        gofmt -l core
-core benchmark:     go test -run '^$' -bench RoundTrip -benchtime 2000x ./core/bridgehost/
-core race (Docker): docker run --rm -v <repo>:/src -w /src golang:1.27.1 go test -race ./core/...
+core tests:         go test -tags=goolm -count=1 ./core/...
+core vet / format:  go vet -tags=goolm ./core/...        gofmt -l core
+core benchmark:     go test -tags=goolm -run '^$' -bench RoundTrip -benchtime 2000x ./core/bridgehost/
+core race (Docker): docker run --rm -v <repo>:/src -w /src golang:1.27.1 go test -tags=goolm -race ./core/...
 ```
 
 Verified in T1.2 (Windows with MSYS2 UCRT64 GCC 16.2.0, and the `golang:1.27.1` container; see ADR 0010). In Git Bash, put the toolchain first for the command: `PATH="/d/SDK/msys64/ucrt64/bin:$PATH"`.
 
 ```
-core race:          go test -race -count=1 ./core/...
-shared library:     go build -buildmode=c-shared -o musubee.dll ./core/ffi     (libmusubee.so on Linux)
-FFI round trip:     go test -count=1 -v -run TestSharedLibrary ./core/ffi/    (MUSUBEE_FFI_PINGS, MUSUBEE_FFI_ROUNDTRIPS: longer loops)
-no toolchain:       CGO_ENABLED=0 go test ./core/...                            (skips core/ffi)
+core race:          go test -tags=goolm -race -count=1 ./core/...
+shared library:     go build -tags=goolm -buildmode=c-shared -o musubee.dll ./core/ffi     (libmusubee.so on Linux)
+FFI round trip:     go test -tags=goolm -count=1 -v -run TestSharedLibrary ./core/ffi/    (MUSUBEE_FFI_PINGS, MUSUBEE_FFI_ROUNDTRIPS: longer loops)
+no toolchain:       CGO_ENABLED=0 go test -tags=goolm ./core/...                            (skips core/ffi)
 ```
 
 Verified in T1.3 (Windows, Go 1.27.1, JDK 21, NDK 28.2.13676358, emulator API 30; see `apps/mobile/README.md` and ADR 0011):
@@ -199,7 +199,7 @@ android build:      cd apps/mobile/android && ./gradlew :app:assembleDebug      
 android tests:      ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest
 android app e2e:    cd apps/mobile/e2e && MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android:app
 android measures:   ANDROID_SERIAL=emulator-5554 ./measure-core.sh 5          (soak test: see apps/mobile/README.md)
-android SQLite:     go test -tags=musubee_cgo_sqlite -count=1 ./core/...     (the cgo driver of Android builds, on the host; ADR 0011)
+android SQLite:     go test -tags=goolm,musubee_cgo_sqlite -count=1 ./core/...     (the cgo driver of Android builds, on the host; ADR 0011)
 ```
 
 Verified in T1.4 (Windows, Go 1.27.1, Node 24.20, npm 11; see ADR 0012, `ui/README.md`):
@@ -208,7 +208,7 @@ Verified in T1.4 (Windows, Go 1.27.1, Node 24.20, npm 11; see ADR 0012, `ui/READ
 api types:          go generate ./core/api            (Go and TypeScript types from core/api/schema/core-api.schema.json)
 ui tools:           cd ui && npm ci
 ui tests:           npm test                          npm run typecheck
-api benchmark:      go test -run '^$' -bench RoundTrip -benchtime 2000x ./core/embedded/
+api benchmark:      go test -tags=goolm -run '^$' -bench RoundTrip -benchtime 2000x ./core/embedded/
 transports:         cd scripts/transportbench && npm ci && node bench.mjs   (needs the C toolchain; MUSUBEE_BENCH_PINGS, _ROUNDTRIPS, _ONLY)
 ```
 
@@ -222,7 +222,7 @@ desktop checks:     npm test        npm run typecheck        npm run lint
 desktop build:      npm run build                                   (core, interface, main process)
 desktop app:        npm start
 desktop e2e:        npm run test:e2e                                (opens real windows; Linux: xvfb-run, see the README)
-core program:       go build -o musubee-core.exe ./core/cmd/musubee-core
+core program:       go build -tags=goolm -o musubee-core.exe ./core/cmd/musubee-core
 ```
 
 golangci-lint is installed with `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0` (on the maintainer's machine: `GOBIN=D:\SDK\golangci-lint`).
@@ -230,11 +230,11 @@ golangci-lint is installed with `go install github.com/golangci/golangci-lint/v2
 Verified in T1.6 (Windows, Go 1.27.1, JDK 21; the Telegram journeys on CI with the test bots' secrets; see ADR 0014). Telegram's application credentials come from `MUSUBEE_TG_API_ID` and `MUSUBEE_TG_API_HASH`, never from the repository:
 
 ```
-telegram core e2e:    go test -tags=telegram -v ./infra/telegramtest/ondevice/       (test bots, see infra/README.md)
+telegram core e2e:    go test -tags=goolm,telegram -v ./infra/telegramtest/ondevice/       (test bots, see infra/README.md)
 telegram desktop e2e: cd apps/desktop && npm run build && npx playwright test telegram.spec.ts
 telegram android:     MUSUBEE_TG_API_ID=... MUSUBEE_TG_API_HASH=... ./gradlew :app:assembleDebug   (the app offers Telegram)
 telegram android e2e: ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.musubee.core.TelegramTest (+ bot arguments, see apps/mobile/README.md)
-stripped core:        go build -trimpath -ldflags="-s -w" -o musubee-core.exe ./core/cmd/musubee-core
+stripped core:        go build -tags=goolm -trimpath -ldflags="-s -w" -o musubee-core.exe ./core/cmd/musubee-core
 ```
 
 A bot has one Telegram session at a time: never run two Telegram tests at once.
@@ -242,15 +242,22 @@ A bot has one Telegram session at a time: never run two Telegram tests at once.
 Verified in T1.7 part 1 (macOS CI runners, Xcode, Go 1.27.1, XcodeGen 2.46.0; see ADR 0015, `apps/mobile/ios-probe/README.md`). iOS builds need a Mac:
 
 ```
-memory probe:       go run ./core/cmd/memprobe -core -crypto -data-dir <dir>     (cgo; JSON report)
-probe tests:        go test -count=1 ./core/memprobe/        (-tags=memprobe_nocore: without the core)
-ios xcframework:    apps/mobile/ios-probe/build-go-xcframework.sh ./cmd/memprobe core/cmd/memprobe/memprobe.h MusubeeMemProbe apps/mobile/ios-probe/build musubee_cgo_sqlite
-ios simulator:      apps/mobile/ios-probe/run-simulator.sh <udid> <output-dir> musubee_cgo_sqlite
+memory probe:       go run -tags=goolm ./core/cmd/memprobe -core -crypto -data-dir <dir>     (cgo; JSON report)
+probe tests:        go test -tags=goolm -count=1 ./core/memprobe/        (-tags=goolm,memprobe_nocore: without the core)
+ios xcframework:    apps/mobile/ios-probe/build-go-xcframework.sh ./cmd/memprobe core/cmd/memprobe/memprobe.h MusubeeMemProbe apps/mobile/ios-probe/build goolm,musubee_cgo_sqlite
+ios simulator:      apps/mobile/ios-probe/run-simulator.sh <udid> <output-dir> goolm,musubee_cgo_sqlite
 ```
 
 Verified in T2.1 (Windows, Go 1.27.1, Node 24.20; see ADR 0017):
 
 ```
-persons store:      go test -count=1 ./core/persons/                 (-tags=musubee_cgo_sqlite: the Android driver)
-persons journeys:   go test -count=1 -run Persons -v ./core/embedded/
+persons store:      go test -tags=goolm -count=1 ./core/persons/       (-tags=goolm,musubee_cgo_sqlite: the Android driver)
+persons journeys:   go test -tags=goolm -count=1 -run Persons -v ./core/embedded/
+```
+
+Verified in T2.2 (Windows, Go 1.27.1; the Synapse journey on CI only, Docker Desktop being broken on the maintainer's machine; see ADR 0018). **Every Go build of the core needs the `goolm` build tag** (pure-Go Olm): without it, mautrix-go's crypto links libolm and fails on `olm/olm.h`. The commands above carry it since T2.2:
+
+```
+matrix unit:        go test -tags=goolm -count=1 ./core/connector/matrix/
+matrix journey:     go test -tags=goolm,integration -count=1 -v ./infra/matrixtest/     (needs Docker; starts its own Synapse)
 ```
