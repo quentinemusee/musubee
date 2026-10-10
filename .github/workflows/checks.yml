@@ -457,10 +457,11 @@ jobs:
           MUSUBEE_IOS_UDID: ${{ steps.simulator.outputs.udid }}
         run: npm run test:ios
 
-  # T1.7 (docs/ADR/0015-ios-nse-memory.md): the memory probe built as an iOS
-  # static library, run in an app and in its Notification Service Extension
-  # on the simulator, once per SQLite driver. The simulator enforces no
-  # memory limit: the figures show what the code costs, not whether it fits.
+  # T1.7 (docs/ADR/0015-ios-nse-memory.md): the memory probe built for iOS
+  # and run on the simulator, once per SQLite driver: in bare processes next
+  # to an empty C program, and in the probe app (run-simulator.sh). The
+  # simulator enforces no memory limit: the figures show what the code
+  # costs, not whether it fits.
   ios-memory:
     name: iOS memory probe (simulator, SQLite ${{ matrix.sqlite }})
     strategy:
@@ -511,9 +512,9 @@ jobs:
           xcrun simctl bootstatus "$udid" -b
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
 
-      - name: Probe in the app and its extension (simulator)
+      - name: Probe in bare processes and in the app (simulator)
         run: |
-          apps/mobile/ios-probe/run-simulator.sh "${{ steps.simulator.outputs.udid }}" "$RUNNER_TEMP/ios-memory"
+          apps/mobile/ios-probe/run-simulator.sh "${{ steps.simulator.outputs.udid }}" "$RUNNER_TEMP/ios-memory" "${{ matrix.tags }}"
           cat "$RUNNER_TEMP/ios-memory/report.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the reports

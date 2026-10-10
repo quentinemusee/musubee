@@ -2,29 +2,79 @@
 # SPDX-FileCopyrightText: 2026 Quentin Raimbaud
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Builds the memory probe app for the simulator, installs it on a booted
-# simulator and runs the probe: once in the app, then in the Notification
-# Service Extension for each configuration below, each time in a new
-# extension process. Collects the reports from the unified log into
-# OUTPUT_DIR (one JSON file per run, plus report.md). Needs macOS with Xcode,
-# XcodeGen and python3, and build/MusubeeMemProbe.xcframework
-# (build-go-xcframework.sh).
+# Runs the memory probe on a booted simulator, in three kinds of process:
 #
-#   run-simulator.sh UDID OUTPUT_DIR
+# 1. Bare processes (simctl spawn): the probe built as an iOS executable, one
+#    new process per configuration and repetition, next to an empty C
+#    program (control/footprint.c). Closest to a notification extension that
+#    the simulator can run: no UIKit, nothing but the probe.
+# 2. The probe app (UIKit), launched with --probe.
+# 3. Its Notification Service Extension, through one simctl push. On the
+#    simulators tried so far, simctl push delivers the notification without
+#    running the extension (docs/ADR/0015-ios-nse-memory.md); the script
+#    records whether it ran and does not fail when it did not.
+#
+# Collects every report into OUTPUT_DIR (JSON files and report.md). Needs
+# macOS with Xcode, Go, XcodeGen and python3, and
+# build/MusubeeMemProbe.xcframework (build-go-xcframework.sh, built with the
+# same GO_TAGS).
+#
+#   run-simulator.sh UDID OUTPUT_DIR [GO_TAGS]
 set -euo pipefail
 
-if [ $# -ne 2 ]; then
-	sed -n '5,13p' "$0" >&2
+if [ $# -lt 2 ]; then
+	sed -n '5,22p' "$0" >&2
 	exit 2
 fi
 udid=$1
 output=$2
+tags=${3:-}
 here=$(cd "$(dirname "$0")" && pwd)
+core=$(cd "$here/../../../core" && pwd)
 mkdir -p "$output"
 output=$(cd "$output" && pwd)
 bundle=app.musubee.memoryprobe
 nse_process=MemoryProbeNSE
+repetitions=${MUSUBEE_PROBE_REPETITIONS:-3}
+sdk_path=$(xcrun --sdk iphonesimulator --show-sdk-path)
+cc=$(xcrun --sdk iphonesimulator --find clang)
+min_flag=-mios-simulator-version-min=15.0
+mkdir -p "$output/bin"
 
+# 1. Bare processes.
+echo "== building the probe and the control for the simulator"
+(
+	cd "$core"
+	CGO_ENABLED=1 GOOS=ios GOARCH=arm64 CC="$cc" \
+		CGO_CFLAGS="-isysroot $sdk_path -arch arm64 $min_flag -O2" \
+		CGO_LDFLAGS="-isysroot $sdk_path -arch arm64 $min_flag" \
+		go build -trimpath -ldflags="-s -w" -tags="$tags" -o "$output/bin/memprobe" ./cmd/memprobe
+)
+"$cc" -isysroot "$sdk_path" -arch arm64 "$min_flag" -O2 -o "$output/bin/footprint" "$here/control/footprint.c"
+ls -l "$output/bin"
+
+configs=(
+	""
+	"-crypto"
+	"-core"
+	"-core -crypto"
+	"-core -crypto -memory-limit-mb 8"
+)
+n=0
+for rep in $(seq 1 "$repetitions"); do
+	n=$((n + 1))
+	xcrun simctl spawn "$udid" "$output/bin/footprint" >"$output/process-$rep-0.json"
+	i=0
+	for config in "${configs[@]}"; do
+		i=$((i + 1))
+		# shellcheck disable=SC2086 # the configuration is a list of flags
+		xcrun simctl spawn "$udid" "$output/bin/memprobe" -data-dir "$output/data" $config \
+			>"$output/process-$rep-$i.json"
+	done
+	echo "== bare processes, repetition $rep done"
+done
+
+# 2. The app.
 cd "$here"
 xcodegen generate
 xcodebuild -project MemoryProbe.xcodeproj -scheme MemoryProbe -configuration Release \
@@ -36,7 +86,6 @@ xcodebuild -project MemoryProbe.xcodeproj -scheme MemoryProbe -configuration Rel
 app=build/derived/Build/Products/Release-iphonesimulator/MemoryProbe.app
 echo "== app built"
 du -sh "$app" "$app/MemoryProbe" "$app/PlugIns/$nse_process.appex/$nse_process" | tee "$output/sizes.txt"
-
 xcrun simctl install "$udid" "$app"
 start=$(date '+%Y-%m-%d %H:%M:%S')
 
@@ -45,70 +94,51 @@ logs() {
 		--predicate "subsystem == \"$bundle\"" 2>/dev/null || true
 }
 
-# wait_reports SOURCE COUNT: waits until COUNT complete reports from SOURCE
-# (app or nse) are in the log.
+# wait_reports SOURCE COUNT SECONDS: waits until COUNT complete reports from
+# SOURCE (app or nse) are in the log.
 wait_reports() {
-	local source=$1 count=$2
-	for _ in $(seq 1 90); do
+	local source=$1 count=$2 seconds=$3
+	local deadline=$((SECONDS + seconds))
+	while [ "$SECONDS" -lt "$deadline" ]; do
 		logs >"$output/log.ndjson"
 		if python3 "$here/reports.py" count "$output/log.ndjson" "$source" "$count"; then
 			return 0
 		fi
 		sleep 2
 	done
-	echo "no report $count from $source within 180 s" >&2
-	diagnose >&2
 	return 1
 }
 
-# diagnose prints what the system logged about the extension and the
-# notification, and the extension's crash reports, if any.
-diagnose() {
-	echo "== system log about the extension and the push"
-	xcrun simctl spawn "$udid" log show --start "$start" --style compact --info --debug \
-		--predicate "process == \"$nse_process\" OR eventMessage CONTAINS[c] \"memoryprobe\" OR eventMessage CONTAINS[c] \"service extension\"" \
-		2>&1 | tail -150 || true
-	echo "== crash reports"
-	find "$HOME/Library/Logs/DiagnosticReports" -iname "*MemoryProbe*" -newer "$output/push.json" -print -exec head -60 {} \; 2>/dev/null || true
-}
-
-# The app asks for provisional notification authorization, then runs the
-# probe in its own process.
 xcrun simctl launch "$udid" "$bundle" --probe
-wait_reports app 1
+if ! wait_reports app 1 120; then
+	echo "no report from the app within 120 s" >&2
+	exit 1
+fi
 echo "== app report received"
 xcrun simctl terminate "$udid" "$bundle" || true
 
-# One push per configuration, each in a new extension process: iOS keeps an
-# extension's process alive for a while after a push, and the peak
-# footprint lives as long as the process. The simulator's processes are
-# processes of the Mac, so pkill reaches the extension.
-configs=(
-	'{"core": true, "crypto": true}'
-	'{"crypto": true}'
-	'{"core": true}'
-	'{"core": true, "crypto": true, "memory_limit_mb": 8}'
-)
-n=0
-for config in "${configs[@]}"; do
-	n=$((n + 1))
-	pkill -9 -x "$nse_process" || true
-	sleep 1
-	python3 - "$output/push.json" "$bundle" "$config" <<'PY'
+# 3. The extension, if the simulator runs it.
+python3 - "$output/push.json" "$bundle" <<'PY'
 import json, sys
-path, bundle, config = sys.argv[1:4]
+path, bundle = sys.argv[1:3]
 payload = {
     "Simulator Target Bundle": bundle,
     "aps": {"alert": {"title": "Memory probe", "body": "running"}, "mutable-content": 1},
-    "probe": config,
 }
 with open(path, "w", encoding="utf-8") as f:
     json.dump(payload, f)
 PY
-	xcrun simctl push "$udid" "$bundle" "$output/push.json"
-	wait_reports nse "$n"
-	echo "== extension report $n received ($config)"
-done
+xcrun simctl push "$udid" "$bundle" "$output/push.json"
+if wait_reports nse 1 45; then
+	echo "== the extension ran and reported"
+	echo "ran" >"$output/extension.txt"
+else
+	echo "== the extension did not run (simctl push delivered the notification without it)"
+	echo "did not run" >"$output/extension.txt"
+	xcrun simctl spawn "$udid" log show --start "$start" --style compact --info \
+		--predicate "process == \"$nse_process\" OR (process == \"SpringBoard\" AND eventMessage CONTAINS \"$bundle\")" \
+		>"$output/extension-log.txt" 2>&1 || true
+fi
 
 python3 "$here/reports.py" write "$output/log.ndjson" "$output"
 cat "$output/report.md"

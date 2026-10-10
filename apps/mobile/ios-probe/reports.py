@@ -8,14 +8,19 @@ the log of "log show --style ndjson" and:
 
   reports.py count LOG SOURCE N   exits 0 if N complete reports from SOURCE
                                   (app or nse) are in the log, 1 otherwise
-  reports.py write LOG OUTPUT_DIR writes one JSON file per report and a
-                                  Markdown table of every step (report.md)
+  reports.py write LOG OUTPUT_DIR writes one JSON file per report of the
+                                  log, and report.md: a summary of the peaks
+                                  per configuration and a table of every
+                                  step, for the reports of the log and the
+                                  bare processes' reports already in
+                                  OUTPUT_DIR (process-REP-N.json)
 """
 
 from __future__ import annotations
 
 import json
 import re
+import statistics
 import sys
 from pathlib import Path
 
@@ -61,37 +66,80 @@ def mib(value: int) -> str:
 
 
 def label(source: str, report: dict) -> str:
+    if report.get("goos") == "none":
+        return f"{source}: empty C program"
     config = report.get("config", {})
     parts = [name for name in ("core", "crypto") if config.get(name)]
     if config.get("memory_limit_mb"):
         parts.append(f"GOMEMLIMIT {config['memory_limit_mb']} MiB")
-    return f"{source}: {' + '.join(parts) or 'nothing'}"
+    return f"{source}: {' + '.join(parts) or 'Go runtime only'}"
+
+
+def peak(report: dict) -> int:
+    values = [step.get("peak_footprint_bytes", -1) for step in report.get("steps", [])]
+    return max(values, default=-1)
+
+
+def process_reports(output: Path) -> list[tuple[str, dict]]:
+    """The bare processes' reports, in the order they ran."""
+    def key(path: Path) -> tuple[int, int]:
+        _, rep, n = path.stem.split("-")
+        return int(rep), int(n)
+
+    reports = []
+    for path in sorted(output.glob("process-*-*.json"), key=key):
+        try:
+            reports.append(("process", json.loads(path.read_text(encoding="utf-8"))))
+        except json.JSONDecodeError:
+            reports.append(("process", {"error": f"unreadable report {path.name}"}))
+    return reports
 
 
 def write(log: Path, output: Path) -> None:
-    reports = read_reports(log)
-    lines = [
-        "| Run | SQLite | Step | Footprint (MiB) | Peak (MiB) | Limit left (MiB) | Go mapped (MiB) | Go heap (MiB) | Goroutines | ms |",
-        "|---|---|---|---:|---:|---:|---:|---:|---:|---:|",
-    ]
-    for n, (source, report) in enumerate(reports, 1):
+    logged = read_reports(log) if log.exists() else []
+    for n, (source, report) in enumerate(logged, 1):
         (output / f"report-{n}-{source}.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    reports = process_reports(output) + logged
+
+    peaks: dict[str, list[int]] = {}
+    for source, report in reports:
+        if not report.get("error"):
+            peaks.setdefault(label(source, report), []).append(peak(report))
+    lines = [
+        "### Peak footprint per run (MiB)",
+        "",
+        "| Run | SQLite | Runs | Min | Median | Max |",
+        "|---|---|---:|---:|---:|---:|",
+    ]
+    drivers = {label(s, r): r.get("sqlite_driver", "?") for s, r in reports}
+    for name, values in peaks.items():
+        lines.append(
+            f"| {name} | {drivers.get(name, '?')} | {len(values)} | {mib(min(values))} "
+            f"| {mib(int(statistics.median(values)))} | {mib(max(values))} |"
+        )
+    lines += [
+        "",
+        "### Every step",
+        "",
+        "| Run | Step | Footprint (MiB) | Peak (MiB) | Limit left (MiB) | Go mapped (MiB) | Go heap (MiB) | Goroutines | ms |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for source, report in reports:
         if report.get("error"):
-            lines.append(f"| {label(source, report)} | | error: {report['error']} | | | | | | | |")
+            lines.append(f"| {label(source, report)} | error: {report['error']} | | | | | | | |")
         for step in report.get("steps", []):
             lines.append(
-                f"| {label(source, report)} | {report.get('sqlite_driver', '?')} | {step['step']} "
+                f"| {label(source, report)} | {step['step']} "
                 f"| {mib(step['footprint_bytes'])} | {mib(step['peak_footprint_bytes'])} "
                 f"| {mib(step['limit_remaining_bytes'])} | {mib(step['go_mapped_bytes'])} "
                 f"| {mib(step['go_heap_objects_bytes'])} | {step['goroutines']} | {step['duration_ms']:.0f} |"
             )
-    if reports:
-        first = reports[0][1]
-        lines.append("")
-        lines.append(
-            f"{first.get('go_version')} {first.get('goos')}/{first.get('goarch')}, "
-            f"GOMAXPROCS {first.get('gomaxprocs')}."
-        )
+    go = next((r for _, r in reports if r.get("go_version")), None)
+    if go:
+        lines += ["", f"{go['go_version']} {go['goos']}/{go['goarch']}, GOMAXPROCS {go['gomaxprocs']}."]
+    extension = output / "extension.txt"
+    if extension.exists():
+        lines += ["", f"Notification Service Extension through simctl push: {extension.read_text(encoding='utf-8').strip()}."]
     (output / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
