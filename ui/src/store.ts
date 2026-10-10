@@ -20,8 +20,18 @@ export interface State {
   coreVersion?: string;
   networks: readonly Network[];
   accounts: readonly Account[];
-  /** Sorted by name. */
+  /**
+   * The conversations read so far, the most recently active first
+   * (byActivity): the first pages of the core's list, kept up to date by its
+   * events.
+   */
   conversations: readonly Conversation[];
+  /**
+   * Where the conversation list read so far stops: a cursor for the next
+   * page, "loading" while it is read, or "end" when every conversation was
+   * read.
+   */
+  inbox: InboxState;
   /** The persons the user merged conversations into, oldest first. */
   persons: readonly Person[];
   /** Messages read or received so far, by conversation ID, oldest first. */
@@ -36,9 +46,12 @@ export interface State {
 }
 
 export type HistoryState = { cursor: string } | "loading" | "start";
+export type InboxState = { cursor: string } | "loading" | "end";
 
 /** How many older messages loadOlder() reads at once. */
 export const OLDER_PAGE = 100;
+/** How many conversations a page of the conversation list holds. */
+export const INBOX_PAGE = 50;
 
 const initialState: State = {
   status: { state: "starting" },
@@ -46,6 +59,7 @@ const initialState: State = {
   networks: [],
   accounts: [],
   conversations: [],
+  inbox: "end",
   persons: [],
   messages: {},
   history: {},
@@ -97,7 +111,9 @@ export class Store {
       const [networks, accounts, conversations, persons] = await Promise.all([
         this.client.call("networks.list"),
         this.client.call("accounts.list"),
-        this.client.call("conversations.list"),
+        // As many conversations as were read before, so that the list does
+        // not shrink under the user's eyes.
+        this.#readConversations(this.#state.conversations.length),
         this.client.call("persons.list"),
       ]);
       const selected = this.#state.selected;
@@ -113,7 +129,8 @@ export class Store {
         coreVersion: hello.core_version,
         networks: networks.networks,
         accounts: accounts.accounts,
-        conversations: sortConversations(conversations.conversations),
+        conversations: conversations.conversations.toSorted(byActivity),
+        inbox: inboxAfter(conversations.before),
         persons: persons.persons,
         // Only the shown conversation is read again; the others will be when
         // shown. Messages received while reading are kept.
@@ -121,6 +138,63 @@ export class Store {
         history: keep && latest ? { [selected]: historyAfter(latest.before) } : {},
         ...(keep ? { selected } : {}),
       });
+    } catch (error) {
+      if (generation === this.#generation) {
+        this.#set({ error: `Could not read your conversations: ${describe(error)}` });
+      }
+    }
+  }
+
+  /**
+   * Reads at least count conversations (one page if fewer), page by page,
+   * the most recent first.
+   */
+  async #readConversations(count: number): Promise<{ conversations: Conversation[]; before?: string }> {
+    const conversations: Conversation[] = [];
+    let before: string | undefined;
+    do {
+      const page = await this.client.call("conversations.list", { limit: INBOX_PAGE, ...(before === undefined ? {} : { before }) });
+      conversations.push(...page.conversations);
+      before = page.before;
+    } while (before !== undefined && conversations.length < count);
+    return { conversations, ...(before === undefined ? {} : { before }) };
+  }
+
+  /**
+   * Reads the next page of the conversation list; does nothing while one is
+   * read or when every conversation was.
+   */
+  async loadMoreConversations(): Promise<void> {
+    const inbox = this.#state.inbox;
+    if (typeof inbox === "string") {
+      return;
+    }
+    const generation = this.#generation;
+    this.#set({ inbox: "loading" });
+    try {
+      const page = await this.client.call("conversations.list", { limit: INBOX_PAGE, before: inbox.cursor });
+      if (generation !== this.#generation) {
+        return; // A reload replaced the list.
+      }
+      this.#set({ conversations: mergeConversations(this.#state.conversations, page.conversations), inbox: inboxAfter(page.before) });
+    } catch (error) {
+      if (generation === this.#generation) {
+        this.#set({ inbox, error: `Could not read your conversations: ${describe(error)}` });
+      }
+    }
+  }
+
+  /**
+   * Reads the first page of the conversation list again, for a message in a
+   * conversation that was not read yet: it is now the most recent one.
+   */
+  async #refreshFirstPage(): Promise<void> {
+    const generation = this.#generation;
+    try {
+      const page = await this.client.call("conversations.list", { limit: INBOX_PAGE });
+      if (generation === this.#generation) {
+        this.#set({ conversations: mergeConversations(this.#state.conversations, page.conversations) });
+      }
     } catch (error) {
       if (generation === this.#generation) {
         this.#set({ error: `Could not read your conversations: ${describe(error)}` });
@@ -227,9 +301,7 @@ export class Store {
         break;
       }
       case "conversation.updated":
-        this.#set({
-          conversations: sortConversations(upsert(this.#state.conversations, event.data.conversation, (c) => c.conversation_id)),
-        });
+        this.#set({ conversations: mergeConversations(this.#state.conversations, [event.data.conversation]) });
         break;
       case "person.updated":
         this.#set({ persons: upsert(this.#state.persons, event.data.person, (p) => p.person_id) });
@@ -240,8 +312,12 @@ export class Store {
         break;
       }
       case "message.added":
+        this.#upsertMessage(event.data.message);
+        this.#lastMessage(event.data.message, true);
+        break;
       case "message.updated":
         this.#upsertMessage(event.data.message);
+        this.#lastMessage(event.data.message, false);
         break;
       case "resync.required":
         void this.reload();
@@ -249,6 +325,29 @@ export class Store {
       default:
         // core.closed: the shell reports the status; unknown types are ignored.
         break;
+    }
+  }
+
+  /**
+   * Keeps the conversation list up to date with a message: a new message is
+   * its conversation's last one (API 1.3), which moves it first; an updated
+   * one replaces the last message it was.
+   */
+  #lastMessage(message: Message, added: boolean): void {
+    const conversations = this.#state.conversations;
+    const index = conversations.findIndex((c) => c.conversation_id === message.conversation_id);
+    const conversation = conversations[index];
+    if (conversation === undefined) {
+      if (added && this.#state.loaded) {
+        void this.#refreshFirstPage();
+      }
+      return;
+    }
+    if (added) {
+      const moved = { ...conversation, last_message: message, activity_ms: message.timestamp_ms };
+      this.#set({ conversations: placeConversation(conversations.toSpliced(index, 1), moved) });
+    } else if (conversation.last_message?.message_id === message.message_id) {
+      this.#set({ conversations: conversations.with(index, { ...conversation, last_message: message }) });
     }
   }
 
@@ -278,8 +377,41 @@ function upsert<T>(items: readonly T[], item: T, key: (item: T) => string): T[] 
   return index < 0 ? [...items, item] : items.with(index, item);
 }
 
-function sortConversations(conversations: readonly Conversation[]): Conversation[] {
-  return conversations.toSorted((a, b) => a.name.localeCompare(b.name));
+/**
+ * The order of the conversation list: the most recently active first. The
+ * sort is stable, so conversations as active keep the core's order.
+ */
+export function byActivity(a: Conversation, b: Conversation): number {
+  return (b.activity_ms ?? 0) - (a.activity_ms ?? 0);
+}
+
+/**
+ * Inserts a conversation into a list in activity order, before the ones as
+ * active: the common case of a new message, at the top, costs a copy.
+ */
+function placeConversation(conversations: readonly Conversation[], conversation: Conversation): Conversation[] {
+  const index = conversations.findIndex((c) => byActivity(conversation, c) <= 0);
+  return index < 0 ? [...conversations, conversation] : conversations.toSpliced(index, 0, conversation);
+}
+
+/**
+ * Merges conversations read from the core into a list: a conversation
+ * already listed keeps the version with the latest activity (an event may
+ * have overtaken the page being read), then the list is sorted.
+ */
+export function mergeConversations(base: readonly Conversation[], newer: readonly Conversation[]): Conversation[] {
+  const byId = new Map(base.map((c) => [c.conversation_id, c]));
+  for (const conversation of newer) {
+    const known = byId.get(conversation.conversation_id);
+    if (known === undefined || (conversation.activity_ms ?? 0) >= (known.activity_ms ?? 0)) {
+      byId.set(conversation.conversation_id, conversation);
+    }
+  }
+  return [...byId.values()].toSorted(byActivity);
+}
+
+function inboxAfter(cursor: string | undefined): InboxState {
+  return cursor === undefined ? "end" : { cursor };
 }
 
 function historyAfter(cursor: string | undefined): HistoryState {

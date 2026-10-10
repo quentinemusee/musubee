@@ -234,12 +234,78 @@ ol {
   font-size: 13px;
 }
 
+/* The inbox takes the rest of the sidebar, but keeps room for a few rows
+   when there are many accounts (the sidebar then scrolls). */
+.inbox {
+  position: relative;
+  display: flex;
+  flex: 1 0 12rem;
+  flex-direction: column;
+  min-height: 12rem;
+}
+
+.inbox-list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.inbox-list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Padding rather than margins, so that the virtualized list measures rows
+   whole. */
+.inbox-row {
+  padding: 2px 0;
+}
+
+.inbox-loading {
+  padding: calc(var(--space) / 2) 0;
+  color: var(--color-muted);
+  font-size: 0.875em;
+}
+
 .conversation {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   width: 100%;
   text-align: left;
   border-color: transparent;
   background: transparent;
   color: var(--color-text);
+}
+
+.conversation-top {
+  display: flex;
+  gap: var(--space);
+  align-items: baseline;
+}
+
+.conversation-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-time,
+.conversation-meta {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.conversation-preview {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .conversation[aria-current="true"] {
@@ -251,6 +317,26 @@ ol {
   flex: 1;
   flex-direction: column;
   min-height: 0;
+}
+
+.switcher {
+  margin: 0;
+  border: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--space) / 2);
+  margin-bottom: var(--space);
+}
+
+.switcher button {
+  padding: 2px 10px;
+  font-size: 13px;
+}
+
+.switcher button[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  background: var(--color-mine);
 }
 
 /* The virtualized list (MessageList) scrolls itself and positions its rows:
