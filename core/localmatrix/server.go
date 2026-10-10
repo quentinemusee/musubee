@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"regexp"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -69,7 +68,10 @@ type Server struct {
 	connectors  map[string]*Connector
 	subscribers map[*subscriber]struct{}
 
-	stopped atomic.Bool
+	// stopLock is held for reading while a bridge state is stored, and for
+	// writing by Stop: once Stop returns, no state is being stored.
+	stopLock sync.RWMutex
+	stopped  bool
 }
 
 // New creates a Server that stores its data in db. Its tables are created or
@@ -102,9 +104,13 @@ func New(db *dbutil.Database, opts Options) *Server {
 // does not wait for, and that retries a failed send forever, every 2 to
 // 64 seconds: a state sent after the database is closed would keep that
 // goroutine, and the whole bridge, alive. The states of a stopped bridge
-// do not matter: Upgrade forgets them on the next start.
+// do not matter: Upgrade forgets them on the next start. Stop waits for a
+// state being stored: a write still running when the database is closed
+// would open a new connection to it, and keep its file open.
 func (s *Server) Stop() {
-	s.stopped.Store(true)
+	s.stopLock.Lock()
+	defer s.stopLock.Unlock()
+	s.stopped = true
 }
 
 // UserID is the Matrix identifier of the device's user.

@@ -55,6 +55,7 @@ Both were measured with the same core, behind a temporary build tag (Measurement
    - The tests accept only lines from aborted handlers, so anything else outliving `Close` fails them (checked by mutation).
    - An app killed by the system (mobile background) loses in-flight work the same way: consistency must come from resynchronising with the network after a restart, never from a graceful stop.
    - Upstream could drain portal events on stop. Reporting it needs the maintainer's permission.
+   - *(Added in T1.7, 2026-10-10.)* A handler still running may also hold a database connection, or be opening one, when the core closes the database: `database/sql`'s `Close` does not wait for connections in use, and Windows then refuses to delete or reopen the file (seen in CI as a flaky `TempDir` cleanup). `bridgehost.Host.Stop` therefore waits, at most 5 seconds, until the closed database has no open connection; `localmatrix.Server.Stop` waits for a bridge state being stored; the echo connector's `Stop` waits for the connection it starts in the background after a login. `TestCloseRightAfterLogin` (`core/embedded`) checks that the data directory can be deleted right after `Close`.
 
 ## Measurements
 

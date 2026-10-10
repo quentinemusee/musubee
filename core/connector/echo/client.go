@@ -54,7 +54,9 @@ func (c *client) portalKey(contact networkid.UserID) networkid.PortalKey {
 // every contact, which creates the rooms on first connection.
 func (c *client) Connect(ctx context.Context) {
 	c.lock.Lock()
-	if c.connected {
+	// A connection started in the background may run once the bridge is
+	// stopping, after Disconnect: it must not reconnect.
+	if c.connected || c.connector.br.IsStopping() {
 		c.lock.Unlock()
 		return
 	}

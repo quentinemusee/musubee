@@ -65,7 +65,7 @@ func completeLogin(ctx context.Context, connector *Connector, user *bridgev2.Use
 	if err != nil {
 		return nil, fmt.Errorf("saving the login: %w", err)
 	}
-	go login.Client.Connect(login.Log.WithContext(connector.br.BackgroundCtx))
+	connector.connectLater(login)
 	return &bridgev2.LoginStep{
 		Type:         bridgev2.LoginStepTypeComplete,
 		StepID:       stepCompleteID,
