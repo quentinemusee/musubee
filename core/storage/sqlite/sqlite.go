@@ -11,6 +11,8 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
+	"errors"
 	"fmt"
 	"time"
 
@@ -35,9 +37,37 @@ const (
 // (docs/ADR/0012). Idle connections close after ConnMaxIdleTime, to give
 // their page caches back when the application is idle.
 func Open(path string) (*dbutil.Database, error) {
+	return open(path, nil)
+}
+
+// OpenSealed is Open, with the sessions of bridgev2's logins (the metadata
+// column of user_login) sealed by the sealer: every value written to the
+// column is sealed before it reaches SQLite, and opened when read. Values
+// written before sealing are read as they are (docs/ADR/0019).
+func OpenSealed(path string, sealer Sealer) (*dbutil.Database, error) {
+	if sealer == nil {
+		return nil, errors.New("no sealer")
+	}
+	return open(path, sealer)
+}
+
+func open(path string, sealer Sealer) (*dbutil.Database, error) {
 	raw, err := sql.Open(driverName, dataSourceName(path))
 	if err != nil {
 		return nil, fmt.Errorf("opening %s: %w", path, err)
+	}
+	if sealer != nil {
+		// The pool is rebuilt on a connector that seals: sql.Open only
+		// located the driver.
+		drv := raw.Driver()
+		_ = raw.Close()
+		var base driver.Connector = dsnConnector{driver: drv, dsn: dataSourceName(path)}
+		if dc, ok := drv.(driver.DriverContext); ok {
+			if base, err = dc.OpenConnector(dataSourceName(path)); err != nil {
+				return nil, fmt.Errorf("opening %s: %w", path, err)
+			}
+		}
+		raw = sql.OpenDB(&sealingConnector{base: base, sealing: &sealing{sealer: sealer}})
 	}
 	if err = raw.PingContext(context.Background()); err != nil {
 		_ = raw.Close()

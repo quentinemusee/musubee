@@ -32,7 +32,10 @@ type Options struct {
 	UserLocalpart string
 	// PortalWait is localmatrix.Options.PortalWait.
 	PortalWait time.Duration
-	Log        zerolog.Logger
+	// Sealer, if set, seals the sessions of the logins in the database
+	// (sqlite.OpenSealed).
+	Sealer sqlite.Sealer
+	Log    zerolog.Logger
 }
 
 // Host owns the database, the local Matrix server and the bridges.
@@ -47,7 +50,11 @@ type Host struct {
 // New opens the database and creates the local Matrix server. Add networks
 // with AddNetwork, then call Start.
 func New(opts Options) (*Host, error) {
-	db, err := sqlite.Open(opts.DatabasePath)
+	open := sqlite.Open
+	if opts.Sealer != nil {
+		open = func(path string) (*dbutil.Database, error) { return sqlite.OpenSealed(path, opts.Sealer) }
+	}
+	db, err := open(opts.DatabasePath)
 	if err != nil {
 		return nil, err
 	}
