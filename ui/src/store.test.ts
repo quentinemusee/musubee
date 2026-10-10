@@ -7,7 +7,7 @@
 import { describe, expect, test } from "vitest";
 import type { Conversation, Message, Person } from "./core-api/types.gen";
 import type { CoreStatus, ShellCore } from "./shell";
-import { mergeMessages, Store } from "./store";
+import { mergeMessages, OLDER_PAGE, Store } from "./store";
 
 function conversation(id: string, name: string): Conversation {
   return { conversation_id: id, account_id: "a1", network_id: "echo", name, kind: "direct" };
@@ -73,6 +73,9 @@ const coreState = (conversations: Conversation[] = [], persons: Person[] = []) =
 });
 
 // Waits for the store's pending promises.
+/** Each message as "id:time:status". */
+const ids = (ms: readonly Message[]) => ms.map((m) => `${m.message_id}:${m.timestamp_ms}:${m.status}`);
+
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("Store", () => {
@@ -200,11 +203,97 @@ describe("Store", () => {
     store.dismissError();
     expect(store.getState().error).toBeUndefined();
   });
+
+  test("reads older messages page by page, one page at a time", async () => {
+    // 250 messages, m0 to m249; the core pages them from the newest.
+    const all = Array.from({ length: 250 }, (_, i) => message(`m${i}`, i));
+    const requests: unknown[] = [];
+    const shell = scriptedShell({
+      ...coreState([conversation("c1", "Adam")]),
+      "messages.list": (params) => {
+        requests.push(params);
+        const { before, limit = 50 } = params as { before?: string; limit?: number };
+        const end = before === undefined ? all.length : Number(before);
+        const start = Math.max(0, end - limit);
+        return { messages: all.slice(start, end), ...(start > 0 ? { before: String(start) } : {}) };
+      },
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    await store.select("c1");
+    expect(store.getState().messages["c1"]).toHaveLength(50);
+    expect(store.getState().history["c1"]).toEqual({ cursor: "200" });
+
+    const first = store.loadOlder();
+    expect(store.getState().history["c1"]).toBe("loading");
+    await store.loadOlder(); // Ignored while the first page is read.
+    await first;
+    expect(store.getState().messages["c1"]?.[0]?.message_id).toBe("m100");
+    expect(store.getState().messages["c1"]).toHaveLength(150);
+
+    await store.loadOlder();
+    const messages = store.getState().messages["c1"]!;
+    expect(messages.map((m) => m.message_id)).toEqual(all.map((m) => m.message_id));
+    expect(store.getState().history["c1"]).toBe("start");
+    await store.loadOlder();
+    expect(requests).toEqual([
+      { conversation_id: "c1" },
+      { conversation_id: "c1", before: "200", limit: OLDER_PAGE },
+      { conversation_id: "c1", before: "100", limit: OLDER_PAGE },
+    ]);
+  });
+
+  test("keeps the history cursor when reading older messages fails", async () => {
+    let fail = false;
+    const shell = scriptedShell({
+      ...coreState([conversation("c1", "Adam")]),
+      "messages.list": () => {
+        if (fail) {
+          throw new Error("unreachable");
+        }
+        return { messages: [message("m9", 9)], before: "9" };
+      },
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    await store.select("c1");
+    fail = true;
+    await store.loadOlder();
+    expect(store.getState().history["c1"]).toEqual({ cursor: "9" });
+    expect(store.getState().error).toMatch(/older messages/);
+  });
 });
 
 describe("mergeMessages", () => {
   test("orders by time and lets the newer version win", () => {
     const merged = mergeMessages([message("b", 2), message("a", 1, { status: "sending" })], [message("a", 1, { status: "sent" }), message("c", 3)]);
     expect(merged.map((m) => `${m.message_id}:${m.status}`)).toEqual(["a:sent", "b:received", "c:received"]);
+  });
+
+  test("handles one message, as events bring them", () => {
+    const base = [message("a", 1), message("b", 2), message("c", 3)];
+    // A new message, the newest.
+    expect(ids(mergeMessages(base, [message("d", 4)]))).toEqual(["a:1:received", "b:2:received", "c:3:received", "d:4:received"]);
+    // Of the same millisecond as the newest: after it, as the core sent it.
+    expect(ids(mergeMessages(base, [message("d", 3)]))).toEqual(["a:1:received", "b:2:received", "c:3:received", "d:3:received"]);
+    // An update.
+    expect(ids(mergeMessages(base, [message("b", 2, { status: "sent" })]))).toEqual(["a:1:received", "b:2:sent", "c:3:received"]);
+    // An update that changes the time, and an older message.
+    expect(ids(mergeMessages(base, [message("c", 0)]))).toEqual(["c:0:received", "a:1:received", "b:2:received"]);
+    expect(ids(mergeMessages(base, [message("z", 0)]))).toEqual(["z:0:received", "a:1:received", "b:2:received", "c:3:received"]);
+    expect(ids(mergeMessages([], [message("a", 1)]))).toEqual(["a:1:received"]);
+    // The input is never changed.
+    expect(ids(base)).toEqual(["a:1:received", "b:2:received", "c:3:received"]);
+  });
+
+  test("finds an update far from the end", () => {
+    const base = Array.from({ length: 500 }, (_, i) => message(`m${i}`, i));
+    const merged = mergeMessages(base, [message("m3", 3, { status: "failed" })]);
+    expect(merged).toHaveLength(500);
+    expect(merged[3]?.status).toBe("failed");
   });
 });

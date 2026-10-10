@@ -3,10 +3,9 @@
 
 // The interface's state, fed by the core's responses and events.
 //
-// Provisional: state management is still to be chosen by an ADR with
-// measurements on low-end Android (CLAUDE.md §4, question 6). This store is
-// the smallest thing that works with React's useSyncExternalStore: one
-// immutable snapshot, replaced on every change.
+// Chosen in docs/ADR/0020: our own store over React's
+// useSyncExternalStore, with no state library. One immutable snapshot,
+// replaced on every change; components select the part they show.
 
 import { CoreClient, parseEvent } from "./core-api/client";
 import type { Account, Conversation, Event, Message, Network, Person } from "./core-api/types.gen";
@@ -27,8 +26,19 @@ export interface State {
   persons: readonly Person[];
   /** Messages read or received so far, by conversation ID, oldest first. */
   messages: Readonly<Record<string, readonly Message[]>>;
+  /**
+   * Where the history of each conversation read so far stops: a cursor for
+   * the older messages, "loading" while they are read, or "start" when the
+   * first message was read.
+   */
+  history: Readonly<Record<string, HistoryState>>;
   selected?: string;
 }
+
+export type HistoryState = { cursor: string } | "loading" | "start";
+
+/** How many older messages loadOlder() reads at once. */
+export const OLDER_PAGE = 100;
 
 const initialState: State = {
   status: { state: "starting" },
@@ -38,6 +48,7 @@ const initialState: State = {
   conversations: [],
   persons: [],
   messages: {},
+  history: {},
 };
 
 export class Store {
@@ -107,6 +118,7 @@ export class Store {
         // Only the shown conversation is read again; the others will be when
         // shown. Messages received while reading are kept.
         messages: keep && latest ? { [selected]: mergeMessages(this.#state.messages[selected] ?? [], latest.messages) } : {},
+        history: keep && latest ? { [selected]: historyAfter(latest.before) } : {},
         ...(keep ? { selected } : {}),
       });
     } catch (error) {
@@ -125,9 +137,40 @@ export class Store {
     try {
       const result = await this.client.call("messages.list", { conversation_id: conversationId });
       // Events may have brought messages in the meantime.
-      this.#setMessages(conversationId, mergeMessages(result.messages, this.#state.messages[conversationId] ?? []));
+      this.#set({
+        messages: { ...this.#state.messages, [conversationId]: mergeMessages(result.messages, this.#state.messages[conversationId] ?? []) },
+        history: { ...this.#state.history, [conversationId]: historyAfter(result.before) },
+      });
     } catch (error) {
       this.#set({ error: `Could not read the messages: ${describe(error)}` });
+    }
+  }
+
+  /**
+   * Reads the messages before the oldest one shown, in the selected
+   * conversation; does nothing while they are read or when there are none.
+   */
+  async loadOlder(): Promise<void> {
+    const conversationId = this.#state.selected;
+    const history = conversationId === undefined ? undefined : this.#state.history[conversationId];
+    if (conversationId === undefined || history === undefined || typeof history === "string") {
+      return;
+    }
+    const generation = this.#generation;
+    this.#set({ history: { ...this.#state.history, [conversationId]: "loading" } });
+    try {
+      const result = await this.client.call("messages.list", { conversation_id: conversationId, before: history.cursor, limit: OLDER_PAGE });
+      if (generation !== this.#generation) {
+        return; // A reload replaced the history.
+      }
+      this.#set({
+        messages: { ...this.#state.messages, [conversationId]: mergeMessages(this.#state.messages[conversationId] ?? [], result.messages) },
+        history: { ...this.#state.history, [conversationId]: historyAfter(result.before) },
+      });
+    } catch (error) {
+      if (generation === this.#generation) {
+        this.#set({ history: { ...this.#state.history, [conversationId]: history }, error: `Could not read older messages: ${describe(error)}` });
+      }
     }
   }
 
@@ -239,8 +282,36 @@ function sortConversations(conversations: readonly Conversation[]): Conversation
   return conversations.toSorted((a, b) => a.name.localeCompare(b.name));
 }
 
-/** Merges two lists of messages: the later version of a message wins; oldest first. */
+function historyAfter(cursor: string | undefined): HistoryState {
+  return cursor === undefined ? "start" : { cursor };
+}
+
+/** How far from the newest message mergeMessages looks for a message to replace. */
+const RECENT = 64;
+
+/**
+ * Merges two lists of messages: the later version of a message wins; oldest
+ * first. One new or updated message near the end, the common case of an
+ * event, costs a copy of the list instead of a sort of it (ADR 0020).
+ */
 export function mergeMessages(base: readonly Message[], newer: readonly Message[]): Message[] {
+  const only = newer.length === 1 ? newer[0]! : undefined;
+  const last = base.at(-1);
+  if (only !== undefined) {
+    const from = Math.max(0, base.length - RECENT);
+    for (let i = base.length - 1; i >= from; i--) {
+      if (base[i]!.message_id === only.message_id) {
+        // In place if its time keeps the order.
+        if (base[i]!.timestamp_ms === only.timestamp_ms) {
+          return base.with(i, only);
+        }
+        break;
+      }
+    }
+    if (last === undefined || (only.timestamp_ms >= last.timestamp_ms && !base.some((m) => m.message_id === only.message_id))) {
+      return [...base, only];
+    }
+  }
   const byId = new Map(base.map((m) => [m.message_id, m]));
   for (const message of newer) {
     byId.set(message.message_id, message);
