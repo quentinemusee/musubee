@@ -125,3 +125,20 @@ func TestKeyFile(t *testing.T) {
 		t.Error("an invalid key file was accepted")
 	}
 }
+
+// A key file of the desktop app's safeStorage is refused, and kept: a new
+// key would make every sealed secret unreadable.
+func TestKeyFileOfTheApp(t *testing.T) {
+	dir := t.TempDir()
+	content := []byte(`{"version":1,"protection":"electron-safestorage","key":"djEwAAAA"}`)
+	path := filepath.Join(dir, KeyFileName)
+	if err := os.WriteFile(path, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := LoadOrCreate(dir); !errors.Is(err, ErrKeyHeldByApp) {
+		t.Errorf("LoadOrCreate = %v, want ErrKeyHeldByApp", err)
+	}
+	if data, err := os.ReadFile(path); err != nil || !bytes.Equal(data, content) {
+		t.Errorf("the key file changed: %q, %v", data, err)
+	}
+}
