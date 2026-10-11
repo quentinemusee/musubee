@@ -265,6 +265,117 @@ jobs:
           go vet "-tags=goolm,musubee_signal" ./core/...
           go test "-tags=goolm,musubee_signal" -count=1 ./core/connector/signal/ ./core/embedded/
 
+  # The same for Android (docs/ADR/0028): libsignal-ffi built with the NDK of
+  # the app and cached per ABI; the Go tests of the mautrix-signal copy and
+  # of the core's Signal code built for Android, and run on an x86_64
+  # emulator. arm64-v8a, the ABI of phones, is built and linked only: GitHub's
+  # Linux runners cannot emulate it at a usable speed.
+  signal-android:
+    name: Signal connector (Android ${{ matrix.abi }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: x86_64
+            clang: x86_64-linux-android
+            goarch: amd64
+          - abi: arm64-v8a
+            clang: aarch64-linux-android
+            goarch: arm64
+    runs-on: ubuntu-latest
+    # A libsignal build takes about 5 minutes per ABI (ADR 0022).
+    timeout-minutes: 60
+    env:
+      NDK_VERSION: 28.2.13676358
+      # The app's minSdkVersion (apps/mobile/android/variables.gradle).
+      ANDROID_API: "24"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: infra/go.mod
+          cache-dependency-path: |
+            core/go.sum
+            core/replace/mautrix-signal/go.sum
+
+      - name: Install the Android NDK
+        run: |
+          # yes ends with SIGPIPE when sdkmanager exits: not a failure.
+          { yes || :; } | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION" > /dev/null
+          ndk="$ANDROID_HOME/ndk/$NDK_VERSION"
+          bin="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          echo "ANDROID_NDK_HOME=$ndk" >> "$GITHUB_ENV"
+          echo "NDK_BIN=$bin" >> "$GITHUB_ENV"
+          echo "NDK_CC=$bin/${{ matrix.clang }}${ANDROID_API}-clang" >> "$GITHUB_ENV"
+
+      - name: libsignal-ffi from the cache
+        id: libsignal
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: libsignal-out
+          key: libsignal-android-${{ matrix.abi }}-${{ hashFiles('scripts/build-libsignal.sh') }}
+
+      - name: Build libsignal-ffi
+        if: steps.libsignal.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq protobuf-compiler clang libclang-dev cmake > /dev/null
+          scripts/build-libsignal.sh libsignal-out "${{ matrix.abi }}"
+
+      # Test binaries (go test -c) rather than go test: they run on the
+      # emulator, not on the runner. Then the core as the app builds it
+      # (apps/mobile/android/app/build.gradle), with and without Signal, for
+      # the size Signal adds to the app.
+      - name: Build the tests and the core for Android
+        env:
+          CGO_ENABLED: "1"
+          GOOS: android
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          out=$GITHUB_WORKSPACE/libsignal-out
+          bin=$RUNNER_TEMP/android-tests
+          export CC="$NDK_CC" LIBRARY_PATH="$out" CGO_LDFLAGS="-L$out $(cat "$out/cgo-ldflags")"
+          mkdir -p "$bin"
+          (cd core/replace/mautrix-signal && GOWORK=off go test -c -o "$bin/" ./pkg/...)
+          go vet "-tags=goolm,musubee_signal" ./core/...
+          go test -c "-tags=goolm,musubee_signal" -o "$bin/" ./core/connector/signal/ ./core/embedded/
+          ls -l "$bin"
+          for tags in goolm goolm,musubee_signal; do
+            go build "-tags=$tags" -buildmode=c-shared -trimpath -ldflags="-s -w" -o "$RUNNER_TEMP/libmusubee.so" ./core/ffi
+            echo "core for Android $GOARCH, tags $tags: $(stat -c %s "$RUNNER_TEMP/libmusubee.so") bytes"
+          done
+          echo "BIN=$bin" >> "$GITHUB_ENV"
+
+      # The device has no libc++_shared.so unless an app ships it: the C++
+      # runtime that BoringSSL needs must be linked statically.
+      - name: Shared libraries the binaries need
+        run: |
+          "$NDK_BIN/llvm-readelf" -d "$BIN"/*.test "$RUNNER_TEMP/libmusubee.so" | grep NEEDED | sort | uniq -c
+          if "$NDK_BIN/llvm-readelf" -d "$BIN"/*.test "$RUNNER_TEMP/libmusubee.so" | grep -q 'libc++_shared'; then
+            echo "a binary needs libc++_shared.so"; exit 1
+          fi
+
+      - name: Enable KVM
+        if: matrix.abi == 'x86_64'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Tests on the emulator
+        if: matrix.abi == 'x86_64'
+        uses: reactivecircus/android-emulator-runner@c9c93e6ba9c4194322e114c40970d5983d9a07cc # v2.38.0
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
+          script: ANDROID_SERIAL=emulator-5554 scripts/run-android-go-tests.sh "$BIN"/*.test
+
   licenses:
     name: Dependency license audit (Go and npm)
     runs-on: ubuntu-latest
