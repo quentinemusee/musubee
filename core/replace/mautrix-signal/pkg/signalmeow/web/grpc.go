@@ -114,7 +114,9 @@ func (gc *GRPCClient) ResetConnectBackoff() {
 	gc.UnauthConn.ResetConnectBackoff()
 }
 
-const GRPCTarget = "dns://grpc.chat.signal.org:443"
+// Musubee: a variable, so that SetEnvironment in package signalmeow can point
+// it at Signal's staging service.
+var GRPCTarget = "dns://grpc.chat.signal.org:443"
 
 func NewGRPCClient(username, password string) (*GRPCClient, error) {
 	grpcTLSConfig := credentials.NewTLS(SignalTLSConfig)

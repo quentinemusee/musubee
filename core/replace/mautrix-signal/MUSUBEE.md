@@ -27,7 +27,23 @@ The first commit that adds this directory holds the upstream files unchanged
 
 ## Musubee's changes
 
-None yet. Each change will be listed here with its reason.
+Every changed line carries a comment that starts with `Musubee:`, so
+`grep -rn "Musubee:" .` finds them; new files carry Musubee's copyright.
+
+1. **A choice of Signal service** (production or staging), for our tests
+   (ADR 0022, ADR 0025).
+   - `pkg/signalmeow/web/web.go`, `pkg/signalmeow/web/grpc.go`: the host names
+     and the gRPC target are variables instead of constants.
+   - `pkg/signalmeow/contactdiscovery.go`: the contact discovery server and
+     enclave in use are variables.
+   - `pkg/signalmeow/misc.go`: a comment only; the zkgroup parameters were
+     already a variable.
+   - `pkg/signalmeow/environment.go` (new): `SetEnvironment`, which points all
+     of the above at production or staging, with the values of Signal-Android
+     and libsignal v0.102.2 (sources in ADR 0025).
+   - `pkg/signalmeow/staging-server-public-params.dat` (new): the staging
+     zkgroup parameters, decoded from Signal-Android's build file.
+   - `pkg/signalmeow/environment_musubee_test.go` (new): `SetEnvironment`.
 
 ## Updating
 
