@@ -163,14 +163,29 @@ func TestMessageFlowsThroughTheBridge(t *testing.T) {
 
 	// 1. Log the bridge in as the bridge bot.
 	alice := newMatrixUser(t, "alice")
-	step, err := env.Bridge.StartLogin(ctx, alice.UserID, "bot")
-	if err != nil {
-		t.Fatalf("starting the bot login: %v", err)
+	var done *testenv.LoginStep
+	// When Telegram asks to wait before another bot login (FLOOD_WAIT,
+	// which CI's Telegram jobs in a row can get), wait as asked, up to
+	// MaxFloodWait, and try once more.
+	for attempt := 1; ; attempt++ {
+		step, startErr := env.Bridge.StartLogin(ctx, alice.UserID, "bot")
+		if startErr != nil {
+			t.Fatalf("starting the bot login: %v", startErr)
+		}
+		if step.Type != "user_input" {
+			t.Fatalf("bot login started with step %q, want user_input", step.Type)
+		}
+		done, err = env.Bridge.SubmitInput(ctx, alice.UserID, step, map[string]string{botTokenField: bridgeToken})
+		if err == nil {
+			break
+		}
+		if wait, ok := FloodWait(err.Error()); ok && attempt == 1 && wait <= MaxFloodWait {
+			t.Logf("Telegram asks to wait %v before the next bot login", wait)
+			time.Sleep(wait + time.Second)
+			continue
+		}
+		break
 	}
-	if step.Type != "user_input" {
-		t.Fatalf("bot login started with step %q, want user_input", step.Type)
-	}
-	done, err := env.Bridge.SubmitInput(ctx, alice.UserID, step, map[string]string{botTokenField: bridgeToken})
 	if err != nil {
 		if strings.Contains(err.Error(), "FLOOD_WAIT") {
 			t.Fatalf("submitting the bot token: %v (Telegram rate-limits bot logins after many runs: wait the number of seconds shown, then rerun)", err)
