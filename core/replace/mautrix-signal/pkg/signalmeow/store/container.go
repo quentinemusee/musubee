@@ -27,6 +27,8 @@ type DeviceStore interface {
 // Container is a wrapper for a SQL database that can contain multiple signalmeow sessions.
 type Container struct {
 	db *dbutil.Database
+
+	sealer Sealer // Musubee: see sealing.go.
 }
 
 func NewStore(db *dbutil.Database, log dbutil.DatabaseLogger) *Container {
@@ -51,18 +53,24 @@ func (c *Container) Upgrade(ctx context.Context) error {
 
 func (c *Container) scanDevice(row dbutil.Scannable) (*Device, error) {
 	var device Device
-	var accountEntropyPool sql.NullString
+	var accountEntropyPool, password sql.NullString
 	var aciIdentityKeyPair, pniIdentityKeyPair, accountRecordBytes, ephemeralBackupKey, mediaRootBackupKey []byte
 
+	// Musubee: the secret columns are sealed when a sealer is set (sealing.go).
 	err := row.Scan(
-		&device.ACI, &aciIdentityKeyPair, &device.ACIRegistrationID,
-		&device.PNI, &pniIdentityKeyPair, &device.PNIRegistrationID,
-		&device.DeviceID, &device.Number, &device.Password, &device.MasterKey, &accountRecordBytes,
-		&accountEntropyPool, &ephemeralBackupKey, &mediaRootBackupKey,
+		&device.ACI, c.opened(PurposeDeviceACIIdentityKeyPair, &aciIdentityKeyPair), &device.ACIRegistrationID,
+		&device.PNI, c.opened(PurposeDevicePNIIdentityKeyPair, &pniIdentityKeyPair), &device.PNIRegistrationID,
+		&device.DeviceID, &device.Number, c.openedString(PurposeDevicePassword, &password),
+		c.opened(PurposeDeviceMasterKey, &device.MasterKey),
+		c.opened(PurposeDeviceAccountRecord, &accountRecordBytes),
+		c.openedString(PurposeDeviceAccountEntropyPool, &accountEntropyPool),
+		c.opened(PurposeDeviceEphemeralBackupKey, &ephemeralBackupKey),
+		c.opened(PurposeDeviceMediaRootBackupKey, &mediaRootBackupKey),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan session: %w", err)
 	}
+	device.Password = password.String
 	device.ACIIdentityKeyPair, err = libsignalgo.DeserializeIdentityKeyPair(aciIdentityKeyPair)
 	if err != nil {
 		return nil, fmt.Errorf("failed to deserialize ACI identity key pair: %w", err)
@@ -202,12 +210,16 @@ func (c *Container) PutDevice(ctx context.Context, device *DeviceData) error {
 			return fmt.Errorf("failed to marshal account record: %w", err)
 		}
 	}
+	// Musubee: the secret columns are sealed when a sealer is set (sealing.go).
 	_, err = c.db.Exec(ctx, insertDeviceQuery,
-		device.ACI, aciIdentityKeyPair, device.ACIRegistrationID,
-		device.PNI, pniIdentityKeyPair, device.PNIRegistrationID,
-		device.DeviceID, device.Number, device.Password, device.MasterKey,
-		accountRecordBytes, device.AccountEntropyPool,
-		device.EphemeralBackupKey.Slice(), device.MediaRootBackupKey.Slice(),
+		device.ACI, c.sealBytes(PurposeDeviceACIIdentityKeyPair, aciIdentityKeyPair), device.ACIRegistrationID,
+		device.PNI, c.sealBytes(PurposeDevicePNIIdentityKeyPair, pniIdentityKeyPair), device.PNIRegistrationID,
+		device.DeviceID, device.Number, c.sealString(PurposeDevicePassword, device.Password),
+		c.sealBytes(PurposeDeviceMasterKey, device.MasterKey),
+		c.sealBytes(PurposeDeviceAccountRecord, accountRecordBytes),
+		c.sealString(PurposeDeviceAccountEntropyPool, string(device.AccountEntropyPool)),
+		c.sealBytes(PurposeDeviceEphemeralBackupKey, device.EphemeralBackupKey.Slice()),
+		c.sealBytes(PurposeDeviceMediaRootBackupKey, device.MediaRootBackupKey.Slice()),
 	)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("failed to insert device")

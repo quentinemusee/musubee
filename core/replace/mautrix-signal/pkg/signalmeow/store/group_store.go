@@ -49,19 +49,23 @@ const (
 	`
 )
 
-func scanGroup(row dbutil.Scannable) (*dbGroup, error) {
+// Musubee: a method of Container, to reach its sealer (sealing.go).
+func (c *Container) scanGroup(row dbutil.Scannable) (*dbGroup, error) {
 	var g dbGroup
-	err := row.Scan(&g.OurAciUuid, &g.GroupIdentifier, &g.GroupMasterKey)
+	// Musubee: sealed when a sealer is set (sealing.go).
+	var masterKey sql.NullString
+	err := row.Scan(&g.OurAciUuid, &g.GroupIdentifier, c.openedString(PurposeGroupMasterKey, &masterKey))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	} else if err != nil {
 		return nil, err
 	}
+	g.GroupMasterKey = types.SerializedGroupMasterKey(masterKey.String)
 	return &g, nil
 }
 
 func (s *sqlStore) MasterKeyFromGroupIdentifier(ctx context.Context, groupID types.GroupIdentifier) (types.SerializedGroupMasterKey, error) {
-	g, err := scanGroup(s.db.QueryRow(ctx, getGroupByIDQuery, s.AccountID, groupID))
+	g, err := s.scanGroup(s.db.QueryRow(ctx, getGroupByIDQuery, s.AccountID, groupID))
 	if g == nil {
 		return "", err
 	} else {
@@ -70,6 +74,7 @@ func (s *sqlStore) MasterKeyFromGroupIdentifier(ctx context.Context, groupID typ
 }
 
 func (s *sqlStore) StoreMasterKey(ctx context.Context, groupID types.GroupIdentifier, key types.SerializedGroupMasterKey) error {
-	_, err := s.db.Exec(ctx, upsertGroupMasterKeyQuery, s.AccountID, groupID, key)
+	// Musubee: sealed when a sealer is set (sealing.go).
+	_, err := s.db.Exec(ctx, upsertGroupMasterKeyQuery, s.AccountID, groupID, s.sealString(PurposeGroupMasterKey, string(key)))
 	return err
 }

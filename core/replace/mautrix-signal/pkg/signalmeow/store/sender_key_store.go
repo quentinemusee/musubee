@@ -62,9 +62,11 @@ const (
 	`
 )
 
-func scanSenderKey(row dbutil.Scannable) (*libsignalgo.SenderKeyRecord, error) {
+// Musubee: a method of Container, to reach its sealer (sealing.go).
+func (c *Container) scanSenderKey(row dbutil.Scannable) (*libsignalgo.SenderKeyRecord, error) {
 	var key []byte
-	err := row.Scan(&key)
+	// Musubee: sealed when a sealer is set (sealing.go).
+	err := row.Scan(c.opened(PurposeSenderKey, &key))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	} else if err != nil {
@@ -82,7 +84,7 @@ func (s *sqlStore) LoadSenderKey(ctx context.Context, sender *libsignalgo.Addres
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sender device ID: %w", err)
 	}
-	return scanSenderKey(s.db.QueryRow(ctx, loadSenderKeyQuery, s.AccountID, senderUUID, deviceID, distributionID))
+	return s.scanSenderKey(s.db.QueryRow(ctx, loadSenderKeyQuery, s.AccountID, senderUUID, deviceID, distributionID))
 }
 
 func (s *sqlStore) StoreSenderKey(ctx context.Context, sender *libsignalgo.Address, distributionID uuid.UUID, record *libsignalgo.SenderKeyRecord) error {
@@ -98,7 +100,8 @@ func (s *sqlStore) StoreSenderKey(ctx context.Context, sender *libsignalgo.Addre
 	if err != nil {
 		return fmt.Errorf("failed to serialize sender key: %w", err)
 	}
-	_, err = s.db.Exec(ctx, storeSenderKeyQuery, s.AccountID, senderUUID, deviceID, distributionID, serialized)
+	// Musubee: sealed when a sealer is set (sealing.go).
+	_, err = s.db.Exec(ctx, storeSenderKeyQuery, s.AccountID, senderUUID, deviceID, distributionID, s.sealBytes(PurposeSenderKey, serialized))
 	return err
 }
 
