@@ -10,7 +10,7 @@
 //	go run ./scripts/licenseaudit -v         also list every dependency
 //
 // Go dependencies are the modules compiled into the packages and tests of
-// every module of go.work (with the integration and telegram build tags);
+// every module of go.work (with the test and Signal build tags, see GoTagSets);
 // their licenses are detected from the license files in the module cache.
 // npm dependencies come from every package-lock.json tracked by Git; their
 // declared SPDX expression is used, or their license files when there is none
