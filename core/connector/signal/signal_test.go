@@ -9,8 +9,9 @@ import (
 	"errors"
 	"testing"
 
-	"go.mau.fi/mautrix-signal/pkg/connector"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
+
+	"github.com/quentinemusee/musubee/core/secrets"
 )
 
 // The tests of this package share the process-wide environment, so they run
@@ -19,14 +20,18 @@ func TestNew(t *testing.T) {
 	if !Available {
 		t.Fatal("not Available with the build tag")
 	}
-	c, err := New(Config{Environment: "staging"})
+	key := secrets.NewKey()
+	if _, err := New(Config{Environment: "staging"}); !errors.Is(err, ErrNoKey) {
+		t.Fatalf("without a key: %v, want ErrNoKey", err)
+	}
+	c, err := New(Config{Environment: "staging", Key: &key})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if signalmeow.CurrentEnvironment() != signalmeow.EnvironmentStaging {
 		t.Errorf("environment %s, want staging", signalmeow.CurrentEnvironment())
 	}
-	cfg := c.(*connector.SignalConnector).Config
+	cfg := c.(*sealedConnector).Config
 	if cfg.DeviceName != DeviceName {
 		t.Errorf("device name %q, want %q", cfg.DeviceName, DeviceName)
 	}
@@ -42,10 +47,10 @@ func TestNew(t *testing.T) {
 	}
 
 	// The same environment again is fine, another one is refused.
-	if _, err = New(Config{Environment: "staging"}); err != nil {
+	if _, err = New(Config{Environment: "staging", Key: &key}); err != nil {
 		t.Errorf("same environment refused: %v", err)
 	}
-	if _, err = New(Config{}); !errors.Is(err, ErrEnvironmentChanged) {
+	if _, err = New(Config{Key: &key}); !errors.Is(err, ErrEnvironmentChanged) {
 		t.Errorf("production after staging: %v, want ErrEnvironmentChanged", err)
 	}
 }
