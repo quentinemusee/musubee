@@ -240,6 +240,12 @@ export class Store {
     }
   }
 
+  /** Shows no conversation; their messages stay. */
+  deselect(): void {
+    const { selected: _, ...rest } = this.#state;
+    this.#replace(rest);
+  }
+
   /**
    * Reads the messages before the oldest one shown, in the selected
    * conversation; does nothing while they are read or when there are none.

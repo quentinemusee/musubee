@@ -319,6 +319,50 @@ ol {
   min-height: 0;
 }
 
+.thread-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space);
+  margin-bottom: var(--space);
+}
+
+.thread-header h2 {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.back {
+  display: none;
+  padding: 2px 12px;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+/* A phone: the inbox or the thread takes the whole screen (navigation.ts,
+   NARROW). */
+@media (max-width: 720px) {
+  .app-body[data-view="inbox"] .app-main,
+  .app-body[data-view="thread"] .sidebar {
+    display: none;
+  }
+
+  .app-body[data-view="inbox"] .sidebar {
+    flex: 1;
+    width: auto;
+    border-right: 0;
+  }
+
+  .app-main {
+    padding: var(--space);
+  }
+
+  .back {
+    display: block;
+  }
+}
+
 .switcher {
   margin: 0;
   border: 0;

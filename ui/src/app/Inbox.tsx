@@ -4,6 +4,7 @@
 import { createContext, memo, use, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Virtualizer, type CustomItemComponentProps, type VirtualizerHandle } from "virtua";
 import { activityLabel, entryOf, inboxEntries, preview, type InboxEntry } from "../inbox";
+import { openConversation } from "./navigation";
 import { useAppState, useStore } from "./state";
 
 /**
@@ -52,7 +53,7 @@ export function Inbox() {
                   current={entry.key === current}
                   now={now}
                   networkNames={networkNames}
-                  onOpen={(conversationId) => void store.select(conversationId)}
+                  onOpen={(conversationId) => openConversation(store, conversationId)}
                 />
               )}
             </Virtualizer>

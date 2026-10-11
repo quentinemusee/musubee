@@ -304,6 +304,41 @@ test("conversations merged into a person make one entry, and one thread with a s
   await app.close();
 });
 
+test("a narrow window shows the inbox or the thread, and Back returns to the inbox", async () => {
+  const { app, page } = await launch(newDataDir());
+  // The window's minimum width (640) is narrower than the phone layout's 720.
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(660, 720));
+  await loginEcho(page, "narrow");
+  const inbox = page.getByRole("region", { name: "Conversations" });
+  const back = page.getByRole("button", { name: "Back to conversations" });
+
+  await page.getByRole("button", { name: "Instant Echo" }).click();
+  await expect(page.getByRole("heading", { name: "Instant Echo" })).toBeVisible();
+  await expect(inbox).toBeHidden();
+  await sendAndGetEcho(page, "on a narrow window");
+
+  // The history's Back (Android's back gesture) returns to the inbox.
+  await page.goBack();
+  await expect(inbox).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Instant Echo" })).toBeHidden();
+  await expect(inboxRows(page).first().getByRole("button")).toHaveAccessibleDescription(/on a narrow window/);
+
+  // So does the thread's own back button.
+  await page.getByRole("button", { name: "Echo Group" }).click();
+  await expect(inbox).toBeHidden();
+  await back.click();
+  await expect(inbox).toBeVisible();
+  await expect(back).toBeHidden();
+
+  // A wide window shows both, without the back button.
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1000, 720));
+  await page.getByRole("button", { name: "Echo Group" }).click();
+  await expect(page.getByRole("heading", { name: "Echo Group" })).toBeVisible();
+  await expect(inbox).toBeVisible();
+  await expect(back).toBeHidden();
+  await app.close();
+});
+
 test("the inbox reads more conversations as the user scrolls", async () => {
   const { app, page } = await launch(newDataDir());
   await loginEcho(page, "crowd");
