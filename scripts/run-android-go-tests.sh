@@ -29,6 +29,12 @@ if [ ${#binaries[@]} -eq 0 ]; then
 fi
 
 remote=/data/local/tmp/musubee-go-tests
+# adb returns the remote command's exit status with its shell protocol v2
+# (Android 7 and later); without it, every test would look passed.
+if adb shell false; then
+  echo "adb does not return the exit status of remote commands" >&2
+  exit 2
+fi
 adb shell rm -rf "$remote"
 failed=()
 for binary in "${binaries[@]}"; do
@@ -38,7 +44,6 @@ for binary in "${binaries[@]}"; do
   adb push "$binary" "$dir/$name" > /dev/null
   adb shell chmod 755 "$dir/$name"
   echo "=== $name"
-  # adb returns the remote command's exit status (Android 7 and later).
   if ! adb shell "cd $dir && TMPDIR=$dir/tmp HOME=$dir ./$name -test.v -test.count=1 $*"; then
     failed+=("$name")
   fi
