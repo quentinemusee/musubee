@@ -69,3 +69,5 @@ require (
 replace github.com/quentinemusee/musubee/core => ../core
 
 replace go.mau.fi/webp => ../core/replace/webp
+
+replace go.mau.fi/mautrix-signal => ../core/replace/mautrix-signal
