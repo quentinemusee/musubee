@@ -550,3 +550,72 @@ ol {
   letter-spacing: 0.2em;
   font-variant-numeric: tabular-nums;
 }
+
+/* The person panel (PersonPanel): merging the same person's conversations. */
+.person-button {
+  margin-left: auto;
+  padding: 2px 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.person-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+  margin-bottom: var(--space);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  padding: calc(var(--space) * 1.5);
+  max-height: 60%;
+  overflow-y: auto;
+}
+
+.person-panel > button.secondary {
+  align-self: flex-end;
+}
+
+.person-rename,
+.person-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space);
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.person-rename input {
+  flex: 1;
+}
+
+.merge-search {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space) / 2);
+}
+
+.merge-candidates li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space);
+  border-top: 1px solid var(--color-border);
+  padding: 6px 0;
+}
+
+.merge-candidates .candidate-name {
+  font-weight: 600;
+}
+
+.merge-candidates .hint {
+  flex: 1;
+  font-size: 13px;
+}
+
+.merge-candidates button {
+  padding: 2px 10px;
+  font-size: 13px;
+}

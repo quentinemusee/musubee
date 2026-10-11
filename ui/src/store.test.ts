@@ -460,6 +460,118 @@ describe("Store's events", () => {
   });
 });
 
+// A core that keeps the persons and answers persons.* like the real one
+// (docs/ADR/0017): a conversation belongs to one person, linking moves it.
+function personsCore(conversations: Conversation[], initial: Person[] = []) {
+  let persons = initial.map((p) => ({ ...p }));
+  const params: unknown[] = [];
+  const take = (id: string) => {
+    for (const p of persons) {
+      p.conversation_ids = p.conversation_ids.filter((c) => c !== id);
+    }
+    persons = persons.filter((p) => p.conversation_ids.length > 0);
+  };
+  const shell = scriptedShell({
+    ...coreState(conversations, initial),
+    "persons.create": (p) => {
+      params.push(p);
+      const { conversation_ids } = p as { conversation_ids: string[] };
+      conversation_ids.forEach(take);
+      const person = { person_id: `h${persons.length + 10}`, name: "New", conversation_ids };
+      persons.push(person);
+      return { person };
+    },
+    "persons.link": (p) => {
+      params.push(p);
+      const { person_id, conversation_id } = p as { person_id: string; conversation_id: string };
+      take(conversation_id);
+      const person = persons.find((x) => x.person_id === person_id)!;
+      person.conversation_ids.push(conversation_id);
+      return { person: { ...person, conversation_ids: [...person.conversation_ids] } };
+    },
+    "persons.rename": (p) => {
+      params.push(p);
+      const { person_id, name } = p as { person_id: string; name: string };
+      if (name.trim() === "") {
+        throw new Error("invalid person name");
+      }
+      const person = persons.find((x) => x.person_id === person_id)!;
+      person.name = name;
+      return { person: { ...person } };
+    },
+    "persons.unlink": (p) => {
+      params.push(p);
+      return {};
+    },
+    "persons.delete": (p) => {
+      params.push(p);
+      return {};
+    },
+  });
+  return { shell, params };
+}
+
+async function started(shell: ReturnType<typeof scriptedShell>) {
+  const store = new Store(shell.core);
+  store.start();
+  shell.status({ state: "ready" });
+  await settle();
+  return store;
+}
+
+describe("Store's persons", () => {
+  test("merges two conversations of no one into a new person, at once", async () => {
+    const { shell, params } = personsCore([conversation("c1", "Alice"), conversation("c2", "Alice T.")]);
+    const store = await started(shell);
+    expect(await store.mergeWith("c1", "c2")).toBe(true);
+    expect(params).toEqual([{ conversation_ids: ["c1", "c2"] }]);
+    // Before the core's events: the person and its conversations are known.
+    expect(store.getState().persons.map((p) => `${p.person_id}:${p.conversation_ids.join(",")}`)).toEqual(["h10:c1,c2"]);
+    expect(store.getState().conversations.map((c) => c.person_id)).toEqual(["h10", "h10"]);
+  });
+
+  test("brings another person's conversations into the thread's person", async () => {
+    const persons: Person[] = [
+      { person_id: "h1", name: "Alice", conversation_ids: ["c1"] },
+      { person_id: "h2", name: "Alice T.", conversation_ids: ["c2", "c3"] },
+    ];
+    const { shell, params } = personsCore(
+      [conversation("c1", "Alice"), conversation("c2", "Alice T."), conversation("c3", "alice")].map((c, i) => ({ ...c, person_id: i === 0 ? "h1" : "h2" })),
+      persons,
+    );
+    const store = await started(shell);
+    expect(await store.mergeWith("c1", "c3")).toBe(true);
+    expect(params).toEqual([
+      { person_id: "h1", conversation_id: "c2" },
+      { person_id: "h1", conversation_id: "c3" },
+    ]);
+    expect(store.getState().conversations.map((c) => c.person_id)).toEqual(["h1", "h1", "h1"]);
+    expect(store.getState().persons.find((p) => p.person_id === "h1")?.conversation_ids).toEqual(["c1", "c2", "c3"]);
+  });
+
+  test("reports a merge the core refuses, and an unknown conversation", async () => {
+    const shell = scriptedShell(coreState([conversation("c1", "Alice"), conversation("c2", "Bob")]));
+    const store = await started(shell);
+    expect(await store.mergeWith("c1", "nope")).toBe(false);
+    expect(store.getState().error).toBeUndefined();
+    expect(await store.mergeWith("c1", "c2")).toBe(false);
+    expect(store.getState().error).toMatch(/^Could not merge the conversations: /);
+  });
+
+  test("renames, separates one conversation, and separates them all", async () => {
+    const alice: Person = { person_id: "h1", name: "Alice", conversation_ids: ["c1", "c2"] };
+    const { shell, params } = personsCore([conversation("c1", "Alice"), conversation("c2", "Alice T.")].map((c) => ({ ...c, person_id: "h1" })), [alice]);
+    const store = await started(shell);
+    expect(await store.renamePerson("h1", "Alice Martin")).toBe(true);
+    expect(store.getState().persons[0]?.name).toBe("Alice Martin");
+    expect(await store.renamePerson("h1", " ")).toBe(false);
+    expect(store.getState().error).toMatch(/^Could not rename: /);
+    await store.separateConversation("c2");
+    await store.unmergePerson("h1");
+    expect(params.slice(2)).toEqual([{ conversation_id: "c2" }, { person_id: "h1" }]);
+  });
+});
+
 describe("mergeConversations", () => {
   test("keeps the most recent version of each conversation, sorted by activity", () => {
     const merged = mergeConversations(
