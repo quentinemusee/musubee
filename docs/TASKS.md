@@ -124,6 +124,11 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 - Deliverable: spike, then connector: libsignal (Rust, static C library) built for Windows, Linux, macOS and Android; mautrix-signal's connector in the core; a test account on Signal's staging servers, registered by the maintainer with a real phone number (ADR 0005).
 - 🧪 Test: automated journey against staging, like Telegram's.
 
+**T2.7 — Read state and unread counts** (E2.3)
+- Deliverable: what T2.5 left: an unread count per conversation, cleared by reading in Musubee or on the network's own app, and passed to the networks that support read receipts.
+- 🧪 Test: the core's storage and API tests, the interface's unit tests, and the desktop Playwright journey.
+- Outcome: the local Matrix storage keeps the user's read position per room (schema v3, `local_read_marker`), which only moves forward; unread = messages of others after the later of that position and the user's own last message, up to 1000 (ADR 0023). API 1.4: `Conversation.unread_count` and `marked_unread`, `conversations.markRead`, and a `conversation.updated` after each `message.added`. Reading in Musubee queues a Matrix read receipt to the room's bridge, so bridgev2 records it and calls the connector (echo in the tests; Telegram's handler is read, not run); the user's reads reported by a network arrive through the double puppet. The inbox shows a badge (the count, "99+", or a dot for "marked unread"), summed for a person, described to screen readers as "N unread messages"; the thread marks a conversation read when its newest message is in view in a visible window, at once in the store. Verified on Windows: Go tests (with `-race`), Vitest, the desktop Playwright journeys. Left: marking unread from the interface, read receipts of native Matrix accounts, others' "seen" in the thread (E2.4), the cost of the counts on a low-end phone, NVDA and TalkBack.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).
