@@ -85,16 +85,34 @@ const BUTTON = "android.widget.Button";
 
 // Waits for an element, closing an "isn't responding" dialog of another app
 // that would cover the page (dismissAnrDialog).
+// On a timeout, prints what the screen shows, to tell why from CI's log.
 async function waitFor(predicate, what, { kind, timeout = 60_000 } = {}) {
   const element = byLabel(predicate, kind);
-  await driver.waitUntil(
-    async () => {
-      await dismissAnrDialog(driver, "Musubee");
-      return element.isExisting();
-    },
-    { timeout, interval: 500, timeoutMsg: `${what} not shown within ${timeout / 1000} s` },
-  );
+  try {
+    await driver.waitUntil(
+      async () => {
+        await dismissAnrDialog(driver, "Musubee");
+        return element.isExisting();
+      },
+      { timeout, interval: 500, timeoutMsg: `${what} not shown within ${timeout / 1000} s` },
+    );
+  } catch (error) {
+    await describeScreen();
+    throw error;
+  }
   return element;
+}
+
+async function describeScreen() {
+  const keyboard = await driver.isKeyboardShown().catch(() => "unknown");
+  const source = await driver.getPageSource().catch(() => "");
+  const attribute = (node, name) => new RegExp(` ${name}="([^"]*)"`).exec(node)?.[1] ?? "";
+  const nodes = [...source.matchAll(/<[\w.]+ [^>]*>/g)]
+    .map(([node]) => ({ node, text: attribute(node, "text"), hint: attribute(node, "hint") }))
+    .filter(({ text, hint }) => text !== "" || (hint !== "" && hint !== "false"))
+    .map(({ node, text, hint }) => `  ${attribute(node, "class").split(".").pop()} text=${JSON.stringify(text)} hint=${JSON.stringify(hint)} ${attribute(node, "bounds")} displayed=${attribute(node, "displayed")}`);
+  const size = await driver.getWindowSize().catch(() => ({}));
+  console.log(`Keyboard shown: ${keyboard}; window ${JSON.stringify(size)}\n${nodes.join("\n")}`);
 }
 
 async function typeInto(element, text) {
