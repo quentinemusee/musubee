@@ -35,3 +35,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0023](0023-read-state.md) | Read state: a read position per conversation in the core, unread counts in the API, read when seen | accepted | T2.7 |
 | [0024](0024-merging-in-the-interface.md) | Merging conversations in the interface: from the thread, with likely matches first | accepted | T2.8 |
 | [0025](0025-signal-on-device.md) | Signal on the device: mautrix-signal in the core behind a build tag, from a patched copy that can reach Signal's staging service | accepted | T2.6 |
+| [0026](0026-signal-secrets-at-rest.md) | Signal's secrets at rest: signalmeow's store seals its secret columns, in our copy | accepted | T2.9 |
