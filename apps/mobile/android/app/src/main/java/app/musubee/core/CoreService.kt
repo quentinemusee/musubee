@@ -147,6 +147,10 @@ class CoreService : Service() {
                         .put("api_hash", BuildConfig.TELEGRAM_API_HASH),
                 )
             }
+            // Signal, in builds made with it (docs/ADR/0029).
+            if (BuildConfig.SIGNAL_ENVIRONMENT.isNotEmpty()) {
+                config.put("signal", JSONObject().put("environment", BuildConfig.SIGNAL_ENVIRONMENT))
+            }
             return config.toString().toByteArray(Charsets.UTF_8)
         }
 

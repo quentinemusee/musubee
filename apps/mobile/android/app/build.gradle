@@ -31,6 +31,17 @@ def telegramApiHash = (findProperty('musubee.telegramApiHash') ?: System.getenv(
 if (!telegramApiId.isInteger() || !(telegramApiHash ==~ /[0-9a-f]*/)) {
     throw new GradleException('MUSUBEE_TG_API_ID must be a number and MUSUBEE_TG_API_HASH hexadecimal')
 }
+// Signal (docs/ADR/0029): off unless musubee.signal names Signal's service,
+// "staging" or "production". The core then needs libsignal-ffi, built per
+// ABI by scripts/build-libsignal.sh into musubee.libsignal/<abi>.
+def signalEnvironment = (findProperty('musubee.signal') ?: '').toString()
+if (!(signalEnvironment in ['', 'staging', 'production'])) {
+    throw new GradleException('musubee.signal must be staging or production')
+}
+def libsignalDir = findProperty('musubee.libsignal') ? file(findProperty('musubee.libsignal')) : null
+if (signalEnvironment && libsignalDir == null) {
+    throw new GradleException('musubee.signal needs musubee.libsignal, the directory of scripts/build-libsignal.sh DIR/<abi> <abi>')
+}
 def coreMinSdk = rootProject.ext.minSdkVersion
 
 android {
@@ -46,6 +57,7 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField "int", "TELEGRAM_API_ID", telegramApiId
         buildConfigField "String", "TELEGRAM_API_HASH", "\"${telegramApiHash}\""
+        buildConfigField "String", "SIGNAL_ENVIRONMENT", "\"${signalEnvironment}\""
         ndk {
             abiFilters(*selectedAbis)
         }
@@ -96,9 +108,16 @@ def ndkToolchainBin = {
     def tag = host.isWindows() ? 'windows-x86_64' : host.isMacOsX() ? 'darwin-x86_64' : 'linux-x86_64'
     new File(android.ndkDirectory, "toolchains/llvm/prebuilt/${tag}/bin")
 }
+// Go's C compiler. On Windows, clang.exe with the target rather than the
+// NDK's .cmd wrapper: cmd.exe limits a command line to 8191 characters, and
+// the link of the core with Signal goes past it (docs/ADR/0028). Go splits
+// CC on spaces and honours quotes.
 def ndkClang = { String triple ->
-    def suffix = org.gradle.internal.os.OperatingSystem.current().isWindows() ? '.cmd' : ''
-    new File(ndkToolchainBin(), "${triple}${coreMinSdk}-clang${suffix}").absolutePath
+    if (org.gradle.internal.os.OperatingSystem.current().isWindows()) {
+        def clang = new File(ndkToolchainBin(), 'clang.exe').absolutePath.replace('\\', '/')
+        return "\"${clang}\" --target=${triple}${coreMinSdk}"
+    }
+    new File(ndkToolchainBin(), "${triple}${coreMinSdk}-clang").absolutePath
 }
 def coreSources = fileTree(coreDir) {
     include '**/*.go', '**/*.c', '**/*.h', '**/*.sql', 'go.mod', 'go.sum'
@@ -116,15 +135,34 @@ def buildCoreTasks = selectedAbis.collect { abi ->
         def output = layout.buildDirectory.file("musubee-core/jniLibs/${abi}/libmusubee.so")
         inputs.files(coreSources)
         inputs.property('goarch', target.goarch)
+        inputs.property('signal', signalEnvironment != '')
+        def libsignal = signalEnvironment ? new File(libsignalDir, abi) : null
+        if (libsignal != null) {
+            inputs.dir(libsignal)
+        }
         outputs.file(output)
         workingDir coreDir
         environment 'CGO_ENABLED', '1'
         environment 'GOOS', 'android'
         environment 'GOARCH', target.goarch
         environment 'CC', ndkClang(target.triple)
+        def tags = 'goolm'
+        if (libsignal != null) {
+            // libsignalgo links -lsignal_ffi, and its -lstdc++ resolves to
+            // the libc++.a linker script that build-libsignal.sh writes
+            // there, so the C++ runtime is linked statically.
+            def dir = libsignal.absolutePath.replace('\\', '/')
+            environment 'CGO_LDFLAGS', "-L${dir}"
+            tags += ',musubee_signal'
+        }
         // goolm: mautrix-go's pure-Go Olm (docs/ADR/0018).
-        commandLine goCommand, 'build', '-tags=goolm', '-buildmode=c-shared', '-trimpath', '-ldflags=-s -w',
+        commandLine goCommand, 'build', "-tags=${tags}", '-buildmode=c-shared', '-trimpath', '-ldflags=-s -w',
             '-o', output.get().asFile.absolutePath, './ffi'
+        doFirst {
+            if (libsignal != null && !new File(libsignal, 'libsignal_ffi.a').isFile()) {
+                throw new GradleException("No libsignal_ffi.a in ${libsignal}: run scripts/build-libsignal.sh ${libsignal} ${abi}")
+            }
+        }
         doLast {
             // cgo also writes a C header next to the library; the app does
             // not need it in the APK.
