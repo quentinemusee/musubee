@@ -57,10 +57,12 @@ type SessionStore interface {
 	RemoveAllSessions(ctx context.Context) error
 }
 
-func scanSessionRecord(row dbutil.Scannable) (tuple SessionAddressTuple, err error) {
+// Musubee: a method of Container, to reach its sealer (sealing.go).
+func (c *Container) scanSessionRecord(row dbutil.Scannable) (tuple SessionAddressTuple, err error) {
 	var rawServiceID string
 	var rawRecord []byte
-	err = row.Scan(&rawServiceID, &tuple.DeviceID, &rawRecord)
+	// Musubee: sealed when a sealer is set (sealing.go).
+	err = row.Scan(&rawServiceID, &tuple.DeviceID, c.opened(PurposeSessionRecord, &rawRecord))
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	} else if err != nil {
@@ -93,7 +95,7 @@ func (s *scopedSQLStore) AllSessionsForServiceID(ctx context.Context, theirID li
 	if err != nil {
 		return nil, err
 	}
-	return dbutil.NewRowIterWithError(rows, scanSessionRecord, err).AsList()
+	return dbutil.NewRowIterWithError(rows, s.scanSessionRecord, err).AsList()
 }
 
 func (s *scopedSQLStore) RemoveAllSessionsForServiceID(ctx context.Context, theirID libsignalgo.ServiceID) error {
@@ -110,7 +112,7 @@ func (s *scopedSQLStore) LoadSession(ctx context.Context, address *libsignalgo.A
 	if err != nil {
 		return nil, fmt.Errorf("failed to get their device ID: %w", err)
 	}
-	tuple, err := scanSessionRecord(s.db.QueryRow(ctx, loadSessionQuery, s.AccountID, s.ServiceID, theirServiceID, deviceID))
+	tuple, err := s.scanSessionRecord(s.db.QueryRow(ctx, loadSessionQuery, s.AccountID, s.ServiceID, theirServiceID, deviceID))
 	return tuple.Record, err
 }
 
@@ -127,7 +129,8 @@ func (s *scopedSQLStore) StoreSession(ctx context.Context, address *libsignalgo.
 	if err != nil {
 		return fmt.Errorf("failed to serialize session record: %w", err)
 	}
-	_, err = s.db.Exec(ctx, storeSessionQuery, s.AccountID, s.ServiceID, theirServiceID, deviceID, serialized)
+	// Musubee: sealed when a sealer is set (sealing.go).
+	_, err = s.db.Exec(ctx, storeSessionQuery, s.AccountID, s.ServiceID, theirServiceID, deviceID, s.sealBytes(PurposeSessionRecord, serialized))
 	return err
 }
 

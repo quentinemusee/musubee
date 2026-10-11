@@ -54,7 +54,7 @@ const (
 
 func (s *sqlStore) GetBufferedEvent(ctx context.Context, ciphertextHash [32]byte) (*BufferedEvent, error) {
 	var evt BufferedEvent
-	err := s.db.QueryRow(ctx, getBufferedEventQuery, s.AccountID, ciphertextHash[:]).Scan(&evt.Plaintext, &evt.ServerTimestamp, &evt.InsertTimestamp)
+	err := s.db.QueryRow(ctx, getBufferedEventQuery, s.AccountID, ciphertextHash[:]).Scan(s.opened(PurposeEventPlaintext, &evt.Plaintext), &evt.ServerTimestamp, &evt.InsertTimestamp) // Musubee: sealed (sealing.go)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	} else if err != nil {
@@ -64,7 +64,8 @@ func (s *sqlStore) GetBufferedEvent(ctx context.Context, ciphertextHash [32]byte
 }
 
 func (s *sqlStore) PutBufferedEvent(ctx context.Context, ciphertextHash [32]byte, plaintext []byte, serverTimestamp uint64) error {
-	_, err := s.db.Exec(ctx, putBufferedEventQuery, s.AccountID, ciphertextHash[:], plaintext, serverTimestamp, time.Now().UnixMilli())
+	// Musubee: sealed when a sealer is set (sealing.go).
+	_, err := s.db.Exec(ctx, putBufferedEventQuery, s.AccountID, ciphertextHash[:], s.sealBytes(PurposeEventPlaintext, plaintext), serverTimestamp, time.Now().UnixMilli())
 	return err
 }
 

@@ -75,16 +75,19 @@ func scanRecord[T any](row dbutil.Scannable, deserializer func([]byte) (*T, erro
 	return deserializer(record)
 }
 
-func scanPreKey(row dbutil.Scannable) (*libsignalgo.PreKeyRecord, error) {
-	return scanRecord(row, libsignalgo.DeserializePreKeyRecord)
+// Musubee: a method of Container, to reach its sealer (sealing.go).
+func (c *Container) scanPreKey(row dbutil.Scannable) (*libsignalgo.PreKeyRecord, error) {
+	return scanSealedRecord(c, row, PurposePreKey, libsignalgo.DeserializePreKeyRecord)
 }
 
-func scanSignedPreKey(row dbutil.Scannable) (*libsignalgo.SignedPreKeyRecord, error) {
-	return scanRecord(row, libsignalgo.DeserializeSignedPreKeyRecord)
+// Musubee: a method of Container, to reach its sealer (sealing.go).
+func (c *Container) scanSignedPreKey(row dbutil.Scannable) (*libsignalgo.SignedPreKeyRecord, error) {
+	return scanSealedRecord(c, row, PurposePreKey, libsignalgo.DeserializeSignedPreKeyRecord)
 }
 
-func scanKyberPreKey(row dbutil.Scannable) (*libsignalgo.KyberPreKeyRecord, error) {
-	return scanRecord(row, libsignalgo.DeserializeKyberPreKeyRecord)
+// Musubee: a method of Container, to reach its sealer (sealing.go).
+func (c *Container) scanKyberPreKey(row dbutil.Scannable) (*libsignalgo.KyberPreKeyRecord, error) {
+	return scanSealedRecord(c, row, PurposeKyberPreKey, libsignalgo.DeserializeKyberPreKeyRecord)
 }
 
 func (s *scopedSQLStore) GetServiceID() libsignalgo.ServiceID {
@@ -92,15 +95,15 @@ func (s *scopedSQLStore) GetServiceID() libsignalgo.ServiceID {
 }
 
 func (s *scopedSQLStore) LoadPreKey(ctx context.Context, preKeyID uint32) (*libsignalgo.PreKeyRecord, error) {
-	return scanPreKey(s.db.QueryRow(ctx, getPreKeyQuery, s.AccountID, s.ServiceID, preKeyID, false))
+	return s.scanPreKey(s.db.QueryRow(ctx, getPreKeyQuery, s.AccountID, s.ServiceID, preKeyID, false))
 }
 
 func (s *scopedSQLStore) LoadSignedPreKey(ctx context.Context, preKeyID uint32) (*libsignalgo.SignedPreKeyRecord, error) {
-	return scanSignedPreKey(s.db.QueryRow(ctx, getPreKeyQuery, s.AccountID, s.ServiceID, preKeyID, true))
+	return s.scanSignedPreKey(s.db.QueryRow(ctx, getPreKeyQuery, s.AccountID, s.ServiceID, preKeyID, true))
 }
 
 func (s *scopedSQLStore) LoadKyberPreKey(ctx context.Context, preKeyID uint32) (*libsignalgo.KyberPreKeyRecord, error) {
-	return scanKyberPreKey(s.db.QueryRow(ctx, getKyberPreKeyQuery, s.AccountID, s.ServiceID, preKeyID))
+	return s.scanKyberPreKey(s.db.QueryRow(ctx, getKyberPreKeyQuery, s.AccountID, s.ServiceID, preKeyID))
 }
 
 func (s *scopedSQLStore) StorePreKey(ctx context.Context, preKeyID uint32, preKey *libsignalgo.PreKeyRecord) error {
@@ -114,7 +117,8 @@ func (s *scopedSQLStore) StorePreKey(ctx context.Context, preKeyID uint32, preKe
 	if err != nil {
 		return fmt.Errorf("failed to serialize prekey: %w", err)
 	}
-	_, err = s.db.Exec(ctx, insertPreKeyQuery, s.AccountID, s.ServiceID, id, false, serialized)
+	// Musubee: sealed when a sealer is set (sealing.go).
+	_, err = s.db.Exec(ctx, insertPreKeyQuery, s.AccountID, s.ServiceID, id, false, s.sealBytes(PurposePreKey, serialized))
 	return err
 }
 
@@ -129,7 +133,8 @@ func (s *scopedSQLStore) StoreSignedPreKey(ctx context.Context, preKeyID uint32,
 	if err != nil {
 		return fmt.Errorf("failed to serialize signed prekey: %w", err)
 	}
-	_, err = s.db.Exec(ctx, insertPreKeyQuery, s.AccountID, s.ServiceID, id, true, serialized)
+	// Musubee: sealed when a sealer is set (sealing.go).
+	_, err = s.db.Exec(ctx, insertPreKeyQuery, s.AccountID, s.ServiceID, id, true, s.sealBytes(PurposePreKey, serialized))
 	return err
 }
 
@@ -152,7 +157,8 @@ func (s *scopedSQLStore) storeKyberPreKey(ctx context.Context, preKeyID uint32, 
 	if err != nil {
 		return fmt.Errorf("failed to serialize kyber prekey record: %w", err)
 	}
-	_, err = s.db.Exec(ctx, insertKyberPreKeyQuery, s.AccountID, s.ServiceID, id, serialized, lastResort)
+	// Musubee: sealed when a sealer is set (sealing.go).
+	_, err = s.db.Exec(ctx, insertKyberPreKeyQuery, s.AccountID, s.ServiceID, id, s.sealBytes(PurposeKyberPreKey, serialized), lastResort)
 	return err
 }
 
@@ -221,13 +227,13 @@ func (s *scopedSQLStore) DeleteAllPreKeys(ctx context.Context) error {
 }
 
 func (s *scopedSQLStore) AllPreKeys(ctx context.Context) ([]*libsignalgo.PreKeyRecord, error) {
-	return dbutil.ConvertRowFn[*libsignalgo.PreKeyRecord](scanPreKey).
+	return dbutil.ConvertRowFn[*libsignalgo.PreKeyRecord](s.scanPreKey).
 		NewRowIter(s.db.Query(ctx, getAllPreKeysQuery, s.AccountID, s.ServiceID, false)).
 		AsList()
 }
 
 func (s *scopedSQLStore) AllNormalKyberPreKeys(ctx context.Context) ([]*libsignalgo.KyberPreKeyRecord, error) {
-	return dbutil.ConvertRowFn[*libsignalgo.KyberPreKeyRecord](scanKyberPreKey).
+	return dbutil.ConvertRowFn[*libsignalgo.KyberPreKeyRecord](s.scanKyberPreKey).
 		NewRowIter(s.db.Query(ctx, getAllKyberPreKeysQuery, s.AccountID, s.ServiceID)).
 		AsList()
 }

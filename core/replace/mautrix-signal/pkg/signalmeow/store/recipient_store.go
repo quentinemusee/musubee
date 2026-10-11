@@ -130,11 +130,13 @@ const (
 	`
 )
 
-func scanRecipient(row dbutil.Scannable) (*types.Recipient, error) {
+// Musubee: a method of Container, to reach its sealer (sealing.go).
+func (c *Container) scanRecipient(row dbutil.Scannable) (*types.Recipient, error) {
 	var recipient types.Recipient
 	var aci, pni uuid.NullUUID
 	var profileKey []byte
 	var profileFetchedAt sql.NullInt64
+	// Musubee: sealed when a sealer is set (sealing.go).
 	err := row.Scan(
 		&aci,
 		&pni,
@@ -142,7 +144,7 @@ func scanRecipient(row dbutil.Scannable) (*types.Recipient, error) {
 		&recipient.ContactName,
 		&recipient.ContactAvatar.Hash,
 		&recipient.Nickname,
-		&profileKey,
+		c.opened(PurposeProfileKey, &profileKey),
 		&recipient.Profile.Name,
 		&recipient.Profile.About,
 		&recipient.Profile.AboutEmoji,
@@ -169,11 +171,11 @@ func scanRecipient(row dbutil.Scannable) (*types.Recipient, error) {
 }
 
 func (s *sqlStore) LoadRecipientByACI(ctx context.Context, theirUUID uuid.UUID) (*types.Recipient, error) {
-	return scanRecipient(s.db.QueryRow(ctx, getRecipientByACIQuery, s.AccountID, theirUUID))
+	return s.scanRecipient(s.db.QueryRow(ctx, getRecipientByACIQuery, s.AccountID, theirUUID))
 }
 
 func (s *sqlStore) LoadRecipientByPNI(ctx context.Context, theirUUID uuid.UUID) (*types.Recipient, error) {
-	return scanRecipient(s.db.QueryRow(ctx, getRecipientByPNIQuery, s.AccountID, theirUUID))
+	return s.scanRecipient(s.db.QueryRow(ctx, getRecipientByPNIQuery, s.AccountID, theirUUID))
 }
 
 type RecipientUpdaterFunc func(recipient *types.Recipient) (changed bool, err error)
@@ -239,7 +241,7 @@ func (s *sqlStore) LoadAndUpdateRecipient(ctx context.Context, aci, pni uuid.UUI
 			if s.db.Dialect == dbutil.Postgres {
 				query += " FOR UPDATE"
 			}
-			entries, err = dbutil.ConvertRowFn[*types.Recipient](scanRecipient).
+			entries, err = dbutil.ConvertRowFn[*types.Recipient](s.scanRecipient).
 				NewRowIter(s.db.Query(ctx, query, s.AccountID, aci, pni)).
 				AsList()
 		} else if aci != uuid.Nil {
@@ -338,12 +340,12 @@ func (s *sqlStore) UpdateRecipientE164(ctx context.Context, aci, pni uuid.UUID, 
 	})
 }
 func (s *sqlStore) LoadRecipientByE164(ctx context.Context, e164 string) (*types.Recipient, error) {
-	return scanRecipient(s.db.QueryRow(ctx, getRecipientByPhoneQuery, s.AccountID, e164))
+	return s.scanRecipient(s.db.QueryRow(ctx, getRecipientByPhoneQuery, s.AccountID, e164))
 }
 
 func (s *sqlStore) LoadAllContacts(ctx context.Context) ([]*types.Recipient, error) {
 	rows, err := s.db.Query(ctx, getAllRecipientsWithNameOrPhoneQuery, s.AccountID)
-	return dbutil.NewRowIterWithError(rows, scanRecipient, err).AsList()
+	return dbutil.NewRowIterWithError(rows, s.scanRecipient, err).AsList()
 }
 
 func (s *sqlStore) DeleteRecipientByPNI(ctx context.Context, pni uuid.UUID) error {
@@ -367,7 +369,7 @@ func (s *sqlStore) StoreRecipient(ctx context.Context, recipient *types.Recipien
 			recipient.ContactName,
 			recipient.ContactAvatar.Hash,
 			recipient.Nickname,
-			recipient.Profile.Key.Slice(),
+			s.sealBytes(PurposeProfileKey, recipient.Profile.Key.Slice()), // Musubee: sealed (sealing.go)
 			recipient.Profile.Name,
 			recipient.Profile.About,
 			recipient.Profile.AboutEmoji,

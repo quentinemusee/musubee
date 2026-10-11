@@ -44,6 +44,29 @@ Every changed line carries a comment that starts with `Musubee:`, so
    - `pkg/signalmeow/staging-server-public-params.dat` (new): the staging
      zkgroup parameters, decoded from Signal-Android's build file.
    - `pkg/signalmeow/environment_musubee_test.go` (new): `SetEnvironment`.
+2. **The store's secrets sealed in the database** (ADR 0026): the account's
+   keys and password, the Signal protocol's sessions and keys, the contacts'
+   profile keys, the groups' master keys and message content.
+   - `pkg/signalmeow/store/sealing.go` (new): the `Sealer` interface, the
+     sealed columns (`Purposes`), `Container.SetSealer`, and the helpers that
+     seal a value before a query and open it when a row is scanned. Without
+     a sealer, the store behaves as upstream's.
+   - `pkg/signalmeow/store/container.go`: the `sealer` field; the device's
+     secret columns are sealed and opened.
+   - `pkg/signalmeow/store/session_store.go`, `prekey_store.go`,
+     `sender_key_store.go`, `profile_key_store.go`, `recipient_store.go`,
+     `group_store.go`, `event_buffer.go`, `backup_store.go`: each secret
+     column is sealed when written and opened when read. The row scanners
+     that read a sealed column became methods of `Container`, to reach its
+     sealer; their callers changed only by the receiver (`scanRecipient(` is
+     now `s.scanRecipient(`) and carry no comment of their own.
+     `GetBackupChatByGroupID` compares the groups' master keys in Go when a
+     sealer is set: sealed values have random nonces, so SQL cannot join on
+     them.
+   - `pkg/signalmeow/store/sealing_test.go` (new): every sealed column, on a
+     real SQLite database with real libsignal objects.
+   - `go.mod`: `github.com/mattn/go-sqlite3`, already a dependency, is now a
+     direct one (the test's database driver).
 
 ## Updating
 

@@ -25,9 +25,12 @@ var (
 
 // New returns mautrix-signal's connector configured for the core: its
 // defaults, the device name, no avatar for "Note to Self" (upstream's is an
-// image on maunium.net's Matrix server, which the core does not reach), and
-// the chosen Signal service.
+// image on maunium.net's Matrix server, which the core does not reach), the
+// chosen Signal service, and its store's secrets sealed with cfg.Key.
 func New(cfg Config) (bridgev2.NetworkConnector, error) {
+	if cfg.Key == nil {
+		return nil, ErrNoKey
+	}
 	env := signalmeow.EnvironmentProduction
 	if cfg.Environment != "" {
 		env = signalmeow.Environment(cfg.Environment)
@@ -41,7 +44,20 @@ func New(cfg Config) (bridgev2.NetworkConnector, error) {
 	}
 	sc.Config.DeviceName = DeviceName
 	sc.Config.NoteToSelfAvatar = ""
-	return sc, nil
+	return &sealedConnector{SignalConnector: sc, sealer: newStoreSealer(*cfg.Key)}, nil
+}
+
+// sealedConnector is mautrix-signal's connector with its store sealed. The
+// embedded pointer keeps every optional interface of the connector.
+type sealedConnector struct {
+	*connector.SignalConnector
+	sealer *storeSealer
+}
+
+// Init creates the store, then gives it the sealer, before Start opens it.
+func (c *sealedConnector) Init(bridge *bridgev2.Bridge) {
+	c.SignalConnector.Init(bridge)
+	c.Store.SetSealer(c.sealer)
 }
 
 func setEnvironment(env signalmeow.Environment) error {

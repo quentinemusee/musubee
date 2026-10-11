@@ -309,3 +309,12 @@ Verified in T2.8 (Windows, Node 24.20, Electron 44.7.0; see ADR 0024):
 merge suggestions:  cd ui && npx vitest run src/merge.test.ts src/store.test.ts
 merge in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "merge two conversations"
 ```
+
+Verified in T2.9 (Windows, Go 1.27.1, MSYS2 UCRT64; see ADR 0026). With the signal flags of T2.6:
+
+```
+signal sealing:     cd core/replace/mautrix-signal && GOWORK=off go test -count=1 -v ./pkg/signalmeow/store/
+signal core seal:   go test -tags=goolm,musubee_signal -count=1 -run 'Store|New' -v ./core/connector/signal/
+```
+
+The staging journey of T2.6 also checks that every sealed column of `core.db` holds only sealed values.

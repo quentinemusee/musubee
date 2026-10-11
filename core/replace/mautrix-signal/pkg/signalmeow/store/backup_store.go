@@ -94,6 +94,16 @@ const (
 		INNER JOIN signalmeow_backup_chat chat ON rcp.account_id=chat.account_id AND rcp.recipient_id=chat.recipient_id
 		WHERE g.account_id=$1 AND g.group_identifier=$2
 	`
+	// Musubee: with a sealer, the master keys are sealed with random nonces and
+	// cannot be compared in SQL; GetBackupChatByGroupID compares them in Go.
+	getBackupGroupRecipientsQuery = `
+		SELECT recipient_id, group_master_key FROM signalmeow_backup_recipient
+		WHERE account_id=$1 AND group_master_key IS NOT NULL
+	`
+	getBackupChatByRecipientIDQuery = `
+		SELECT data, latest_message_id, total_message_count FROM signalmeow_backup_chat
+		WHERE account_id=$1 AND recipient_id=$2
+	`
 	getAllBackupChatsQuery = `
 		SELECT data, latest_message_id, total_message_count
 		FROM signalmeow_backup_chat
@@ -205,7 +215,12 @@ func (s *sqlStore) AddBackupRecipient(ctx context.Context, recipient *backuppb.R
 		aci = s.AccountID
 	default:
 	}
-	_, err = s.db.Exec(ctx, addBackupRecipientQuery, s.AccountID, recipient.Id, ptr.NonZero(aci), ptr.NonZero(pni), ptr.NonZero(groupMasterKey), recipientData)
+	// Musubee: sealed when a sealer is set (sealing.go).
+	var sealedGroupMasterKey *string
+	if groupMasterKey != "" {
+		sealedGroupMasterKey = ptr.Ptr(s.sealString(PurposeBackupGroupMasterKey, string(groupMasterKey)))
+	}
+	_, err = s.db.Exec(ctx, addBackupRecipientQuery, s.AccountID, recipient.Id, ptr.NonZero(aci), ptr.NonZero(pni), sealedGroupMasterKey, s.sealBytes(PurposeBackupRecipient, recipientData))
 	if err != nil {
 		return fmt.Errorf("failed to add backup recipient %d: %w", recipient.Id, err)
 	}
@@ -217,7 +232,8 @@ func (s *sqlStore) AddBackupChat(ctx context.Context, chat *backuppb.Chat) error
 	if err != nil {
 		return fmt.Errorf("failed to marshal chat %d: %w", chat.Id, err)
 	}
-	_, err = s.db.Exec(ctx, addBackupChatQuery, s.AccountID, chat.Id, chat.RecipientId, chatData)
+	// Musubee: sealed when a sealer is set (sealing.go).
+	_, err = s.db.Exec(ctx, addBackupChatQuery, s.AccountID, chat.Id, chat.RecipientId, s.sealBytes(PurposeBackupChat, chatData))
 	if err != nil {
 		return fmt.Errorf("failed to add backup chat %d: %w", chat.Id, err)
 	}
@@ -229,7 +245,8 @@ func (s *sqlStore) AddBackupChatItem(ctx context.Context, item *backuppb.ChatIte
 	if err != nil {
 		return fmt.Errorf("failed to marshal chat item %d: %w", item.DateSent, err)
 	}
-	_, err = s.db.Exec(ctx, addBackupChatItemQuery, s.AccountID, item.ChatId, item.AuthorId, item.DateSent, itemData)
+	// Musubee: sealed when a sealer is set (sealing.go).
+	_, err = s.db.Exec(ctx, addBackupChatItemQuery, s.AccountID, item.ChatId, item.AuthorId, item.DateSent, s.sealBytes(PurposeBackupMessage, itemData))
 	if err != nil {
 		return fmt.Errorf("failed to add backup chat item %d: %w", item.DateSent, err)
 	}
@@ -249,9 +266,10 @@ func (s *sqlStore) ClearBackup(ctx context.Context) error {
 	return err
 }
 
-func scanProto[T proto.Message](row dbutil.Scannable) (val T, err error) {
+// Musubee: the purpose names the sealed column (sealing.go).
+func scanProto[T proto.Message](c *Container, row dbutil.Scannable, purpose string) (val T, err error) {
 	var data []byte
-	err = row.Scan(&data)
+	err = row.Scan(c.opened(purpose, &data))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err = nil
@@ -263,10 +281,12 @@ func scanProto[T proto.Message](row dbutil.Scannable) (val T, err error) {
 	return
 }
 
-func scanChat(row dbutil.Scannable) (*BackupChat, error) {
+// Musubee: a method of Container, to reach its sealer (sealing.go).
+func (c *Container) scanChat(row dbutil.Scannable) (*BackupChat, error) {
 	var data []byte
 	var latestMessageID, totalMessageCount sql.NullInt64
-	err := row.Scan(&data, &latestMessageID, &totalMessageCount)
+	// Musubee: sealed when a sealer is set (sealing.go).
+	err := row.Scan(c.opened(PurposeBackupChat, &data), &latestMessageID, &totalMessageCount)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -285,11 +305,19 @@ func scanChat(row dbutil.Scannable) (*BackupChat, error) {
 	}, nil
 }
 
-var chatScanner = dbutil.ConvertRowFn[*BackupChat](scanChat)
-var messageScanner = dbutil.ConvertRowFn[*backuppb.ChatItem](scanProto[*backuppb.ChatItem])
+// Musubee: the scanners need the container's sealer (sealing.go).
+func (c *Container) chatScanner() dbutil.ConvertRowFn[*BackupChat] {
+	return c.scanChat
+}
+
+func (c *Container) messageScanner() dbutil.ConvertRowFn[*backuppb.ChatItem] {
+	return func(row dbutil.Scannable) (*backuppb.ChatItem, error) {
+		return scanProto[*backuppb.ChatItem](c, row, PurposeBackupMessage)
+	}
+}
 
 func (s *sqlStore) GetBackupRecipient(ctx context.Context, recipientID uint64) (*backuppb.Recipient, error) {
-	return scanProto[*backuppb.Recipient](s.db.QueryRow(ctx, getBackupRecipientQuery, s.AccountID, recipientID))
+	return scanProto[*backuppb.Recipient](s.Container, s.db.QueryRow(ctx, getBackupRecipientQuery, s.AccountID, recipientID), PurposeBackupRecipient)
 }
 
 func (s *sqlStore) GetBackupChatByUserID(ctx context.Context, userID libsignalgo.ServiceID) (*BackupChat, error) {
@@ -297,15 +325,46 @@ func (s *sqlStore) GetBackupChatByUserID(ctx context.Context, userID libsignalgo
 	if userID.Type == libsignalgo.ServiceIDTypePNI {
 		query = getBackupChatByPNIQuery
 	}
-	return scanChat(s.db.QueryRow(ctx, query, s.AccountID, userID.UUID))
+	return s.scanChat(s.db.QueryRow(ctx, query, s.AccountID, userID.UUID))
 }
 
 func (s *sqlStore) GetBackupChatByGroupID(ctx context.Context, groupID types.GroupIdentifier) (*BackupChat, error) {
-	return scanChat(s.db.QueryRow(ctx, getBackupChatByGroupIDQuery, s.AccountID, groupID))
+	// Musubee: with a sealer, the join on the master key is done in Go, over
+	// the opened keys.
+	if s.sealer == nil {
+		return s.scanChat(s.db.QueryRow(ctx, getBackupChatByGroupIDQuery, s.AccountID, groupID))
+	}
+	masterKey, err := s.MasterKeyFromGroupIdentifier(ctx, groupID)
+	if err != nil || masterKey == "" {
+		return nil, err
+	}
+	rows, err := s.db.Query(ctx, getBackupGroupRecipientsQuery, s.AccountID)
+	if err != nil {
+		return nil, err
+	}
+	type groupRecipient struct {
+		recipientID uint64
+		masterKey   string
+	}
+	recipients, err := dbutil.NewRowIterWithError(rows, func(row dbutil.Scannable) (r groupRecipient, err error) {
+		var key sql.NullString
+		err = row.Scan(&r.recipientID, s.openedString(PurposeBackupGroupMasterKey, &key))
+		r.masterKey = key.String
+		return
+	}, err).AsList()
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range recipients {
+		if r.masterKey == string(masterKey) {
+			return s.scanChat(s.db.QueryRow(ctx, getBackupChatByRecipientIDQuery, s.AccountID, r.recipientID))
+		}
+	}
+	return nil, nil
 }
 
 func (s *sqlStore) GetBackupChats(ctx context.Context) ([]*BackupChat, error) {
-	return chatScanner.NewRowIter(s.db.Query(ctx, getAllBackupChatsQuery, s.AccountID)).AsList()
+	return s.chatScanner().NewRowIter(s.db.Query(ctx, getAllBackupChatsQuery, s.AccountID)).AsList()
 }
 
 func (s *sqlStore) GetBackupChatItems(ctx context.Context, chatID uint64, anchor time.Time, forward bool, limit int) ([]*backuppb.ChatItem, error) {
@@ -318,7 +377,7 @@ func (s *sqlStore) GetBackupChatItems(ctx context.Context, chatID uint64, anchor
 	} else {
 		maxTS = anchor.UnixMilli()
 	}
-	return messageScanner.NewRowIter(s.db.Query(ctx, getBackupChatItemsQuery, s.AccountID, chatID, minTS, maxTS, limit)).AsList()
+	return s.messageScanner().NewRowIter(s.db.Query(ctx, getBackupChatItemsQuery, s.AccountID, chatID, minTS, maxTS, limit)).AsList()
 }
 
 func (s *sqlStore) DeleteBackupChatItems(ctx context.Context, chatID uint64, minTime time.Time) error {

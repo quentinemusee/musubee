@@ -79,7 +79,11 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    # About 3 minutes with a warm build cache, but over 15 on macOS when a
+    # go.sum change empties it (go vet 6 minutes, the race tests 9). The
+    # cache is saved only when the job succeeds, so a timeout here would
+    # repeat on every run.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

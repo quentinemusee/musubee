@@ -45,6 +45,8 @@ ADR 0022 recorded that signalmeow decrypts sealed sender messages without valida
 
 ### Secrets at rest: why Signal waits
 
+*Update (T2.9): signalmeow's store now seals these columns in our copy; see ADR 0026.*
+
 ADR 0019 requires that no session key be readable in the database file. mautrix-signal does not keep its secrets in bridgev2's login metadata, which the core seals, but in its own tables of the same database (`pkg/signalmeow/store/upgrades/00-latest.sql`), in plaintext:
 
 | Table | Secrets |

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -65,9 +66,41 @@ func openDir(t *testing.T, dir string) *Core {
 		// Give goroutines that outlive Close a moment to show themselves.
 		time.Sleep(50 * time.Millisecond)
 		checkLateLogs(t, c.logs.lateLines())
+		if t.Failed() {
+			logProblems(t, dir)
+		}
 	})
 	return c
 }
+
+// logProblems shows the warnings and errors of a failed test's core.log,
+// which t.TempDir deletes: on CI they are the only trace of why bridgev2
+// dropped an event.
+func logProblems(t *testing.T, dir string) {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(dir, "core.log"))
+	if err != nil {
+		t.Logf("core.log: %v", err)
+		return
+	}
+	shown := 0
+	for line := range strings.Lines(string(data)) {
+		var entry struct {
+			Level string `json:"level"`
+		}
+		if json.Unmarshal([]byte(line), &entry) != nil || (entry.Level != "warn" && entry.Level != "error" && entry.Level != "fatal" && entry.Level != "panic") {
+			continue
+		}
+		if shown == maxLogProblems {
+			t.Logf("core.log: more warnings and errors not shown")
+			return
+		}
+		t.Logf("core.log: %s", strings.TrimSpace(line))
+		shown++
+	}
+}
+
+const maxLogProblems = 100
 
 // checkLateLogs accepts, among the lines logged after Close, only those of
 // the work bridgev2 aborts when it stops (see logWriter): failures caused by
