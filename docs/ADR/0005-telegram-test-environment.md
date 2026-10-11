@@ -46,7 +46,7 @@ T0.4 asks for the mautrix-telegram bridge connected to the local Synapse and to 
 ### Signal (as requested by T0.4)
 
 - Signal runs a **staging environment**; signal-cli can target it (`--service-environment staging`) — **verified** in signal-cli's manual. Registration needs a **real phone number** (SMS or voice) and may require a **captcha** — **verified** in signal-cli's README. There is no equivalent of Telegram's test numbers.
-- Whether mautrix-signal can target staging is **unknown** (to read in its code before Signal work starts). A CI setup would follow the same pattern as Telegram: one manually registered staging account, its state stored as an encrypted secret.
+- Whether mautrix-signal can target staging was **unknown** here. *(Answered in T2.6, ADR 0022: not as it is, since signalmeow hard-codes the production servers, but a patch of its hosts, CDSI enclave measurement and zkgroup parameters is enough; the staging values are read in Signal-Android and libsignal.)* A CI setup would follow the same pattern as Telegram: one manually registered staging account, its state stored as an encrypted secret.
 
 ## Consequences
 
