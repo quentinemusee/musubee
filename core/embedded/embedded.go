@@ -205,7 +205,7 @@ func (c *Core) start(cfg Config) error {
 		c.networks = append(c.networks, telegramBridge)
 	}
 	if cfg.Signal != nil {
-		sc, err := signal.New(signal.Config{Environment: cfg.Signal.Environment})
+		sc, err := signal.New(signal.Config{Environment: cfg.Signal.Environment, Key: &key})
 		if err != nil {
 			return fmt.Errorf("invalid configuration: %w", err)
 		}
