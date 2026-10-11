@@ -17,11 +17,14 @@
 #   LIBRARY_PATH=OUTPUT_DIR CGO_LDFLAGS="-LOUTPUT_DIR $(cat OUTPUT_DIR/cgo-ldflags)" \
 #     go test -tags=goolm,musubee_signal ...
 #
-# ANDROID_ABI is arm64-v8a, armeabi-v7a, x86_64 or x86. Android builds need a
-# Linux or macOS host, ANDROID_NDK_HOME set to the NDK (28.2.13676358, the
-# app's), and ANDROID_API (default 24, the app's minSdkVersion); Go then
-# builds with GOOS=android, CGO_ENABLED=1 and CC set to the NDK's clang for
-# that ABI and API, as the app's Gradle build does (apps/mobile/android).
+# ANDROID_ABI is arm64-v8a, armeabi-v7a, x86_64 or x86. Android builds need
+# ANDROID_NDK_HOME set to the NDK (28.2.13676358, the app's), and ANDROID_API
+# (default 24, the app's minSdkVersion); Go then builds with GOOS=android,
+# CGO_ENABLED=1 and CC set to the NDK's clang for that ABI and API, as the
+# app's Gradle build does (apps/mobile/android). On a Windows host, give Go
+# "clang.exe --target=x86_64-linux-android24" (for x86_64) rather than the
+# NDK's .cmd wrapper: a link with libsignal exceeds cmd.exe's limit on the
+# length of a command line.
 #
 # Needs git, a Rust toolchain manager (rustup), protoc, cmake and a C/C++
 # compiler; on Windows, MSYS2 UCRT64 first in PATH with its gcc, cmake,
@@ -51,11 +54,19 @@ if [ -n "$abi" ]; then
   case "$(uname -s)" in
     Linux) ndk_host=linux-x86_64 ;;
     Darwin) ndk_host=darwin-x86_64 ;;
-    *) echo "Android builds need a Linux or macOS host" >&2; exit 2 ;;
+    MINGW* | MSYS* | CYGWIN*) ndk_host=windows-x86_64 ;;
+    *) echo "no Android NDK for this host: $(uname -s)" >&2; exit 2 ;;
   esac
   ndk_bin=${ANDROID_NDK_HOME:?Android builds need ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/$ndk_host/bin
   ndk_cc=$ndk_bin/$clang${ANDROID_API:-24}-clang
-  if [ ! -x "$ndk_cc" ]; then
+  ndk_ar=$ndk_bin/llvm-ar
+  if [ "$ndk_host" = windows-x86_64 ]; then
+    # Rust and CMake are Windows programs: Windows paths, and the NDK's
+    # .cmd wrapper of clang for the target and API.
+    ndk_cc=$(cygpath -m "$ndk_cc").cmd
+    ndk_ar=$(cygpath -m "$ndk_ar").exe
+  fi
+  if [ ! -f "$ndk_cc" ]; then
     echo "no NDK clang at $ndk_cc" >&2
     exit 2
   fi
@@ -119,7 +130,7 @@ if [ -n "$abi" ]; then
   target_cc=$(echo "$target" | tr '-' '_')
   target_env=$(echo "$target" | tr '[:lower:]-' '[:upper:]_')
   export "CC_$target_cc=$ndk_cc" "CARGO_TARGET_${target_env}_LINKER=$ndk_cc"
-  export TARGET_AR="$ndk_bin/llvm-ar"
+  export TARGET_AR="$ndk_ar"
   export CARGO_PROFILE_RELEASE_OPT_LEVEL=s CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
   export CFLAGS=-DOPENSSL_SMALL CXXFLAGS=-DOPENSSL_SMALL BORING_BSSL_RUST_CPPLIB=static:-bundle=c++
   rustflags='--cfg aes_armv8 --cfg curve25519_dalek_bits="64" --print native-static-libs'
@@ -151,7 +162,7 @@ if [ -n "$abi" ]; then
   # static one, comes first through -L OUTPUT_DIR.
   echo "INPUT(-lc++_static -lc++abi)" > "$out/libc++.a"
 fi
-if $windows; then
+if $windows && [ -z "$abi" ]; then
   # Go's link step also needs the system libraries that rustc lists, and
   # libwindows.0.52.0.a, an import library that cargo passes to rustc with
   # -L: the one of the windows_x86_64_gnu crate, since cargo fetch downloads
