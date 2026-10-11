@@ -35,10 +35,14 @@ type Dependency struct {
 
 // GoTagSets are the sets of build tags whose dependencies are audited: the
 // core's pure-Go Olm (goolm, docs/ADR/0018), which every build has; test-only
-// code (integration, telegram); and the SQLite driver of Android builds
-// (musubee_cgo_sqlite, see core/storage/sqlite), which replaces the default
-// one.
-var GoTagSets = []string{"goolm,integration,telegram", "goolm,integration,telegram,musubee_cgo_sqlite"}
+// code (integration, telegram, signal); the Signal connector, only in cores
+// built with it (musubee_signal, docs/ADR/0025); and the SQLite driver of
+// Android builds (musubee_cgo_sqlite, see core/storage/sqlite), which
+// replaces the default one.
+var GoTagSets = []string{
+	"goolm,integration,telegram,signal,musubee_signal",
+	"goolm,integration,telegram,signal,musubee_signal,musubee_cgo_sqlite",
+}
 
 // RepositoryLicense is the license of the code of this repository (REUSE
 // checks that every file says so, see scripts/license_check.py).

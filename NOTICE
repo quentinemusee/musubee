@@ -106,6 +106,38 @@ versions in core/go.mod and go.work):
 - golang.org/x/image v0.46.0 and sync v0.23.0. Copyright 2009 The Go Authors.
   BSD-3-Clause.
 
+  Signal, on the device (core/connector/signal, docs/ADR/0025), only in
+  cores built with the musubee_signal build tag; no app ships it yet:
+
+- mautrix-signal v0.2609.0, https://github.com/mautrix/signal
+  (go.mau.fi/mautrix-signal), copied with Musubee's changes into
+  core/replace/mautrix-signal (its MUSUBEE.md lists them). Copyright (C)
+  2023-2026 Tulir Asokan, Scott Weber, Sumner Evans and the mautrix-signal
+  contributors. AGPL-3.0-or-later; its files that come from Signal (the
+  libsignal-ffi header, the protobuf definitions) are Copyright Signal
+  Messenger, LLC, AGPL-3.0-only. Its LICENSE.exceptions grants exceptions to
+  Beeper and Element only; Musubee uses none. A core built with Signal is
+  therefore distributed under AGPL-3.0 (version 3) only.
+- libsignal v0.102.2 (libsignal-ffi, commit 8fc2113b),
+  https://github.com/signalapp/libsignal, built by scripts/build-libsignal.sh
+  and linked statically. Copyright 2020-2026 Signal Messenger, LLC.
+  AGPL-3.0-only. It contains Rust crates under licenses that libsignal's
+  own policy accepts (acknowledgments/about.toml: CC0-1.0, MIT, Apache-2.0,
+  BSD-2-Clause, BSD-3-Clause, ISC, MPL-2.0, Zlib, AGPL-3.0-only, Unicode),
+  among them signalapp/boring v5.2.0 (MIT), which builds BoringSSL
+  (Apache-2.0, its deps/boringssl/LICENSE); libsignal's acknowledgments/ lists
+  them with their copyright notices, and a build of Musubee with Signal
+  must carry that list.
+- github.com/emersion/go-vcard (pseudo-version
+  20241024213814-c9703dde27ff). Copyright (c) 2017 emersion. MIT.
+- github.com/mattn/go-pointer v0.0.1. Copyright (c) 2019 Yasuhiro
+  Matsumoto. MIT.
+- google.golang.org/grpc v1.83.2. Copyright 2014 gRPC authors. Apache-2.0.
+- google.golang.org/genproto/googleapis/rpc (pseudo-version
+  20260526163538-3dc84a4a5aaa). Copyright Google LLC. Apache-2.0.
+- google.golang.org/protobuf v1.36.12. Copyright (c) 2018 The Go Authors.
+  BSD-3-Clause.
+
 Android app (apps/mobile; exact versions in apps/mobile/package-lock.json,
 apps/mobile/android/variables.gradle and the Gradle runtime classpath,
 "./gradlew :app:dependencies --configuration releaseRuntimeClasspath"):
