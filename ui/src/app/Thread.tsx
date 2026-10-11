@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Quentin Raimbaud
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Fragment, useCallback, useMemo, useState, type FormEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, useSyncExternalStore, type FormEvent } from "react";
 import type { Conversation, Message } from "../core-api/types.gen";
 import { MessageList } from "./MessageList";
 import { closeConversation } from "./navigation";
@@ -17,6 +17,21 @@ export function Thread() {
   const history = useAppState((s) => (s.selected === undefined ? undefined : s.history[s.selected]));
   const person = useAppState((s) => (conversation?.person_id === undefined ? undefined : s.persons.find((p) => p.person_id === conversation.person_id)));
   const loadOlder = useCallback(() => void store.loadOlder(), [store]);
+  // Whether the newest message is in view, per conversation: each opens there.
+  const [bottom, setBottom] = useState({ conversation: selected, atBottom: true });
+  const atBottom = bottom.conversation !== selected || bottom.atBottom;
+  const onBottomChange = useCallback((value: boolean) => setBottom({ conversation: selected, atBottom: value }), [selected]);
+  const visible = useDocumentVisible();
+  const unread = (conversation?.unread_count ?? 0) > 0 || conversation?.marked_unread === true;
+
+  // The user reads what the thread shows: the newest message, in a window
+  // they can see (API 1.4). markRead clears the state at once, so a message
+  // that arrives later makes it unread again and runs this anew.
+  useEffect(() => {
+    if (selected !== undefined && unread && visible && atBottom) {
+      void store.markRead(selected);
+    }
+  }, [store, selected, unread, visible, atBottom]);
 
   if (selected === undefined || conversation === undefined) {
     return <p className="empty">Choose a conversation.</p>;
@@ -34,7 +49,7 @@ export function Thread() {
       {/* One key for both: siblings with the same key confuse React, which
           then leaves old rows in the DOM. */}
       <Fragment key={selected}>
-        <MessageList messages={messages} history={history} onOlder={loadOlder} labelledBy="thread-title" />
+        <MessageList messages={messages} history={history} onOlder={loadOlder} labelledBy="thread-title" onBottomChange={onBottomChange} />
         <Composer />
       </Fragment>
     </section>
@@ -110,4 +125,14 @@ function Composer() {
       </button>
     </form>
   );
+}
+
+function subscribeVisibility(listener: () => void): () => void {
+  document.addEventListener("visibilitychange", listener);
+  return () => document.removeEventListener("visibilitychange", listener);
+}
+
+/** Whether the page can be seen: not in a minimized window or a hidden tab. */
+function useDocumentVisible(): boolean {
+  return useSyncExternalStore(subscribeVisibility, () => document.visibilityState === "visible");
 }

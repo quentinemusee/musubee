@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "vitest";
 import type { Conversation, Message, Person } from "./core-api/types.gen";
-import { activityLabel, entryOf, inboxEntries, preview, type InboxEntry } from "./inbox";
+import { activityLabel, entryOf, inboxEntries, preview, unreadBadge, type InboxEntry } from "./inbox";
 
 function conversation(id: string, name: string, activity: number, patch: Partial<Conversation> = {}): Conversation {
   return { conversation_id: id, account_id: "a1", network_id: "echo", name, kind: "direct", activity_ms: activity, ...patch };
@@ -47,6 +47,23 @@ describe("inboxEntries", () => {
     expect(entryOf(entries, undefined)).toBeUndefined();
   });
 
+  test("adds up the unread messages of a person's conversations", () => {
+    const alice: Person = { person_id: "h1", name: "Alice", conversation_ids: ["c1", "c2", "c3"] };
+    const entries = inboxEntries(
+      [
+        conversation("c1", "alice", 30, { person_id: "h1", unread_count: 2 }),
+        conversation("c2", "Alice T.", 20, { person_id: "h1", unread_count: 3 }),
+        conversation("c3", "Alice S.", 10, { person_id: "h1", marked_unread: true }),
+        conversation("c4", "Bob", 5),
+      ],
+      [alice],
+    );
+    expect(entries.map((e) => [e.key, e.unread, e.markedUnread])).toEqual([
+      ["p.h1", 5, true],
+      ["c.c4", 0, false],
+    ]);
+  });
+
   test("keeps a conversation of an unknown person on its own", () => {
     const entries = inboxEntries([conversation("c1", "Alice", 1, { person_id: "h9" })], []);
     expect(entries.map((e) => e.key)).toEqual(["c.c1"]);
@@ -56,7 +73,14 @@ describe("inboxEntries", () => {
 
 function entry(kind: Conversation["kind"], last?: Partial<Message>): InboxEntry {
   const c = conversation("c1", "Chat", 1, { kind });
-  return { key: "c.c1", name: "Chat", conversations: [c], ...(last ? { lastMessage: { ...message("m1", "c1"), text: "Hi", ...last } } : {}) };
+  return {
+    key: "c.c1",
+    name: "Chat",
+    conversations: [c],
+    ...(last ? { lastMessage: { ...message("m1", "c1"), text: "Hi", ...last } } : {}),
+    unread: 0,
+    markedUnread: false,
+  };
 }
 
 describe("preview", () => {
@@ -66,6 +90,16 @@ describe("preview", () => {
     expect(preview(entry("direct", { from_me: true }))).toBe("You: Hi");
     expect(preview(entry("group", { sender_name: "Bob" }))).toBe("Bob: Hi");
     expect(preview(entry("group", { from_me: true, sender_name: "Me" }))).toBe("You: Hi");
+  });
+});
+
+describe("unreadBadge", () => {
+  test("shows the count, 99+ beyond, a dot when only marked unread", () => {
+    expect(unreadBadge(entry("direct"))).toBeUndefined();
+    expect(unreadBadge({ ...entry("direct"), unread: 1 })).toEqual({ text: "1", label: "1 unread message" });
+    expect(unreadBadge({ ...entry("direct"), unread: 42, markedUnread: true })).toEqual({ text: "42", label: "42 unread messages" });
+    expect(unreadBadge({ ...entry("direct"), unread: 1000 })).toEqual({ text: "99+", label: "99+ unread messages" });
+    expect(unreadBadge({ ...entry("direct"), markedUnread: true })).toEqual({ text: "", label: "Marked as unread" });
   });
 });
 

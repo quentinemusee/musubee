@@ -3,7 +3,7 @@
 
 import { createContext, memo, use, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Virtualizer, type CustomItemComponentProps, type VirtualizerHandle } from "virtua";
-import { activityLabel, entryOf, inboxEntries, preview, type InboxEntry } from "../inbox";
+import { activityLabel, entryOf, inboxEntries, preview, unreadBadge, type InboxEntry } from "../inbox";
 import { openConversation } from "./navigation";
 import { useAppState, useStore } from "./state";
 
@@ -95,16 +95,17 @@ const InboxRow = memo(function InboxRow({ entry, current, now, networkNames, onO
   const latest = entry.conversations[0]!;
   const networks = [...new Set(entry.conversations.map((c) => networkNames.get(c.network_id) ?? c.network_id))];
   const activity = latest.activity_ms;
+  const badge = unreadBadge(entry);
   return (
     <div className="inbox-row">
       {/* Named by the name alone, so that the preview does not make names
           ambiguous; the preview describes the button. */}
       <button
         type="button"
-        className="conversation"
+        className={badge === undefined ? "conversation" : "conversation unread"}
         aria-current={current ? "true" : undefined}
         aria-labelledby={`${id}-name`}
-        aria-describedby={`${id}-meta ${id}-preview`}
+        aria-describedby={badge === undefined ? `${id}-meta ${id}-preview` : `${id}-unread ${id}-meta ${id}-preview`}
         onClick={() => onOpen(latest.conversation_id)}
       >
         <span className="conversation-top">
@@ -121,8 +122,22 @@ const InboxRow = memo(function InboxRow({ entry, current, now, networkNames, onO
           {networks.join(" · ")}
           {latest.kind === "group" ? " · Group" : ""}
         </span>
-        <span id={`${id}-preview`} className="conversation-preview">
-          {preview(entry)}
+        <span className="conversation-bottom">
+          <span id={`${id}-preview`} className="conversation-preview">
+            {preview(entry)}
+          </span>
+          {badge === undefined ? null : (
+            // The count is what the eye reads; the label, what a screen
+            // reader says: "3 unread messages", not "3".
+            <>
+              <span className="unread-badge" aria-hidden="true">
+                {badge.text}
+              </span>
+              <span id={`${id}-unread`} className="visually-hidden">
+                {badge.label}
+              </span>
+            </>
+          )}
         </span>
       </button>
     </div>

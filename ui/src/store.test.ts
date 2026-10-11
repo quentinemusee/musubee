@@ -61,7 +61,7 @@ function scriptedShell(results: Record<string, (params: unknown) => unknown>) {
 }
 
 const coreState = (conversations: Conversation[] = [], persons: Person[] = []) => ({
-  "core.hello": () => ({ api_version: "1.3", core_version: "test" }),
+  "core.hello": () => ({ api_version: "1.4", core_version: "test" }),
   "networks.list": () => ({ networks: [{ network_id: "echo", name: "Echo", login_flows: [] }] }),
   "accounts.list": () => ({ accounts: [] }),
   "conversations.list": () => ({ conversations }),
@@ -218,6 +218,58 @@ describe("Store", () => {
     expect(store.getState().error).toMatch(/^Could not send the message/);
     store.dismissError();
     expect(store.getState().error).toBeUndefined();
+  });
+
+  test("marks a conversation read at once, then asks the core", async () => {
+    const unread = { ...conversation("c1", "Adam", 2), last_message: message("m2", 2), unread_count: 2 };
+    const marked = { ...conversation("c2", "Bea", 1), marked_unread: true };
+    const calls: unknown[] = [];
+    let answer: (() => void) | undefined;
+    const shell = scriptedShell({
+      ...coreState([unread, marked, conversation("c3", "Cy", 0)]),
+      "conversations.markRead": (params) => {
+        calls.push(params);
+        return new Promise<object>((resolve) => (answer = () => resolve({})));
+      },
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+
+    const pending = store.markRead("c1");
+    // The badge goes before the core answers.
+    const read = store.getState().conversations.find((c) => c.conversation_id === "c1");
+    expect(read?.unread_count).toBeUndefined();
+    expect(read?.last_message?.message_id).toBe("m2");
+    await settle();
+    expect(calls).toEqual([{ conversation_id: "c1", message_id: "m2" }]);
+    answer?.();
+    await pending;
+
+    // No last message: the core reads up to its own last one.
+    const second = store.markRead("c2");
+    await settle();
+    answer?.();
+    await second;
+    expect(store.getState().conversations.find((c) => c.conversation_id === "c2")?.marked_unread).toBeUndefined();
+    expect(calls).toEqual([{ conversation_id: "c1", message_id: "m2" }, { conversation_id: "c2" }]);
+
+    // A conversation already read, or unknown: no call.
+    await store.markRead("c3");
+    await store.markRead("c9");
+    expect(calls).toHaveLength(2);
+    expect(store.getState().error).toBeUndefined();
+  });
+
+  test("reports a failed mark as read", async () => {
+    const shell = scriptedShell(coreState([{ ...conversation("c1", "Adam", 1), unread_count: 1 }]));
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    await store.markRead("c1");
+    expect(store.getState().error).toMatch(/^Could not mark the conversation as read/);
   });
 
   test("reads older messages page by page, one page at a time", async () => {

@@ -16,6 +16,10 @@ export interface InboxEntry {
   conversations: readonly Conversation[];
   /** The last message of the most recently active conversation that has one. */
   lastMessage?: Message;
+  /** The unread messages of all its conversations (API 1.4). */
+  unread: number;
+  /** Whether one of its conversations was marked as unread. */
+  markedUnread: boolean;
 }
 
 /**
@@ -36,12 +40,16 @@ export function inboxEntries(conversations: readonly Conversation[], persons: re
         name: conversation.name || "Unnamed conversation",
         conversations: [conversation],
         ...(conversation.last_message ? { lastMessage: conversation.last_message } : {}),
+        unread: conversation.unread_count ?? 0,
+        markedUnread: conversation.marked_unread ?? false,
       });
       continue;
     }
     const known = byPerson.get(person.person_id);
     if (known !== undefined) {
       known.conversations.push(conversation);
+      known.entry.unread += conversation.unread_count ?? 0;
+      known.entry.markedUnread ||= conversation.marked_unread ?? false;
       if (known.entry.lastMessage === undefined && conversation.last_message !== undefined) {
         known.entry.lastMessage = conversation.last_message;
       }
@@ -54,6 +62,8 @@ export function inboxEntries(conversations: readonly Conversation[], persons: re
       person,
       conversations: merged,
       ...(conversation.last_message ? { lastMessage: conversation.last_message } : {}),
+      unread: conversation.unread_count ?? 0,
+      markedUnread: conversation.marked_unread ?? false,
     };
     byPerson.set(person.person_id, { entry, conversations: merged });
     entries.push(entry);
@@ -80,6 +90,18 @@ export function preview(entry: InboxEntry): string {
     sender = `${message.sender_name}: `;
   }
   return sender + message.text;
+}
+
+/**
+ * What an entry's unread badge shows: the count, "99+" beyond, a dot for a
+ * conversation marked unread with nothing new in it, or nothing.
+ */
+export function unreadBadge(entry: InboxEntry): { text: string; label: string } | undefined {
+  if (entry.unread > 0) {
+    const text = entry.unread > 99 ? "99+" : String(entry.unread);
+    return { text, label: entry.unread === 1 ? "1 unread message" : `${text} unread messages` };
+  }
+  return entry.markedUnread ? { text: "", label: "Marked as unread" } : undefined;
 }
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
