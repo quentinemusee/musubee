@@ -140,7 +140,12 @@ in ui/package-lock.json):
   0.28.0), https://react.dev. Copyright (c) Meta Platforms, Inc. and
   affiliates. MIT.
 - virtua 0.53.3, https://github.com/inokawa/virtua, the virtualized
-  thread list (docs/ADR/0020). Copyright (c) 2022 inokawa. MIT.
+  thread list and inbox (docs/ADR/0020, 0021). Copyright (c) 2022 inokawa.
+  MIT.
+- @capacitor/core 8.5.3 (see Capacitor above), in the chunk the interface
+  loads only inside the mobile app (docs/ADR/0021), with its dependency
+  tslib 2.8.1, https://github.com/microsoft/tslib. Copyright (c) Microsoft
+  Corporation. 0BSD.
 
 Desktop app (apps/desktop; exact versions in apps/desktop/package-lock.json;
 installers come with E3.2):
