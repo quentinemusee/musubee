@@ -34,19 +34,21 @@ const (
 	`
 )
 
-func scanProfileKey(row dbutil.Scannable) (*libsignalgo.ProfileKey, error) {
-	return scanRecord(row, libsignalgo.DeserializeProfileKey)
+// Musubee: a method of Container, to reach its sealer (sealing.go).
+func (c *Container) scanProfileKey(row dbutil.Scannable) (*libsignalgo.ProfileKey, error) {
+	return scanSealedRecord(c, row, PurposeProfileKey, libsignalgo.DeserializeProfileKey)
 }
 
 func (s *sqlStore) LoadProfileKey(ctx context.Context, theirACI uuid.UUID) (*libsignalgo.ProfileKey, error) {
-	return scanProfileKey(s.db.QueryRow(ctx, loadProfileKeyQuery, s.AccountID, theirACI))
+	return s.scanProfileKey(s.db.QueryRow(ctx, loadProfileKeyQuery, s.AccountID, theirACI))
 }
 
 func (s *sqlStore) MyProfileKey(ctx context.Context) (*libsignalgo.ProfileKey, error) {
-	return scanProfileKey(s.db.QueryRow(ctx, loadProfileKeyQuery, s.AccountID, s.AccountID))
+	return s.scanProfileKey(s.db.QueryRow(ctx, loadProfileKeyQuery, s.AccountID, s.AccountID))
 }
 
 func (s *sqlStore) StoreProfileKey(ctx context.Context, theirACI uuid.UUID, key libsignalgo.ProfileKey) error {
-	_, err := s.db.Exec(ctx, storeProfileKeyQuery, s.AccountID, theirACI, key.Slice())
+	// Musubee: sealed when a sealer is set (sealing.go).
+	_, err := s.db.Exec(ctx, storeProfileKeyQuery, s.AccountID, theirACI, s.sealBytes(PurposeProfileKey, key.Slice()))
 	return err
 }
