@@ -318,3 +318,11 @@ signal core seal:   go test -tags=goolm,musubee_signal -count=1 -run 'Store|New'
 ```
 
 The staging journey of T2.6 also checks that every sealed column of `core.db` holds only sealed values.
+
+Verified in T2.10 (Windows, Go 1.27.1, Node 24.20, Electron 44.7.0; the macOS Keychain and the GNOME keyring on CI only; see ADR 0027). On macOS and Linux the app gives the core its key on its input: run the core program alone with a data directory of its own.
+
+```
+core key on input:  go test -tags=goolm -count=1 -run 'KeyFromStdin|KeyFileOfTheApp' -v ./core/cmd/musubee-core/ ./core/secrets/
+app key handling:   cd apps/desktop && npx vitest run test/core-key.test.ts test/core-process.test.ts
+key in the app:     cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "key"     (Linux CI: GNOME keyring, see checks.yml)
+```

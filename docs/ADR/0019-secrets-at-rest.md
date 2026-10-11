@@ -56,7 +56,7 @@ The core opens SQLite through a `driver.Connector` that wraps the real one. Writ
 |---|---|---|
 | Windows | **DPAPI** (`CryptProtectData`, user scope, with an application entropy), in `core.key` in the data directory | Electron `safeStorage` could give it instead, if the core moves into a sandbox |
 | Android | **Android Keystore**: an AES-256-GCM key that never leaves the Keystore wraps the master key, kept in `noBackupFilesDir`; the app gives the key to the core in its configuration (`database_key`) | StrongBox when available |
-| macOS, Linux | a plain `core.key` file (mode 0600), with a warning in the log | Electron `safeStorage` (Keychain, libsecret/kwallet) gives the key to the core: follow-up task |
+| macOS, Linux | a plain `core.key` file (mode 0600), with a warning in the log | Electron `safeStorage` (Keychain, libsecret/kwallet) gives the key to the core: done in T2.10 (ADR 0027) |
 | iOS | not built yet | the Keychain, in E3.3 (the NSE needs the key too: shared Keychain access group) |
 
 The Windows Credential Manager was the other option of the task. DPAPI is what it uses underneath, it has no size limit issue and needs no entry name, and a DPAPI blob in the data directory moves with it; both protect the same way (see the threat model).
@@ -100,7 +100,7 @@ The Windows Credential Manager was the other option of the task. DPAPI is what i
 | The Android Keystore key is in secure hardware on the maintainer's phone | **assumed** (Pixel 8 Pro has a TEE and StrongBox; not measured with `KeyInfo`) | — |
 | Some other table of mautrix-telegram holds session material | **assumed not**: its other tables hold update state and access hashes, which identify peers but do not log in | read in `pkg/store`, 2026-10-10 |
 | The query analysis survives the next mautrix upgrade | **unknown**: checked by `TestSealedArgument` and the journeys at each upgrade; an unsupported query fails closed | `mautrix-upgrade-pending` |
-| macOS and Linux key storage through Electron `safeStorage` | **unknown**: follow-up task | — |
+| macOS and Linux key storage through Electron `safeStorage` | **done in T2.10**: see ADR 0027 | [ADR 0027](0027-desktop-key-in-safestorage.md) |
 | iOS Keychain, and the key in the notification extension | **unknown**: E3.3 | ADR 0015 |
 
 ## Consequences
