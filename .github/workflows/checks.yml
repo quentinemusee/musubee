@@ -607,7 +607,8 @@ jobs:
         # enforced (ADR 0011).
         api-level: [30, 35]
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # A libsignal build takes about 5 minutes when the cache misses.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -634,7 +635,34 @@ jobs:
           cache: gradle
 
       - name: Install the Android NDK
-        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358" > /dev/null
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358" > /dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      # The app is built with Signal on staging (docs/ADR/0029), with the
+      # libsignal of the signal-android job: same cache key.
+      - name: libsignal-ffi from the cache
+        id: libsignal
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: libsignal-out
+          key: libsignal-android-x86_64-${{ hashFiles('scripts/build-libsignal.sh') }}
+
+      - name: Build libsignal-ffi
+        if: steps.libsignal.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq protobuf-compiler clang libclang-dev cmake > /dev/null
+          scripts/build-libsignal.sh libsignal-out x86_64
+
+      # Gradle reads libsignal from musubee.libsignal/<abi>. Every Gradle
+      # command of this job passes the same properties, or the app would be
+      # built again without Signal.
+      - name: Arrange libsignal for Gradle
+        run: |
+          mkdir -p "$RUNNER_TEMP/libsignal"
+          ln -s "$GITHUB_WORKSPACE/libsignal-out" "$RUNNER_TEMP/libsignal/x86_64"
+          echo "SIGNAL_GRADLE=-Pmusubee.signal=staging -Pmusubee.libsignal=$RUNNER_TEMP/libsignal" >> "$GITHUB_ENV"
 
       - name: Install the mobile test tools and the app's npm packages
         run: |
@@ -648,7 +676,7 @@ jobs:
         run: |
           (cd ../../../ui && npm run build)
           (cd .. && npm run sync)
-          ./gradlew --no-daemon -Pmusubee.abis=x86_64 :app:assembleDebug :app:assembleDebugAndroidTest
+          ./gradlew --no-daemon -Pmusubee.abis=x86_64 $SIGNAL_GRADLE :app:assembleDebug :app:assembleDebugAndroidTest
 
       # Hardware acceleration for the emulator on Linux runners.
       - name: Enable KVM
@@ -672,7 +700,7 @@ jobs:
           working-directory: apps/mobile/e2e
           script: |
             MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android || { adb logcat -d -b crash; adb logcat -d -t 300; exit 1; }
-            cd ../android && ANDROID_SERIAL=emulator-5554 ./gradlew --no-daemon -Pmusubee.abis=x86_64 :app:connectedDebugAndroidTest || { adb logcat -d -b crash; adb logcat -d -s Go:* DEBUG:* AndroidRuntime:* libc:* TestRunner:* MusubeeCore:*; exit 1; }
+            cd ../android && ANDROID_SERIAL=emulator-5554 ./gradlew --no-daemon -Pmusubee.abis=x86_64 $SIGNAL_GRADLE :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.musubeeSignalRequire=1 || { adb logcat -d -b crash; adb logcat -d -s Go:* DEBUG:* AndroidRuntime:* libc:* TestRunner:* MusubeeCore:* MusubeeSignalTest:*; exit 1; }
             MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android:app || { adb logcat -d -b crash; adb logcat -d -t 300; exit 1; }
 
   ios:
