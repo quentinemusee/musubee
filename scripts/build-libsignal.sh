@@ -47,13 +47,14 @@ if $windows; then
   # libsignal must be a GNU-ABI static library for Go's MinGW link, so the
   # Rust host toolchain is the GNU one: with the MSVC host, boring-sys
   # treats the build as cross-compiling and CMake picks cl.
-  export RUSTUP_TOOLCHAIN="$(cat rust-toolchain)-x86_64-pc-windows-gnu"
+  RUSTUP_TOOLCHAIN="$(cat rust-toolchain)-x86_64-pc-windows-gnu"
   export CMAKE_GENERATOR=Ninja CC=gcc CXX=g++
   LIBCLANG_PATH=$(cygpath -w "$(dirname "$(command -v clang)")")
   export LIBCLANG_PATH
 else
-  export RUSTUP_TOOLCHAIN="$(cat rust-toolchain)"
+  RUSTUP_TOOLCHAIN="$(cat rust-toolchain)"
 fi
+export RUSTUP_TOOLCHAIN
 # rustup looks for itself under CARGO_HOME: run it with the default one.
 env -u CARGO_HOME rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal > /dev/null
 rustc --version
