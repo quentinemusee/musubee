@@ -31,6 +31,22 @@ if (process.env["MUSUBEE_USER_DATA_DIR"]) {
   app.setPath("userData", process.env["MUSUBEE_USER_DATA_DIR"]);
 }
 
+// Playwright's Electron loader appends --password-store=basic and
+// --use-mock-keychain to every app it starts: safeStorage would then use a
+// hardcoded password on Linux and a mock Keychain on macOS, while the
+// end-to-end tests check the system's secure storage (docs/ADR/0027).
+// Remove them before the app is ready, when Chromium reads them; a test
+// that needs a plain password store asks for it with
+// MUSUBEE_E2E_PASSWORD_STORE.
+if (process.env["MUSUBEE_E2E"] === "1") {
+  app.commandLine.removeSwitch("password-store");
+  app.commandLine.removeSwitch("use-mock-keychain");
+  const passwordStore = process.env["MUSUBEE_E2E_PASSWORD_STORE"];
+  if (passwordStore) {
+    app.commandLine.appendSwitch("password-store", passwordStore);
+  }
+}
+
 protocol.registerSchemesAsPrivileged([{ scheme: APP_SCHEME, privileges: { standard: true, secure: true } }]);
 
 // Two cores on the same database would corrupt it: one app per data directory.
