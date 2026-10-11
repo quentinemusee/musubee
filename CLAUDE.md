@@ -58,7 +58,7 @@ A local link table `Person ↔ [Conversation]` (stored on the device, syncable i
 5. Conversation merging: data model and sync across devices. **Settled in T2.1 (ADR 0017)**: links keyed by each conversation's network identity, in the core's database; the encrypted sync is designed, not built.
 6. UI: state management and virtualized message list. **Settled in T2.4 (ADR 0020)**: the app's own store (no state library) and virtua behind `MessageList`, measured on Electron and a throttled Android emulator; the low-end phone measurement is still to come.
 
-Not spiked in phase 1 and moved to phase 2: native Matrix accounts (the core as a Matrix client, T2.2) and Signal on the device (libsignal is Rust, T2.6).
+Not spiked in phase 1 and moved to phase 2: native Matrix accounts (the core as a Matrix client, T2.2) and Signal on the device (libsignal is Rust, T2.6). **Signal settled in T2.6's spike (ADR 0022)**: libsignal builds and links for Linux, macOS, Windows and the four Android ABIs (iOS not tried yet); the connector will be a cgo build tag, and staging needs a patch of mautrix-signal.
 
 ## 5. Repository layout (target)
 
