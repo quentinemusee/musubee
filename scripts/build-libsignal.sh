@@ -10,7 +10,9 @@
 #   scripts/build-libsignal.sh OUTPUT_DIR [ANDROID_ABI]
 #
 # OUTPUT_DIR receives libsignal_ffi.a and cgo-ldflags, the extra linker flags
-# of the target (empty on Linux and macOS). Build Go code that uses Signal with:
+# of the target (empty on Linux, macOS and Android), and for Android a
+# libc++.a that links the C++ runtime statically. Build Go code that uses
+# Signal with:
 #
 #   LIBRARY_PATH=OUTPUT_DIR CGO_LDFLAGS="-LOUTPUT_DIR $(cat OUTPUT_DIR/cgo-ldflags)" \
 #     go test -tags=goolm,musubee_signal ...
@@ -141,9 +143,13 @@ cp "$lib" "$out/"
 
 : > "$out/cgo-ldflags"
 if [ -n "$abi" ]; then
-  # The C++ runtime that BoringSSL needs, linked statically: the NDK's
-  # shared libc++_shared.so is not on the device unless an app ships it.
-  echo "-static-libstdc++ -lc++abi" > "$out/cgo-ldflags"
+  # The C++ runtime that BoringSSL needs must be linked statically: a device
+  # has no libc++_shared.so unless an app ships it. libsignalgo links with
+  # -lstdc++, which the NDK's clang turns into -lc++, which the NDK resolves
+  # to libc++_shared.so; -static-libstdc++ does not change that in a C link
+  # (run 38168466838). This libc++.a, a linker script like the NDK's own
+  # static one, comes first through -L OUTPUT_DIR.
+  echo "INPUT(-lc++_static -lc++abi)" > "$out/libc++.a"
 fi
 if $windows; then
   # Go's link step also needs the system libraries that rustc lists, and
