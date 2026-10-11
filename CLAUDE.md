@@ -194,7 +194,7 @@ no toolchain:       CGO_ENABLED=0 go test -tags=goolm ./core/...                
 Verified in T1.3 (Windows, Go 1.27.1, JDK 21, NDK 28.2.13676358, emulator API 30; see `apps/mobile/README.md` and ADR 0011):
 
 ```
-mobile app tools:   cd apps/mobile && npm ci && npx cap sync android
+mobile app tools:   cd apps/mobile && npm ci && npm run sync      (since T2.5: build ui/ first, see below)
 android build:      cd apps/mobile/android && ./gradlew :app:assembleDebug      (-Pmusubee.abis=x86_64: fewer ABIs)
 android tests:      ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest
 android app e2e:    cd apps/mobile/e2e && MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android:app
@@ -260,6 +260,14 @@ Verified in T2.2 (Windows, Go 1.27.1; the Synapse journey on CI only, Docker Des
 ```
 matrix unit:        go test -tags=goolm -count=1 ./core/connector/matrix/
 matrix journey:     go test -tags=goolm,integration -count=1 -v ./infra/matrixtest/     (needs Docker; starts its own Synapse)
+```
+
+Verified in T2.5 (Windows, Go 1.27.1, Node 24.20, JDK 21, emulator API 30; see ADR 0021). The Android app shows the interface of `ui/`, which needs Android System WebView 111 or later:
+
+```
+android web view:   cd ui && npm ci && npm run build && cd ../apps/mobile && npm run sync    (copies ui/dist and web/ into www/, then cap sync)
+android app e2e:    cd apps/mobile/e2e && MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android:app   (WebView < 111: checks the update page only)
+desktop inbox e2e:  cd apps/desktop && npm run build && npx playwright test app.spec.ts
 ```
 
 Verified in T2.3 (Windows with DPAPI, Go 1.27.1; Android emulator API 30, JDK 21; the Matrix and Telegram journeys check the database files on CI; see ADR 0019):
