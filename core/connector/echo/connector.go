@@ -11,8 +11,12 @@
 //   - ContactDelayed echoes every message back after Config.EchoDelay;
 //   - ContactUnreachable rejects every message: sending fails.
 //
-// and one group conversation, GroupEcho, with ContactInstant and
-// ContactDelayed, where ContactInstant echoes every message back.
+// and one group conversation, GroupEcho, whose members are named like
+// ContactInstant and ContactDelayed, and where the first one echoes every
+// message back. They are other remote users than the contacts: in
+// mautrix-go v0.31.0, two portals that update the same ghost at once race
+// (Ghost.UpdateInfo writes its fields without a lock), and the direct and
+// group conversations of a login are created at once.
 //
 // The username selects behaviours for the tests of user interfaces:
 //
@@ -60,8 +64,20 @@ var Contacts = []Contact{
 	{ID: ContactUnreachable, Name: "Unreachable Contact"},
 }
 
+// The members of GroupEcho, named like ContactInstant and ContactDelayed
+// (see the package documentation for why they are not the same users).
+const (
+	MemberInstant networkid.UserID = "echo-group-instant"
+	MemberDelayed networkid.UserID = "echo-group-delayed"
+)
+
+var groupMembers = []Contact{
+	{ID: MemberInstant, Name: "Instant Echo"},
+	{ID: MemberDelayed, Name: "Delayed Echo"},
+}
+
 func findContact(userID networkid.UserID) (Contact, bool) {
-	for _, contact := range Contacts {
+	for _, contact := range slices.Concat(Contacts, groupMembers) {
 		if contact.ID == userID {
 			return contact, true
 		}
@@ -81,7 +97,7 @@ type Group struct {
 
 // Groups lists the group conversations of every login.
 var Groups = []Group{
-	{ID: GroupEcho, Name: "Echo Group", Members: []networkid.UserID{ContactInstant, ContactDelayed}},
+	{ID: GroupEcho, Name: "Echo Group", Members: []networkid.UserID{MemberInstant, MemberDelayed}},
 }
 
 func findGroup(portalID networkid.PortalID) (Group, bool) {

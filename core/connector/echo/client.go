@@ -261,9 +261,9 @@ func (c *client) GetCapabilities(context.Context, *bridgev2.Portal) *event.RoomF
 // depending on the contact.
 func (c *client) HandleMatrixMessage(_ context.Context, msg *bridgev2.MatrixMessage) (*bridgev2.MatrixMessageResponse, error) {
 	contact, ok := findContact(networkid.UserID(msg.Portal.ID))
-	if _, group := findGroup(msg.Portal.ID); group {
-		// In a group, ContactInstant answers.
-		contact, ok = findContact(ContactInstant)
+	if group, isGroup := findGroup(msg.Portal.ID); isGroup {
+		// In a group, its first member answers.
+		contact, ok = findContact(group.Members[0])
 	}
 	if !ok {
 		return nil, bridgev2.WrapErrorInStatus(fmt.Errorf("unknown conversation %q", msg.Portal.ID)).
