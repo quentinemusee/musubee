@@ -151,7 +151,7 @@ Why virtua: the fastest mount, update, append and prepend on both targets, the s
 
 ### Old WebViews
 
-The interface is built for Vite's default target, the "Baseline widely available" set: Chrome and Edge 111, Firefox 114, Safari and iOS 16.4 (`ESBUILD_BASELINE_WIDELY_AVAILABLE_TARGET` in Vite 8.3.4). It **does not load on WebView 83** (a syntax error: private class methods, `??=`). The Android app does not load the interface yet (its `www/` is still the test page of T1.3); when it does, set Capacitor's `android.minWebViewVersion` to match the build target, so that a phone with an outdated WebView gets Capacitor's message rather than a blank screen; iOS 16.4 is the matching floor for WKWebView (E3.3). The System WebView updates from the Play Store on Android 7 and later; phones without the Play Store may keep an old one.
+The interface is built for Vite's default target, the "Baseline widely available" set: Chrome and Edge 111, Firefox 114, Safari and iOS 16.4 (`ESBUILD_BASELINE_WIDELY_AVAILABLE_TARGET` in Vite 8.3.4). It **does not load on WebView 83** (a syntax error: private class methods, `??=`). The Android app did not load the interface yet (its `www/` was still the test page of T1.3); when it does, set Capacitor's `android.minWebViewVersion` to match the build target, so that a phone with an outdated WebView gets a message rather than a blank screen (done in T2.5: ADR 0021); iOS 16.4 is the matching floor for WKWebView (E3.3). The System WebView updates from the Play Store on Android 7 and later; phones without the Play Store may keep an old one.
 
 ## State of knowledge
 
@@ -163,7 +163,7 @@ The interface is built for Vite's default target, the "Baseline widely available
 | react-virtuoso does not open at the newest message on WebView 83 with 5 000 messages | **verified** on the emulator; whether the cause is the old engine or the emulator is **unknown** | `ui/bench/results/android-emulator-2026-10-10.txt` |
 | The numbers hold on a low-end phone | **unknown**: no low-end phone yet; the emulator with an old engine and ×4 throttling is meant to be pessimistic | T2.4 deliverable 📞 |
 | Screen readers announce rows mounted inside a live region, hence `aria-live="off"` | **assumed** (WAI-ARIA: a polite live region announces added nodes); not tested with NVDA or TalkBack | WAI-ARIA 1.2, `log` role, `aria-live` |
-| The Electron and Linux CI runners pass the regression test's limits | **verified** locally; CI to be confirmed by the pull request | `.github/workflows/checks.yml` |
+| The CI runners pass the regression test's limits | **verified** on the merge of T2.4 (run 38085667068): mount 249 ms (Linux), 234 ms (Windows), 260 ms (macOS); 128 to 135 nodes; scroll p95 16 to 19 ms; drift under 1 px | `.github/workflows/checks.yml` |
 
 ## Consequences
 
@@ -171,7 +171,7 @@ The interface is built for Vite's default target, the "Baseline widely available
 - A regression test runs on every pull request in the desktop job (Linux, Windows, macOS): `npm run bench:check` measures `MessageList` in Electron at 5 000 messages with the CPU throttled 4 times, and fails if the DOM holds more than 500 nodes, if the message being read moves by more than 2 px when older messages arrive (added by the test, or read by the list itself), if the newest message is not shown or followed, if the list reads older messages while opening at the newest one (it must wait until the user scrolls up), or if a time is about five times above the desktop medians (limits in `ui/bench/run.mjs`, `CHECKS`).
 - virtua is at version 0.x: its API may change. `MessageList` is the only file that uses it, and the regression test checks the behaviour at each update. The comparison benchmark stays (`npm run bench`), with react-virtuoso and @tanstack/react-virtual as development dependencies only, to measure again on a low-end phone or after a major update.
 - Browser find-in-page no longer finds messages off screen; conversation search moves to the core (E2.4).
-- Follow-ups: the measurement on a low-end phone 📞; `android.minWebViewVersion` when the Android app loads the interface; search in a conversation and `aria-setsize` (E2.4).
+- Follow-ups: the measurement on a low-end phone 📞; `android.minWebViewVersion` when the Android app loads the interface (done in T2.5, ADR 0021); search in a conversation and `aria-setsize` (E2.4).
 
 ## Sources
 
