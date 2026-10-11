@@ -189,6 +189,7 @@ jobs:
           node-version: "24"
           cache: npm
           cache-dependency-path: |
+            ui/package-lock.json
             apps/mobile/package-lock.json
             apps/mobile/e2e/package-lock.json
             apps/desktop/package-lock.json
@@ -403,11 +404,14 @@ jobs:
         run: |
           npm ci --no-audit --no-fund --prefix apps/mobile/e2e
           npm ci --no-audit --no-fund --prefix apps/mobile
+          npm ci --no-audit --no-fund --prefix ui
 
+      # The app shows the interface of ui/, copied into www/ (ADR 0021).
       - name: Build the app (x86_64, for the emulator)
         working-directory: apps/mobile/android
         run: |
-          (cd .. && npx cap sync android)
+          (cd ../../../ui && npm run build)
+          (cd .. && npm run sync)
           ./gradlew --no-daemon -Pmusubee.abis=x86_64 :app:assembleDebug :app:assembleDebugAndroidTest
 
       # Hardware acceleration for the emulator on Linux runners.

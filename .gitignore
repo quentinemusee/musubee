@@ -20,8 +20,9 @@
 node_modules/
 dist/
 dist-bench/
-# The thread list benchmark page, copied into the debug app to measure it (ui/README.md).
-apps/mobile/www/bench/
+# The interface in the mobile app, copied from ui/dist (apps/mobile/copy-ui.mjs),
+# and the thread list benchmark page, copied there to measure it (ui/README.md).
+apps/mobile/www/
 build/
 *.exe
 *.dll
