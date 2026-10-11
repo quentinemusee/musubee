@@ -319,6 +319,51 @@ test("conversations merged into a person make one entry, and one thread with a s
   await app.close();
 });
 
+test("merge two conversations from the thread, rename the person, then separate them", async () => {
+  const { app, page } = await launch(newDataDir());
+  await loginEcho(page, "alpha");
+  await page.getByRole("button", { name: "Add an account" }).click();
+  await loginEcho(page, "beta");
+  await expect(inboxRows(page).first()).toHaveAttribute("aria-setsize", "8");
+  await page.getByRole("button", { name: "Instant Echo" }).first().click();
+  await expect(page.getByRole("heading", { name: "Instant Echo" })).toBeVisible();
+
+  // The other account's Instant Echo is offered first, as the same name.
+  await page.getByRole("button", { name: "Same person…" }).click();
+  const panel = page.getByRole("region", { name: "Same person on another network?" });
+  const candidates = panel.getByRole("listitem");
+  await expect(candidates.first()).toContainText(/Instant Echo.*same name/);
+  await panel.getByLabel("Find their conversation on another network or account").fill("delayed");
+  // Both accounts' Delayed Echo.
+  await expect(candidates).toHaveCount(2);
+  await expect(candidates.first()).toContainText("Delayed Echo");
+  await panel.getByLabel("Find their conversation on another network or account").fill("instant");
+  await candidates.first().getByRole("button", { name: /^Merge with Instant Echo/ }).click();
+
+  // One entry, one thread with a switcher; the panel closed.
+  await expect(panel).toBeHidden();
+  await expect(inboxRows(page).first()).toHaveAttribute("aria-setsize", "7");
+  const switcher = page.getByRole("group", { name: "Conversations with Instant Echo" });
+  await expect(switcher.getByRole("button")).toHaveCount(2);
+
+  await page.getByRole("button", { name: "Person…" }).click();
+  const personPanel = page.getByRole("region", { name: "Conversations with Instant Echo" });
+  await personPanel.getByLabel("Name", { exact: true }).fill("Echo Friend");
+  await personPanel.getByRole("button", { name: "Rename" }).click();
+  await expect(page.getByRole("heading", { name: "Echo Friend", level: 2 })).toBeVisible();
+  await expect(inboxRows(page).getByRole("button", { name: "Echo Friend" })).toBeVisible();
+
+  // Separating them all asks first; the conversations stay.
+  const renamed = page.getByRole("region", { name: "Conversations with Echo Friend" });
+  await renamed.getByRole("button", { name: "Separate all…" }).click();
+  await renamed.getByRole("button", { name: "Separate all", exact: true }).click();
+  await expect(inboxRows(page).first()).toHaveAttribute("aria-setsize", "8");
+  await expect(page.getByRole("heading", { name: "Instant Echo", level: 2 })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Same person on another network?" })).toBeVisible();
+  await expect(page.getByRole("group", { name: /^Conversations with/ })).toBeHidden();
+  await app.close();
+});
+
 test("a narrow window shows the inbox or the thread, and Back returns to the inbox", async () => {
   const { app, page } = await launch(newDataDir());
   // The window's minimum width (640) is narrower than the phone layout's 720.

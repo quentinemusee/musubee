@@ -9,6 +9,7 @@
 
 import { CoreClient, parseEvent } from "./core-api/client";
 import type { Account, Conversation, Event, Message, Network, Person } from "./core-api/types.gen";
+import { mergePlan } from "./merge";
 import type { CoreStatus, ShellCore } from "./shell";
 
 export interface State {
@@ -326,6 +327,80 @@ export class Store {
       this.#set({ error: `Could not log out: ${describe(error)}` });
     }
     await this.reload();
+  }
+
+  /**
+   * Merges `otherId` into the thread of `currentId` (mergePlan). The core's
+   * events update the persons and conversations; the person it answers with
+   * is applied at once. Returns whether the merge was made.
+   */
+  async mergeWith(currentId: string, otherId: string): Promise<boolean> {
+    const current = this.#state.conversations.find((c) => c.conversation_id === currentId);
+    const other = this.#state.conversations.find((c) => c.conversation_id === otherId);
+    if (current === undefined || other === undefined) {
+      return false;
+    }
+    const plan = mergePlan(current, other, this.#state.persons);
+    try {
+      if (plan.command === "persons.create") {
+        const { person } = await this.client.call("persons.create", { conversation_ids: plan.conversation_ids });
+        this.#applyPerson(person);
+      } else {
+        // One link per conversation: a person's conversations follow it.
+        for (const conversationId of plan.conversation_ids) {
+          const { person } = await this.client.call("persons.link", { person_id: plan.person_id, conversation_id: conversationId });
+          this.#applyPerson(person);
+        }
+      }
+      return true;
+    } catch (error) {
+      this.#set({ error: `Could not merge the conversations: ${describe(error)}` });
+      return false;
+    }
+  }
+
+  /** Takes a conversation out of its person's thread. */
+  async separateConversation(conversationId: string): Promise<void> {
+    try {
+      await this.client.call("persons.unlink", { conversation_id: conversationId });
+    } catch (error) {
+      this.#set({ error: `Could not separate the conversation: ${describe(error)}` });
+    }
+  }
+
+  /** Renames a person; returns whether it was renamed. */
+  async renamePerson(personId: string, name: string): Promise<boolean> {
+    try {
+      const { person } = await this.client.call("persons.rename", { person_id: personId, name });
+      this.#applyPerson(person);
+      return true;
+    } catch (error) {
+      this.#set({ error: `Could not rename: ${describe(error)}` });
+      return false;
+    }
+  }
+
+  /** Separates all of a person's conversations: the person is gone, its conversations stay. */
+  async unmergePerson(personId: string): Promise<void> {
+    try {
+      await this.client.call("persons.delete", { person_id: personId });
+    } catch (error) {
+      this.#set({ error: `Could not separate the conversations: ${describe(error)}` });
+    }
+  }
+
+  /**
+   * Applies a person the core answered with, and the person ID of its
+   * conversations, before the events that say the same arrive.
+   */
+  #applyPerson(person: Person): void {
+    const ids = new Set(person.conversation_ids);
+    this.#set({
+      persons: upsert(this.#state.persons, person, (p) => p.person_id),
+      conversations: this.#state.conversations.map((c) =>
+        ids.has(c.conversation_id) && c.person_id !== person.person_id ? { ...c, person_id: person.person_id } : c,
+      ),
+    });
   }
 
   dismissError(): void {

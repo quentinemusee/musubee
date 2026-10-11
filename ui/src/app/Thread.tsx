@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { Fragment, useCallback, useEffect, useMemo, useState, useSyncExternalStore, type FormEvent } from "react";
-import type { Conversation, Message } from "../core-api/types.gen";
+import type { Message } from "../core-api/types.gen";
+import { accountLabel } from "../merge";
 import { MessageList } from "./MessageList";
 import { closeConversation } from "./navigation";
+import { PersonPanel } from "./PersonPanel";
 import { useAppState, useStore } from "./state";
 
 const noMessages: readonly Message[] = [];
@@ -22,6 +24,10 @@ export function Thread() {
   const atBottom = bottom.conversation !== selected || bottom.atBottom;
   const onBottomChange = useCallback((value: boolean) => setBottom({ conversation: selected, atBottom: value }), [selected]);
   const visible = useDocumentVisible();
+  // The conversation whose person panel is open, if any: it closes when
+  // another conversation is selected.
+  const [panelFor, setPanelFor] = useState<string | undefined>(undefined);
+  const panelOpen = panelFor !== undefined && panelFor === selected;
   const unread = (conversation?.unread_count ?? 0) > 0 || conversation?.marked_unread === true;
 
   // The user reads what the thread shows: the newest message, in a window
@@ -44,7 +50,18 @@ export function Thread() {
           ‹
         </button>
         <h2 id="thread-title">{person?.name ?? (conversation.name || "Unnamed conversation")}</h2>
+        {conversation.kind === "direct" ? (
+          <button
+            type="button"
+            className="secondary person-button"
+            aria-expanded={panelOpen}
+            onClick={() => setPanelFor(panelOpen ? undefined : selected)}
+          >
+            {person === undefined ? "Same person…" : "Person…"}
+          </button>
+        ) : null}
       </div>
+      {panelOpen ? <PersonPanel conversation={conversation} onClose={() => setPanelFor(undefined)} /> : null}
       {person === undefined ? null : <Switcher personId={person.person_id} name={person.name} selected={selected} />}
       {/* One key for both: siblings with the same key confuse React, which
           then leaves old rows in the DOM. */}
@@ -70,11 +87,6 @@ function Switcher({ personId, name, selected }: { personId: string; name: string
   if (merged.length < 2) {
     return null;
   }
-  function label(conversation: Conversation): string {
-    const network = networks.find((n) => n.network_id === conversation.network_id)?.name ?? conversation.network_id;
-    const account = accounts.find((a) => a.account_id === conversation.account_id)?.name;
-    return account ? `${network}: ${account}` : network;
-  }
   return (
     <fieldset className="switcher">
       <legend className="visually-hidden">Conversations with {name}</legend>
@@ -86,7 +98,7 @@ function Switcher({ personId, name, selected }: { personId: string; name: string
           aria-pressed={conversation.conversation_id === selected}
           onClick={() => void store.select(conversation.conversation_id)}
         >
-          {label(conversation)}
+          {accountLabel(conversation, networks, accounts)}
         </button>
       ))}
     </fieldset>
