@@ -61,6 +61,7 @@ The receipts of other people stay in room account data as before: they are not t
 
 - Schema v3 of the local Matrix storage (`02-read-marker.sql`, compatible with v1 and later): the `local_read_marker` table, deleted with its room.
 - `Server.MarkRead` stores the marker, clears the "marked unread" flag, publishes a `ReadState` update, then queues the receipt to the room's bridge. `Intent.MarkRead` and `Intent.MarkUnread` for the device's user (double puppet) move the marker or set the flag and publish the same update; for anyone else they keep the account data as before.
+- A conversation's count is taken **as of its last message** (`Server.ActivityReadState`): the messages stored after the last message that the same `Conversation` carries do not count. Without this, a message arriving between the two reads gave an event whose count included a message its `last_message` did not show yet (found on Linux CI); the next `conversation.updated` carries both.
 - The echo test network handles read receipts (it accepts them), so that bridgev2's path to a connector is exercised in the core's tests.
 
 ### Interface

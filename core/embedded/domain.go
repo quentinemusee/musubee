@@ -225,7 +225,7 @@ func (c *Core) conversation(ctx context.Context, activity *localmatrix.RoomActiv
 		}
 		conv.LastMessage = &msg
 	}
-	read, err := c.host.Matrix.ReadState(ctx, room.ID)
+	read, err := c.host.Matrix.ActivityReadState(ctx, activity)
 	if err != nil {
 		return nil, err
 	}

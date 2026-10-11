@@ -598,8 +598,17 @@ func TestReadState(t *testing.T) {
 	send(user, "mine")
 	expect("after the user wrote", 0, false)
 	first := send(alice, "4")
+	activity, err := server.RoomActivity(ctx, roomID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	send(alice, "5")
 	expect("two more", 2, false)
+	// As of an activity read before message 5, only message 4 counts: the
+	// count agrees with the activity's last message.
+	if st, err := server.ActivityReadState(ctx, activity); err != nil || st.Unread != 1 {
+		t.Errorf("read state as of message 4 = %+v, %v; want 1 unread", st, err)
+	}
 	readUpdates()
 
 	if err = server.MarkRead(ctx, roomID, first); err != nil {
