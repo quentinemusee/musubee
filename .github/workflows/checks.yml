@@ -167,6 +167,100 @@ jobs:
             GOOS=${target%/*} GOARCH=${target#*/} go build -tags=goolm $packages
           done
 
+  # Signal on device (docs/ADR/0025-signal-on-device.md): mautrix-signal's
+  # connector (core/replace/mautrix-signal, our patched copy) links
+  # libsignal-ffi, built from Rust by scripts/build-libsignal.sh and cached
+  # per version of that script, which pins the libsignal commit. The Signal
+  # code is only compiled with the musubee_signal build tag and cgo.
+  signal:
+    name: Signal connector (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    # A libsignal build takes 6 to 12 minutes on Windows (ADR 0022); the
+    # cache makes later runs short.
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: infra/go.mod
+          cache-dependency-path: |
+            core/go.sum
+            core/replace/mautrix-signal/go.sum
+
+      - name: libsignal-ffi from the cache
+        id: libsignal
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: libsignal-out
+          key: libsignal-${{ runner.os }}-${{ hashFiles('scripts/build-libsignal.sh') }}
+
+      # The C compiler of cgo is UCRT64's GCC on Windows (ADR 0010), needed
+      # even when libsignal comes from the cache; the other packages build
+      # libsignal.
+      - name: Install the build tools (Windows, MSYS2 UCRT64)
+        if: runner.os == 'Windows'
+        run: |
+          /c/msys64/usr/bin/pacman.exe -S --noconfirm --needed \
+            mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake \
+            mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-nasm \
+            mingw-w64-ucrt-x86_64-clang mingw-w64-ucrt-x86_64-protobuf \
+            mingw-w64-ucrt-x86_64-dlfcn mingw-w64-ucrt-x86_64-zlib > /dev/null
+
+      - name: Install the build tools (Linux)
+        if: runner.os == 'Linux' && steps.libsignal.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq protobuf-compiler clang libclang-dev cmake > /dev/null
+
+      - name: Install the build tools (macOS)
+        if: runner.os == 'macOS' && steps.libsignal.outputs.cache-hit != 'true'
+        run: brew install protobuf cmake
+
+      # In bash steps on Windows, Git's /mingw64/bin comes before UCRT64's
+      # bin even when UCRT64 is added to GITHUB_PATH, and UCRT64's tools then
+      # load Git's MinGW DLLs and fail without a message (ADR 0022). Put
+      # UCRT64 first in each step that compiles or links.
+      - name: Build libsignal-ffi
+        if: steps.libsignal.outputs.cache-hit != 'true'
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then export PATH="/c/msys64/ucrt64/bin:$PATH"; fi
+          scripts/build-libsignal.sh libsignal-out
+
+      # The patched copy's own tests, among them the choice of the Signal
+      # service.
+      - name: Tests of the mautrix-signal copy
+        working-directory: core/replace/mautrix-signal
+        env:
+          CGO_ENABLED: "1"
+          GOWORK: "off"
+        run: |
+          out=$GITHUB_WORKSPACE/libsignal-out
+          # Go hands the flags to GCC as they are: Windows paths on Windows.
+          if [ "$RUNNER_OS" = Windows ]; then export PATH="/c/msys64/ucrt64/bin:$PATH"; out=$(cygpath -m "$out"); fi
+          export LIBRARY_PATH="$out" CGO_LDFLAGS="-L$out $(cat "$out/cgo-ldflags")"
+          go test -count=1 ./pkg/libsignalgo/... ./pkg/signalmeow/...
+
+      - name: Core tests with Signal
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          out=$GITHUB_WORKSPACE/libsignal-out
+          # Go hands the flags to GCC as they are: Windows paths on Windows.
+          if [ "$RUNNER_OS" = Windows ]; then export PATH="/c/msys64/ucrt64/bin:$PATH"; out=$(cygpath -m "$out"); fi
+          export LIBRARY_PATH="$out" CGO_LDFLAGS="-L$out $(cat "$out/cgo-ldflags")"
+          go vet "-tags=goolm,musubee_signal" ./core/...
+          go test "-tags=goolm,musubee_signal" -count=1 ./core/connector/signal/ ./core/embedded/
+
   licenses:
     name: Dependency license audit (Go and npm)
     runs-on: ubuntu-latest
