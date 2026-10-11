@@ -62,7 +62,7 @@ Electron's documentation recommends the asynchronous API (`encryptStringAsync`, 
 - **In the core**:
   - `musubee-core -key-from-stdin` reads the key from the first line of its input (base64, 32 bytes) before serving the API, and passes it as `database_key`; the log says `"protection":"host"`. A missing or invalid line stops it with an error that does not quote the line. A key that does not open the database stops it as in ADR 0019 (`ErrWrongKey`).
   - `secrets.LoadOrCreate` refuses a key file with the protection `electron-safestorage` (`ErrKeyHeldByApp`) and leaves it unchanged. The core started without the app cannot replace the key.
-- **CI**: the desktop end-to-end tests run on macOS with the runner's Keychain, and on Linux in a D-Bus session of their own with an unlocked GNOME keyring and `XDG_CURRENT_DESKTOP=GNOME`. `MUSUBEE_REQUIRE_SAFESTORAGE=1` makes a fallback to the plain file a failure there, not a skip.
+- **CI**: the desktop end-to-end tests run on macOS with the runner's Keychain, and on Linux in a D-Bus session of their own with an unlocked GNOME keyring and `XDG_CURRENT_DESKTOP=GNOME`. `MUSUBEE_REQUIRE_SAFESTORAGE=1` makes a fallback to the plain file a failure there, not a skip. Playwright 1.64's Electron loader adds `--password-store=basic` and `--use-mock-keychain` to every app it starts (`playwright-core/lib/server/electron/loader.js`): `safeStorage` then uses a hardcoded password on Linux and a mock Keychain on macOS, and the first CI runs checked those, not the system's storage. With `MUSUBEE_E2E=1` the app removes both switches before it is ready; a test that wants a plain password store sets `MUSUBEE_E2E_PASSWORD_STORE=basic`.
 
 ### Threat model (changes to ADR 0019's)
 
@@ -84,7 +84,8 @@ Electron's documentation recommends the asynchronous API (`encryptStringAsync`, 
 | The supervisor gives the key at every start, restarts included | **verified** (Windows, the real core) | `apps/desktop/test/core-process.test.ts` |
 | Creating, opening and moving the key, and stopping on a key that does not open, with a stand-in for `safeStorage` | **verified** (unit tests, Windows) | `apps/desktop/test/core-key.test.ts` |
 | With the real `safeStorage`, a new data directory gets a key file of `safeStorage`, the account opens again after a restart, and the log has no key | **unknown** until the CI run of this task on macOS (Keychain) and Linux (GNOME keyring); Windows, which keeps DPAPI, is **verified** | `apps/desktop/e2e/app.spec.ts` |
-| A plain key file moves into the GNOME keyring with the same key, and the account stays | **unknown** until the CI run on Linux (`--password-store=basic` for the first start) | `apps/desktop/e2e/app.spec.ts` |
+| A plain key file moves into the GNOME keyring with the same key, and the account stays | **unknown** until the CI run on Linux (`MUSUBEE_E2E_PASSWORD_STORE=basic` for the first start) | `apps/desktop/e2e/app.spec.ts` |
+| Playwright 1.64 starts Electron with `--password-store=basic` and `--use-mock-keychain`, and the app started directly on the Linux runner with an unlocked GNOME keyring gets a key file of `safeStorage` | **verified** (Playwright's source; a probe run on GitHub's Linux runner, 2026-10-11) | `apps/desktop/node_modules/playwright-core/lib/server/electron/loader.js` |
 | macOS asks for Keychain access again after each update of an app without a stable code signature | **assumed** (Electron's documentation); to check when the app is packaged and signed (E3.2) | Electron's documentation, 2026-10-11 |
 
 ## Consequences
