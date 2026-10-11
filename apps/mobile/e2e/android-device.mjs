@@ -69,3 +69,14 @@ export async function dismissAnrDialog(driver, ownApp) {
   await wait.click();
   return true;
 }
+
+/** The major version in "adb shell dumpsys webviewupdate" output, or undefined. */
+export function webViewMajor(output) {
+  const match = /Current WebView package \(name, version\): \([^,]+, (\d+)\./.exec(output);
+  return match ? Number(match[1]) : undefined;
+}
+
+/** The major version of the device's system web view, or undefined. */
+export function deviceWebViewMajor(udid) {
+  return webViewMajor(execFileSync(adbPath(), ["-s", udid, "shell", "dumpsys", "webviewupdate"], { encoding: "utf8" }));
+}

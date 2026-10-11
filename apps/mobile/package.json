@@ -8,7 +8,8 @@
     "npm": ">=11"
   },
   "scripts": {
-    "sync": "cap sync android"
+    "web": "node copy-ui.mjs",
+    "sync": "node copy-ui.mjs && cap sync android"
   },
   "dependencies": {
     "@capacitor/android": "8.5.3",

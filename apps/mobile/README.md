@@ -2,17 +2,19 @@
 
 Mobile application: the UI from [`ui/`](../../ui/) inside Capacitor, plus a native plugin embedding the Go core. The native shells stay thin: Kotlin for Android, Swift for iOS.
 
-**Status: T1.3 done for Android.** The app embeds the Go core (the shared library of `core/ffi`, called through JNI) in a foreground service and gives a test web page access to it through a Capacitor plugin ([ADR 0011](../../docs/ADR/0011-core-on-android.md)). Since T1.6 the core can run Telegram on the device when the app is built with Telegram's application credentials ([ADR 0014](../../docs/ADR/0014-telegram-on-device.md)), and the test page can log in to it. No real UI yet. iOS: T1.7 (extension memory budget) then E3.3. See [`docs/TASKS.md`](../../docs/TASKS.md).
+**Status: T1.3 done for Android.** The app embeds the Go core (the shared library of `core/ffi`, called through JNI) in a foreground service and gives the web view access to it through a Capacitor plugin ([ADR 0011](../../docs/ADR/0011-core-on-android.md)). Since T1.6 the core can run Telegram on the device when the app is built with Telegram's application credentials ([ADR 0014](../../docs/ADR/0014-telegram-on-device.md)). Since T2.5 the web view shows the real interface of `ui/`, with a one-pane layout on phones ([ADR 0021](../../docs/ADR/0021-unified-inbox.md)). iOS: T1.7 (extension memory budget) then E3.3. See [`docs/TASKS.md`](../../docs/TASKS.md).
 
 ## Layout
 
 ```
 apps/mobile/
   capacitor.config.json  Capacitor configuration (bridge logging off: it would log message content)
-  www/       test page of the core plugin (replaced by the UI from ui/ later)
+  copy-ui.mjs            puts the build of ui/ and the pages of web/ into www/ (npm run web)
+  web/       pages only the app needs: webview-too-old.html (Capacitor's errorPath)
+  www/       generated (git-ignored): what the web view loads
   android/   Gradle project (Capacitor 8 template), builds the Go core with the NDK
     app/src/main/java/app/musubee/
-      MainActivity.kt             registers the plugin
+      MainActivity.kt             registers the plugin; Back goes back in the interface first
       core/CoreLibrary.kt         Kotlin side of the JNI binding (core/ffi/jni_android.go)
       core/CoreService.kt         foreground service (type specialUse) that owns the core
       core/CoreKey.kt             the core's master key, wrapped by the Android Keystore (ADR 0019)
@@ -39,26 +41,31 @@ Gradle builds the core itself: one `go build -buildmode=c-shared ./core/ffi` per
 From `apps/mobile`:
 
 ```
+(cd ../../ui && npm ci && npm run build)
 npm ci
-npx cap sync android
+npm run sync
 ```
 
-`cap sync` copies `www/` and the configuration into the Android project, and generates the Cordova plugin project; run it again after changing them. Then, from `apps/mobile/android` (Windows: `gradlew.bat`):
+`npm run sync` copies the interface's build (`ui/dist`) and `web/` into `www/` (`npm run web`), then runs `cap sync android`, which copies `www/` and the configuration into the Android project and generates the Cordova plugin project; run it again after changing the interface or the configuration. Then, from `apps/mobile/android` (Windows: `gradlew.bat`):
 
 ```
 ./gradlew :app:assembleDebug
 ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-`ANDROID_SERIAL` makes Gradle use that device only: never run the tests on a personal phone. The app end-to-end test then installs the debug APK and drives the test page (from `apps/mobile/e2e`):
+`ANDROID_SERIAL` makes Gradle use that device only: never run the tests on a personal phone. The app end-to-end test then installs the debug APK and drives the interface: it adds an echo account, opens a conversation of the inbox, sends a message, waits for its echo and goes back to the inbox (from `apps/mobile/e2e`):
 
 ```
 MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android:app
 ```
 
+### System web view
+
+The interface is built for Chrome 111 and later (ADR 0020), and the web view is the device's Android System WebView, which updates from the Play Store. `android.minWebViewVersion` in `capacitor.config.json` is therefore 111: on an older web view, Capacitor loads `web/webview-too-old.html`, which asks to update it, instead of a blank page. The API 30 emulator images ship WebView 83: there, the app end-to-end test only checks that page; the API 35 images run the whole journey.
+
 ### Telegram
 
-The app offers Telegram only when it is built with Telegram's application credentials (https://my.telegram.org), which never go into the repository: either the environment variables `MUSUBEE_TG_API_ID` and `MUSUBEE_TG_API_HASH`, or the Gradle properties `musubee.telegramApiId` and `musubee.telegramApiHash` (for example in `~/.gradle/gradle.properties`). Gradle checks them and puts them in `BuildConfig`; the core service passes them to the core. The test page then shows a Telegram section: log in with a phone number (then the code Telegram sends, and the password if the account has one) or a bot token; the QR code flow is not offered there.
+The app offers Telegram only when it is built with Telegram's application credentials (https://my.telegram.org), which never go into the repository: either the environment variables `MUSUBEE_TG_API_ID` and `MUSUBEE_TG_API_HASH`, or the Gradle properties `musubee.telegramApiId` and `musubee.telegramApiHash` (for example in `~/.gradle/gradle.properties`). Gradle checks them and puts them in `BuildConfig`; the core service passes them to the core. The interface then offers Telegram in "Add an account": a phone number (then the code Telegram sends, and the password if the account has one), or a bot token. The QR code flow is listed too, but the interface shows its data as text and does not draw the code yet.
 
 The instrumented end-to-end test logs in as the bridge test bot of ADR 0006 and exchanges a message with the peer bot (verified in T1.6 on CI's API 35 emulator):
 
@@ -83,7 +90,7 @@ Without them it is skipped (`musubeeTgRequire=1` makes it fail instead, as in CI
 
 ### Rules for this app
 
-- Never log message content: no `console` output in the web page (Capacitor forwards it to logcat), no message text in `Log` calls.
+- Never log message content: no `console` output in the interface (Capacitor forwards it to logcat), no message text in `Log` calls.
 - The service starts from the activity: Android only allows starting a foreground service from the foreground.
 - App data is excluded from backups (`allowBackup=false`, `data_extraction_rules.xml`).
 - The core's master key (ADR 0019) lives in `noBackupFilesDir/core-key`, wrapped by the Android Keystore key `app.musubee.core.key-wrap`; `CoreService` gives it to the core as `database_key`. Never log the core's configuration: it holds the key. Uninstalling the app removes both the key and the database; losing only the Keystore key makes the core refuse to open ("written with another key").

@@ -2,5 +2,11 @@
   "appId": "app.musubee",
   "appName": "Musubee",
   "webDir": "www",
-  "loggingBehavior": "none"
+  "loggingBehavior": "none",
+  "server": {
+    "errorPath": "webview-too-old.html"
+  },
+  "android": {
+    "minWebViewVersion": 111
+  }
 }

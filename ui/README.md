@@ -56,14 +56,14 @@ npm run bench:check          (the regression test run by CI: the app's list, 500
 
 `--target electron` uses the Electron of `apps/desktop` (`cd apps/desktop && npm ci` first) and shows a small window: a hidden window gets one frame per second. On Linux without a display, run it under `xvfb-run`.
 
-For `--target android`, put the page in the debug app (it is git-ignored there), then run with `adb` in `PATH`. The Android 11 emulator image has WebView 83, too old for the default build: build for it with `MUSUBEE_BENCH_TARGET=chrome83` (`bench/legacy.ts` adds the few missing functions). With a single device attached, Gradle installs on it; otherwise set `ANDROID_SERIAL`.
+For `--target android`, put the page in the debug app (in `www/`, which is generated and git-ignored: `npm run web` in `apps/mobile` first), then run with `adb` in `PATH`. The Android 11 emulator image has WebView 83, too old for the default build: build for it with `MUSUBEE_BENCH_TARGET=chrome83` (`bench/legacy.ts` adds the few missing functions). With a single device attached, Gradle installs on it; otherwise set `ANDROID_SERIAL`.
 
 ```
 MUSUBEE_BENCH_TARGET=chrome83 npm run bench:build
 cp -r dist-bench ../apps/mobile/www/bench
 cd ../apps/mobile && npx cap sync android && cd android && ANDROID_SERIAL=emulator-5554 ./gradlew :app:installDebug -Pmusubee.abis=x86
 cd ../../../ui && ANDROID_SERIAL=emulator-5554 node bench/run.mjs --target android --n 1000,5000
-rm -r ../apps/mobile/www/bench        (and sync again before building the app for anything else)
+rm -r ../apps/mobile/www/bench        (or npm run sync in apps/mobile, which rebuilds www/)
 ```
 
 ## Skills to re-read before coding
