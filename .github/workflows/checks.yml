@@ -514,13 +514,24 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
+      # The core's key in the system's secure storage (docs/ADR/0027): the
+      # Keychain on macOS; on Linux, a GNOME keyring in a D-Bus session of
+      # the tests' own, unlocked with an empty password, and a desktop that
+      # Electron recognises as GNOME, so that safeStorage uses libsecret.
+      # MUSUBEE_REQUIRE_SAFESTORAGE makes a fall back to the plain key file
+      # a failure there.
       - name: End-to-end tests (Playwright)
         working-directory: apps/desktop
         shell: bash
+        env:
+          MUSUBEE_REQUIRE_SAFESTORAGE: ${{ runner.os != 'Windows' && '1' || '' }}
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
-            command -v xvfb-run >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq xvfb; }
-            xvfb-run --auto-servernum npm run test:e2e
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq xvfb gnome-keyring dbus-daemon
+            dbus-run-session -- bash -c '
+              printf "" | gnome-keyring-daemon --unlock --components=secrets >/dev/null
+              XDG_CURRENT_DESKTOP=GNOME xvfb-run --auto-servernum npm run test:e2e'
           else
             npm run test:e2e
           fi
