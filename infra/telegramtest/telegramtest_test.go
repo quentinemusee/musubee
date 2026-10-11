@@ -3,7 +3,10 @@
 
 package telegramtest
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestCredentialsFromEnv(t *testing.T) {
 	tests := []struct {
@@ -41,5 +44,20 @@ func TestIsPublicTestApp(t *testing.T) {
 	}
 	if (Credentials{APIID: 1, APIHash: "x"}).IsPublicTestApp() {
 		t.Error("other credentials taken for the public test app")
+	}
+}
+
+func TestFloodWait(t *testing.T) {
+	for message, want := range map[string]time.Duration{
+		"rpc error code 420: FLOOD_WAIT (10)":        10 * time.Second,
+		"login failed: FLOOD_WAIT_120":               120 * time.Second,
+		"rpc error code 420: FLOOD_PREMIUM_WAIT (5)": -1,
+		"rpc error code 400: API_ID_PUBLISHED_FLOOD": -1,
+		"": -1,
+	} {
+		got, ok := FloodWait(message)
+		if (want < 0 && ok) || (want >= 0 && (!ok || got != want)) {
+			t.Errorf("FloodWait(%q) = %v, %t; want %v", message, got, ok, want)
+		}
 	}
 }

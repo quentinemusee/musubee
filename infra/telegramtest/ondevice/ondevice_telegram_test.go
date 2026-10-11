@@ -84,16 +84,7 @@ func TestTelegramOnDevice(t *testing.T) {
 
 	// 2. Log in as the bridge bot.
 	started = time.Now()
-	var step api.LoginStep
-	coretest.Call(t, c, api.CommandLoginStart, api.LoginStartParams{NetworkID: "telegram", FlowID: "bot"}, &step)
-	if step.Type != api.LoginStepTypeUserInput || len(step.Fields) != 1 || step.Fields[0].Type != api.LoginFieldTypeToken {
-		t.Fatalf("bot login started with %+v, want one token field", step)
-	}
-	if coreErr := coretest.TryCall(t, c, api.CommandLoginSubmit, api.LoginSubmitParams{
-		ProcessID: step.ProcessID, Values: map[string]string{step.Fields[0].FieldID: bridgeToken},
-	}, &step); coreErr != nil {
-		t.Fatalf("submitting the bot token: %s", explain(coreErr.Message, creds))
-	}
+	step := loginBot(t, c, bridgeToken, creds)
 	if step.Type != api.LoginStepTypeComplete || step.AccountID == "" {
 		t.Fatalf("bot login ended with step %q", step.Type)
 	}
@@ -207,6 +198,32 @@ func openCore(t *testing.T, dataDir string, creds telegramtest.Credentials) *emb
 		LogLevel: "debug",
 		Telegram: &embedded.TelegramConfig{APIID: creds.APIID, APIHash: creds.APIHash},
 	})
+}
+
+// loginBot logs the core in as the bot. When Telegram asks to wait before
+// another bot login (FLOOD_WAIT, which CI's Telegram jobs in a row can get),
+// it waits as asked, up to telegramtest.MaxFloodWait, and tries once more.
+func loginBot(t *testing.T, c *embedded.Core, token string, creds telegramtest.Credentials) api.LoginStep {
+	t.Helper()
+	for attempt := 1; ; attempt++ {
+		var step api.LoginStep
+		coretest.Call(t, c, api.CommandLoginStart, api.LoginStartParams{NetworkID: "telegram", FlowID: "bot"}, &step)
+		if step.Type != api.LoginStepTypeUserInput || len(step.Fields) != 1 || step.Fields[0].Type != api.LoginFieldTypeToken {
+			t.Fatalf("bot login started with %+v, want one token field", step)
+		}
+		coreErr := coretest.TryCall(t, c, api.CommandLoginSubmit, api.LoginSubmitParams{
+			ProcessID: step.ProcessID, Values: map[string]string{step.Fields[0].FieldID: token},
+		}, &step)
+		if coreErr == nil {
+			return step
+		}
+		if wait, ok := telegramtest.FloodWait(coreErr.Message); ok && attempt == 1 && wait <= telegramtest.MaxFloodWait {
+			t.Logf("Telegram asks to wait %v before the next bot login", wait)
+			time.Sleep(wait + time.Second)
+			continue
+		}
+		t.Fatalf("submitting the bot token: %s", explain(coreErr.Message, creds))
+	}
 }
 
 // explain adds what to do about Telegram's rate limits.

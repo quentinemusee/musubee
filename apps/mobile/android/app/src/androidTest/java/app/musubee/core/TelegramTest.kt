@@ -71,14 +71,7 @@ class TelegramTest {
         try {
             // 1. Log in as the bridge bot.
             var started = SystemClock.elapsedRealtime()
-            val step = core.call("login.start", JSONObject().put("network_id", "telegram").put("flow_id", "bot"))
-            val field = step.getJSONArray("fields").getJSONObject(0)
-            assertEquals("token", field.getString("type"))
-            val done = core.call(
-                "login.submit",
-                JSONObject().put("process_id", step.getString("process_id"))
-                    .put("values", JSONObject().put(field.getString("field_id"), bridgeToken)),
-            )
+            val done = loginBot(core)
             assertEquals("complete", done.getString("type"))
             account = done.getString("account_id")
             Log.i(TAG, "login done in ${SystemClock.elapsedRealtime() - started} ms")
@@ -136,14 +129,47 @@ class TelegramTest {
     }
 
     /** Calls the core; an error fails the test, with the core's message (which never quotes values). */
+    /**
+     * Logs the core in as the bridge bot. When Telegram asks to wait before
+     * another bot login (FLOOD_WAIT, which CI's Telegram jobs in a row can
+     * get), waits as asked, up to a minute, and tries once more.
+     */
+    private fun loginBot(core: Core): JSONObject {
+        var attempt = 1
+        while (true) {
+            val step = core.call("login.start", JSONObject().put("network_id", "telegram").put("flow_id", "bot"))
+            val field = step.getJSONArray("fields").getJSONObject(0)
+            assertEquals("token", field.getString("type"))
+            val response = core.tryCall(
+                "login.submit",
+                JSONObject().put("process_id", step.getString("process_id"))
+                    .put("values", JSONObject().put(field.getString("field_id"), bridgeToken)),
+            )
+            val error = response.optJSONObject("error") ?: return response.getJSONObject("result")
+            val wait = FLOOD_WAIT.find(error.optString("message"))?.groupValues?.get(1)?.toLongOrNull()
+            if (attempt == 1 && wait != null && wait <= MAX_FLOOD_WAIT_SECONDS) {
+                Log.i(TAG, "Telegram asks to wait $wait s before the next bot login")
+                SystemClock.sleep((wait + 1) * 1000)
+                attempt++
+                continue
+            }
+            throw AssertionError("login.submit: $error")
+        }
+    }
+
     private class Core(private val service: CoreService) {
         private var nextId = 0
 
         fun call(command: String, params: JSONObject): JSONObject {
-            val request = JSONObject().put("id", ++nextId).put("command", command).put("params", params)
-            val response = JSONObject(String(service.call(request.toString().toByteArray()), Charsets.UTF_8))
+            val response = tryCall(command, params)
             assertTrue("$command: ${response.optJSONObject("error")}", !response.has("error"))
             return response.getJSONObject("result")
+        }
+
+        /** The whole response: its result or its error. */
+        fun tryCall(command: String, params: JSONObject): JSONObject {
+            val request = JSONObject().put("id", ++nextId).put("command", command).put("params", params)
+            return JSONObject(String(service.call(request.toString().toByteArray()), Charsets.UTF_8))
         }
     }
 
@@ -217,5 +243,9 @@ class TelegramTest {
 
     private companion object {
         const val TAG = "MusubeeTelegramTest"
+
+        /** The delay Telegram asks for: "FLOOD_WAIT (10)", or the API's FLOOD_WAIT_10. */
+        val FLOOD_WAIT = Regex("""FLOOD_WAIT(?: \(|_)(\d+)""")
+        const val MAX_FLOOD_WAIT_SECONDS = 60L
     }
 }
