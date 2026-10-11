@@ -41,7 +41,9 @@ var BaseUserAgent = "libsignal/" + libsignalgo.Version + " go/" + strings.TrimPr
 var UserAgent = "signalmeow/0.1.0 " + BaseUserAgent
 var SignalAgent = "MAU"
 
-const (
+// Musubee: variables rather than constants, so that SetEnvironment in package
+// signalmeow can point them at Signal's staging service.
+var (
 	APIHostname     = "chat.signal.org"
 	StorageHostname = "storage.signal.org"
 	CDN1Hostname    = "cdn.signal.org"
@@ -49,6 +51,7 @@ const (
 	CDN3Hostname    = "cdn3.signal.org"
 )
 
+// Musubee: SetEnvironment in package signalmeow rebuilds this list.
 var CDNHosts = []string{
 	CDN1Hostname,
 	CDN1Hostname,

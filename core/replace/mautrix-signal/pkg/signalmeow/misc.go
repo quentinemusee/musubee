@@ -76,6 +76,9 @@ var _ libsignalgo.Logger = FFILogger{}
 
 //go:embed prod-server-public-params.dat
 var prodServerPublicParamsSlice []byte
+
+// Musubee: despite its name, the zkgroup parameters of the environment in use,
+// which SetEnvironment changes.
 var prodServerPublicParams *libsignalgo.ServerPublicParams
 
 func init() {

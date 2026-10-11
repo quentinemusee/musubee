@@ -43,10 +43,16 @@ import (
 // https://github.com/signalapp/libsignal/blob/main/rust/attest/src/constants.rs#L69
 const ProdContactDiscoveryMrenclave = "15637fa1e54fe655176d3df1a9f94b87c01ed377acaa570682dc5d72c95ef07b"
 const ProdContactDiscoveryServer = "cdsi.signal.org"
+
+// Musubee: the enclave and server in use, which SetEnvironment changes.
+var contactDiscoveryMrenclave = ProdContactDiscoveryMrenclave
+var contactDiscoveryServer = ProdContactDiscoveryServer
+
 const ContactDiscoveryAuthTTL = 23 * time.Hour
 
 const rateLimitCloseCode = websocket.StatusCode(4008)
 
+// Musubee: despite its name, the bytes of contactDiscoveryMrenclave.
 var prodContactDiscoveryMrenclaveBytes = exerrors.Must(hex.DecodeString(ProdContactDiscoveryMrenclave))
 
 type ContactDiscoveryRateLimitError struct {
@@ -108,9 +114,9 @@ func (cli *Client) doContactDiscovery(ctx context.Context, req *cds2pb.ClientReq
 	ctx = log.WithContext(ctx)
 	addr := (&url.URL{
 		Scheme: "wss",
-		Host:   ProdContactDiscoveryServer,
+		Host:   contactDiscoveryServer,
 		User:   url.UserPassword(creds.Username, creds.Password),
-		Path:   path.Join("v1", ProdContactDiscoveryMrenclave, "discovery"),
+		Path:   path.Join("v1", contactDiscoveryMrenclave, "discovery"),
 	}).String()
 	log.Trace().Msg("Connecting to contact discovery websocket")
 	ws, _, err := web.OpenWebsocket(ctx, addr)
