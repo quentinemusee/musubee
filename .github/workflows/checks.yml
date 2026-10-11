@@ -529,13 +529,16 @@ jobs:
           if [ "$RUNNER_OS" = "Linux" ]; then
             sudo apt-get update -qq
             sudo apt-get install -y -qq xvfb gnome-keyring dbus-daemon libsecret-tools
-            # The login keyring, created with an empty password and unlocked,
-            # then its Secret Service on the session bus. secret-tool checks
-            # it before the tests, so that a broken keyring on the runner is
-            # not taken for a failure of the app.
+            # The login keyring, created and unlocked, then its Secret
+            # Service on the session bus. Its password is no secret: the
+            # keyring lives and dies with this step. An empty one does not
+            # create the keyring: the daemon asks for a password on a display
+            # instead, which the runner does not have. secret-tool checks the
+            # keyring before the tests, so that a broken keyring on the
+            # runner is not taken for a failure of the app.
             dbus-run-session -- bash -c '
               set -e
-              printf "" | gnome-keyring-daemon --unlock --components=secrets >/dev/null
+              printf %s musubee-ci | gnome-keyring-daemon --unlock --components=secrets >/dev/null
               eval "$(gnome-keyring-daemon --start --components=secrets)"
               printf probe | secret-tool store --label=musubee-ci-probe musubee ci-probe
               test "$(secret-tool lookup musubee ci-probe)" = probe
