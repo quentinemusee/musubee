@@ -261,14 +261,14 @@ func (c *Core) NextEvent(timeout time.Duration) ([]byte, bool) {
 func (c *Core) forward(updates <-chan localmatrix.Update) {
 	defer c.forwarding.Done()
 	for update := range updates {
-		evt, err := c.translate(update)
+		events, err := c.translate(update)
 		if err != nil {
 			if c.ctx.Err() == nil {
 				c.log.Err(err).Msg("Failed to translate an update for the application")
 			}
 			continue
 		}
-		if evt != nil {
+		for _, evt := range events {
 			c.pushEvent(evt)
 		}
 	}
@@ -280,8 +280,8 @@ func (c *Core) forward(updates <-chan localmatrix.Update) {
 	}
 }
 
-// translate returns the API event of an update, or nil if it has none.
-func (c *Core) translate(update localmatrix.Update) (*api.Event, error) {
+// translate returns the API events of an update, if it has any.
+func (c *Core) translate(update localmatrix.Update) ([]*api.Event, error) {
 	ctx := c.ctx
 	switch {
 	case update.Event != nil && update.Event.Type == event.EventMessage:
@@ -289,7 +289,21 @@ func (c *Core) translate(update localmatrix.Update) (*api.Event, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &api.Event{Type: api.EventMessageAdded, Data: api.MessageEvent{Message: msg}}, nil
+		added := &api.Event{Type: api.EventMessageAdded, Data: api.MessageEvent{Message: msg}}
+		// A message changes its conversation's last message and unread
+		// count. A room that is not a conversation yet is announced later,
+		// with its name.
+		conv, err := c.conversationOf(ctx, update.Event.RoomID, nil)
+		if err != nil || conv == nil {
+			return []*api.Event{added}, err
+		}
+		return []*api.Event{added, {Type: api.EventConversationUpdated, Data: api.ConversationEvent{Conversation: *conv}}}, nil
+	case update.ReadState != "":
+		conv, err := c.conversationOf(ctx, update.ReadState, nil)
+		if err != nil || conv == nil {
+			return nil, err
+		}
+		return []*api.Event{{Type: api.EventConversationUpdated, Data: api.ConversationEvent{Conversation: *conv}}}, nil
 	case update.Event != nil && update.Event.Type == event.StateRoomName:
 		c.announceConversation(update.Event.RoomID)
 		return nil, nil
@@ -302,7 +316,7 @@ func (c *Core) translate(update localmatrix.Update) (*api.Event, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &api.Event{Type: api.EventMessageUpdated, Data: api.MessageEvent{Message: msg}}, nil
+		return []*api.Event{{Type: api.EventMessageUpdated, Data: api.MessageEvent{Message: msg}}}, nil
 	case update.BridgeState != nil && update.BridgeState.RemoteID != "":
 		network := networkid.BridgeID(update.BridgeState.BridgeID)
 		br := c.host.Bridge(network)
@@ -314,7 +328,7 @@ func (c *Core) translate(update localmatrix.Update) (*api.Event, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &api.Event{Type: api.EventAccountUpdated, Data: api.AccountEvent{Account: account}}, nil
+		return []*api.Event{{Type: api.EventAccountUpdated, Data: api.AccountEvent{Account: account}}}, nil
 	}
 	return nil, nil
 }
@@ -484,6 +498,8 @@ func (c *Core) dispatch(ctx context.Context, command string, params json.RawMess
 		return handle(ctx, params, c.loginCancel)
 	case api.CommandConversationsList:
 		return handle(ctx, params, c.conversationsList)
+	case api.CommandConversationsMarkRead:
+		return handle(ctx, params, c.conversationsMarkRead)
 	case api.CommandMessagesList:
 		return handle(ctx, params, c.messagesList)
 	case api.CommandMessagesSend:

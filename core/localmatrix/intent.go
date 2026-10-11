@@ -188,20 +188,36 @@ func (in *Intent) SendState(ctx context.Context, roomID id.RoomID, eventType eve
 	return &mautrix.RespSendEvent{EventID: evt.ID}, nil
 }
 
-// MarkRead stores the read receipt of the user.
+// MarkRead stores a read receipt. For the device's user (double puppeting:
+// the user read the room in another app of the network), it moves the
+// user's read position; for others, it is only kept.
 func (in *Intent) MarkRead(ctx context.Context, roomID id.RoomID, eventID id.EventID, ts time.Time) error {
 	if ts.IsZero() {
 		ts = time.Now()
 	}
-	return in.server.store.setRoomAccountData(ctx, in.mxid, roomID, accountDataReadReceipt, map[string]any{
-		"event_id": eventID,
-		"ts":       ts.UnixMilli(),
-	})
+	if in.mxid != in.server.userID {
+		return in.server.store.setRoomAccountData(ctx, in.mxid, roomID, accountDataReadReceipt, map[string]any{
+			"event_id": eventID,
+			"ts":       ts.UnixMilli(),
+		})
+	}
+	changed, err := in.server.markRead(ctx, roomID, eventID, ts)
+	if err == nil && changed {
+		in.server.publish(Update{ReadState: roomID})
+	}
+	return err
 }
 
 // MarkUnread stores the "marked as unread" flag of the user.
 func (in *Intent) MarkUnread(ctx context.Context, roomID id.RoomID, unread bool) error {
-	return in.server.store.setRoomAccountData(ctx, in.mxid, roomID, accountDataUnread, &event.MarkedUnreadEventContent{Unread: unread})
+	if in.mxid != in.server.userID {
+		return in.server.store.setRoomAccountData(ctx, in.mxid, roomID, accountDataUnread, &event.MarkedUnreadEventContent{Unread: unread})
+	}
+	was, err := in.server.setMarkedUnread(ctx, roomID, unread)
+	if err == nil && was != unread {
+		in.server.publish(Update{ReadState: roomID})
+	}
+	return err
 }
 
 // MarkTyping does nothing yet: typing notifications are not stored, and the

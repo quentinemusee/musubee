@@ -90,6 +90,19 @@ type ActivityCursor struct {
 	RoomID id.RoomID
 }
 
+// ReadState is the device user's read state of a room.
+type ReadState struct {
+	// Unread counts the messages of others stored after the user's read
+	// position, up to MaxUnread.
+	Unread int
+	// MarkedUnread is set while the user has marked the room as unread.
+	MarkedUnread bool
+}
+
+// MaxUnread bounds ReadState.Unread, so that counting stays cheap in rooms
+// with a long unread history.
+const MaxUnread = 1000
+
 // MessageStatus is the delivery status of a message sent by the user.
 type MessageStatus struct {
 	RoomID  id.RoomID
@@ -499,6 +512,65 @@ func (s *store) getRoomAccountData(ctx context.Context, userID id.UserID, roomID
 		return false, err
 	}
 	return true, json.Unmarshal([]byte(content), into)
+}
+
+// readOrder returns the stream order a read receipt points to: the event's
+// own when it is stored in the room, otherwise the last event of the room
+// sent at or before ts (receipts may name events this storage never had),
+// or 0.
+func (s *store) readOrder(ctx context.Context, roomID id.RoomID, eventID id.EventID, ts time.Time) (int64, error) {
+	var order int64
+	err := s.db.QueryRow(ctx,
+		`SELECT stream_order FROM local_event WHERE room_id=$1 AND event_id=$2`, roomID, eventID).Scan(&order)
+	if !errors.Is(err, sql.ErrNoRows) {
+		return order, err
+	}
+	err = s.db.QueryRow(ctx,
+		`SELECT COALESCE(MAX(stream_order), 0) FROM local_event WHERE room_id=$1 AND timestamp<=$2`,
+		roomID, ts.UnixMilli()).Scan(&order)
+	return order, err
+}
+
+// advanceReadMarker moves the user's read position in a room to order, if
+// that is further than where it is. It reports whether it moved.
+func (s *store) advanceReadMarker(ctx context.Context, roomID id.RoomID, order int64, at time.Time) (bool, error) {
+	res, err := s.db.Exec(ctx,
+		`INSERT INTO local_read_marker (room_id, stream_order, updated_at) VALUES ($1, $2, $3)
+		 ON CONFLICT (room_id) DO UPDATE SET stream_order=excluded.stream_order, updated_at=excluded.updated_at
+		 WHERE excluded.stream_order > local_read_marker.stream_order`,
+		roomID, order, at.UnixMilli())
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+// unreadQuery counts, up to a limit, the messages of others after the
+// user's read position, which is the read marker or the user's own last
+// message, whichever is later: writing in a room implies reading it.
+const unreadQuery = `
+SELECT COUNT(*) FROM (
+	SELECT 1 FROM local_event
+	WHERE room_id=$1 AND event_type='m.room.message' AND state_key IS NULL AND sender<>$2
+	  AND stream_order > MAX(
+		COALESCE((SELECT stream_order FROM local_read_marker WHERE room_id=$1), 0),
+		COALESCE((SELECT MAX(stream_order) FROM local_event
+		          WHERE room_id=$1 AND event_type='m.room.message' AND state_key IS NULL AND sender=$2), 0))
+	LIMIT $3
+)`
+
+func (s *store) readState(ctx context.Context, roomID id.RoomID, userID id.UserID) (*ReadState, error) {
+	var st ReadState
+	if err := s.db.QueryRow(ctx, unreadQuery, roomID, userID, MaxUnread).Scan(&st.Unread); err != nil {
+		return nil, err
+	}
+	var marked event.MarkedUnreadEventContent
+	if _, err := s.getRoomAccountData(ctx, userID, roomID, accountDataUnread, &marked); err != nil {
+		return nil, err
+	}
+	st.MarkedUnread = marked.Unread
+	return &st, nil
 }
 
 func (s *store) putMedia(ctx context.Context, mediaID, mimeType, fileName string, data []byte) error {

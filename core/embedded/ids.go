@@ -71,6 +71,15 @@ func messageID(room id.RoomID, evt id.EventID) string {
 	return encodeID(messagePrefix, string(room), string(evt))
 }
 
+// parseMessageID returns the room and the event of a message ID.
+func parseMessageID(value string) (id.RoomID, id.EventID, error) {
+	parts, err := decodeID(messagePrefix, value, 2, "message")
+	if err != nil {
+		return "", "", err
+	}
+	return id.RoomID(parts[0]), id.EventID(parts[1]), nil
+}
+
 func cursor(streamOrder int64) string {
 	return encodeID(cursorPrefix, strconv.FormatInt(streamOrder, 10))
 }

@@ -41,7 +41,10 @@ type client struct {
 	echoes sync.WaitGroup
 }
 
-var _ bridgev2.NetworkAPI = (*client)(nil)
+var (
+	_ bridgev2.NetworkAPI                    = (*client)(nil)
+	_ bridgev2.ReadReceiptHandlingNetworkAPI = (*client)(nil)
+)
 
 func newClient(connector *Connector, login *bridgev2.UserLogin) *client {
 	return &client{connector: connector, login: login}
@@ -352,4 +355,11 @@ func convertEcho(_ context.Context, _ *bridgev2.Portal, _ bridgev2.MatrixAPI, co
 			Content: content,
 		}},
 	}, nil
+}
+
+// HandleMatrixReadReceipt accepts the user's read receipts: the echo network
+// has nobody to tell, and bridgev2 records how far the login read
+// (database.UserPortal.LastRead), which the tests check.
+func (c *client) HandleMatrixReadReceipt(context.Context, *bridgev2.MatrixReadReceipt) error {
+	return nil
 }
