@@ -1,6 +1,6 @@
 # ADR 0028 — Signal on Android in CI: libsignal built per ABI with the app's NDK, the Signal tests run on an emulator
 
-- **Status**: proposed
+- **Status**: accepted
 - **Date**: 2026-10-11
 - **Task**: T2.11
 - **Deciders**: Claude Code (design assistant), under the maintainer's standing autonomy instruction; to be reviewed by the maintainer
@@ -37,33 +37,39 @@ Option A. `scripts/build-libsignal.sh` takes an optional Android ABI and builds 
 
 A `signal-android` job in `checks.yml`, for x86_64 and arm64-v8a, builds and caches libsignal per ABI and per version of the build script, builds the tests of the mautrix-signal copy and of the core's Signal code (`core/connector/signal`, `core/embedded` with the tag) for Android, builds the core's shared library as the app does with and without Signal, fails if a binary needs `libc++_shared.so`, and runs the tests on an x86_64 emulator (API 30). arm64-v8a, the phones' ABI, is built and linked only: GitHub's Linux runners cannot emulate ARM at a usable speed.
 
-Android builds of libsignal need a Linux or macOS host: BoringSSL's CMake build with the NDK's Windows toolchain is untested, and the maintainer's machine builds Android without Signal until a task needs otherwise.
+The script also builds for Android on a Windows host (MSYS2 UCRT64, Rust's GNU host toolchain, as for the desktop build): Rust and CMake get Windows paths and the NDK's `.cmd` wrapper of clang, and the Windows-only steps of the desktop build (the system libraries in `cgo-ldflags`, the `libwindows` import library) are skipped. Go, though, must be given `clang.exe --target=<triple><API>` rather than the `.cmd` wrapper: a link with libsignal passes a command line longer than cmd.exe accepts ("The command line is too long").
 
 ## Measurements
 
-To fill from the first green run of the `signal-android` job.
+GitHub's `ubuntu-latest` runners, run 38169205986 (2026-10-11): libsignal-ffi v0.102.2 (commit `8fc2113`), Rust 1.98.1, Go 1.27.1, NDK 28.2.13676358, API 24. Core sizes: `go build -buildmode=c-shared -trimpath -ldflags="-s -w" ./core/ffi`, as the app's Gradle build does; the build without Signal already holds Telegram.
 
 | | x86_64 | arm64-v8a |
 |---|---|---|
-| libsignal-ffi build (cold cache) | … | … |
-| Core `libmusubee.so`, stripped, without Signal | … | … |
-| Core `libmusubee.so`, stripped, with Signal | … | … |
-| Tests run on the emulator | … | linked only |
+| libsignal-ffi build, cold cache | 249 s | 286 s |
+| Core `libmusubee.so`, stripped, without Signal | 58.4 MB | 55.2 MB |
+| Core `libmusubee.so`, stripped, with Signal | 79.3 MB (+20.9 MB) | 74.5 MB (+19.3 MB) |
+| Libraries the binaries need | `libc`, `libdl`, `liblog`, `libm`, `libz` | the same |
+| Tests | 7 binaries, 107 tests and subtests run on the emulator (API 30): all pass but one that upstream skips ("This test is broken") | built and linked only |
+
+On the maintainer's Windows machine (MSYS2 UCRT64, the same versions): the x86_64 build took 635 s, and the test binaries of `pkg/libsignalgo`, `pkg/signalmeow/store` and `core/connector/signal` linked with `clang.exe --target=x86_64-linux-android24`, needing the same five libraries. They were not run there: the local emulator image is 32-bit x86.
 
 ## State of knowledge
 
 | Claim | Status | Source |
 |---|---|---|
-| libsignal-ffi builds for x86_64 and arm64-v8a with `build-libsignal.sh` | **unknown** until CI runs | run … |
-| The copy's tests and the core's Signal tests pass on an Android 11 x86_64 emulator | **unknown** until CI runs | run … |
-| No binary needs `libc++_shared.so` | **unknown** until CI runs | run … |
+| libsignal-ffi builds for x86_64 and arm64-v8a with `build-libsignal.sh` on Linux | **verified** (CI) | run 38169205986 |
+| It builds for x86_64 on a Windows host, and Signal's test binaries link with it | **verified** (run on the maintainer's machine, 2026-10-11) | the commands of `CLAUDE.md` §9 |
+| The copy's tests (`libsignalgo`, `msgconv`, `signalmeow`, its sealed store) and the core's Signal tests (`core/connector/signal`, `core/embedded` with the tag) pass on an Android 11 x86_64 emulator | **verified** (CI) | run 38169205986 |
+| No binary needs `libc++_shared.so` once the `libc++.a` script is in place; without it, every binary linking libsignal did | **verified** (CI, before and after; and locally with the NDK's clang) | runs 38168466838 and 38169205986 |
+| `run-android-go-tests.sh` reports a failing binary as a failure | **verified** (on the local emulator: binaries of the wrong ABI failed the run; and `adb shell false` is checked at each run) | 2026-10-11 |
+| Signal adds about 20 MB to the Android core (stripped) | **verified** (CI) | run 38169205986 |
 | The same tests pass on an arm64 phone | **unknown**: the script runs there, not tried (the maintainer's Pixel 8 Pro, with their consent) | — |
 | armeabi-v7a and x86 build with the script | **assumed**: ADR 0022 built them with the same settings; CI does not build them | ADR 0022 |
 | The tests behave the same as the app's user | **assumed**: they run as the shell user; the connector's instrumented test comes with the connector in the app | — |
 
 ## Consequences
 
-- The Android app's build can take libsignal from this script when the connector goes into the app: Gradle will need the library per ABI and `-tags=goolm,musubee_signal`; on Windows hosts, from a Linux or macOS build (CI artifact or WSL), or after the Windows host is made to work.
+- The Android app's build can take libsignal from this script when the connector goes into the app: Gradle will need the library per ABI and `-tags=goolm,musubee_signal`; on a Windows host, Gradle must pass Go `clang.exe --target=...` instead of the `.cmd` wrapper it uses today, or the link fails on cmd.exe's command line limit.
 - Changing the build script rebuilds libsignal on every target, since the cache key is the script's hash: about 5 minutes per Android ABI and 12 on Windows.
 - Revisit if GitHub offers ARM Linux runners with nested virtualization (then run the arm64 tests), or if the app's `minSdkVersion` changes.
 
