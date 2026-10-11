@@ -243,7 +243,7 @@ async function coreCall<T>(page: Page, command: string, params?: object): Promis
   return response.result;
 }
 
-test("the inbox shows the most recent conversation first, with its last message", async () => {
+test("the inbox shows the most recent conversation first, with its last message and unread count", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "inbox");
   await sendAndGetEcho(page, "first in the inbox");
@@ -260,6 +260,21 @@ test("the inbox shows the most recent conversation first, with its last message"
   await expect(first).toHaveAccessibleName("Echo Group");
   await expect(first).toHaveAccessibleDescription(/Group.*Instant Echo: hello group/);
   await expect(first).toHaveAttribute("aria-current", "true");
+
+  // An answer in a conversation that is not open is unread until opened.
+  type Listed = { conversations: { conversation_id: string; name: string; unread_count?: number }[] };
+  const { conversations } = await coreCall<Listed>(page, "conversations.list");
+  const instant = conversations.find((c) => c.name === "Instant Echo")!;
+  expect(instant.unread_count).toBeUndefined();
+  await coreCall(page, "messages.send", { conversation_id: instant.conversation_id, text: "read me later" });
+  await expect(first).toHaveAccessibleName("Instant Echo");
+  await expect(first).toHaveAccessibleDescription(/^1 unread message Echo.*read me later/);
+  await first.click();
+  await expect(page.getByRole("log").locator('[data-from-me="false"]', { hasText: "read me later" })).toBeVisible();
+  await expect(first).toHaveAccessibleDescription(/^Echo.*read me later/);
+  await expect
+    .poll(async () => (await coreCall<Listed>(page, "conversations.list")).conversations.find((c) => c.name === "Instant Echo")?.unread_count)
+    .toBeUndefined();
   await app.close();
 });
 

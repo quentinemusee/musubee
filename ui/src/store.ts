@@ -274,6 +274,32 @@ export class Store {
     }
   }
 
+  /**
+   * Marks a conversation read up to its last message (API 1.4). The badge
+   * goes at once; the core then sends the conversation again. A
+   * conversation.updated event already on its way still carries the old
+   * count: the thread calls this again while it is shown, and the core
+   * changes nothing the second time.
+   */
+  async markRead(conversationId: string): Promise<void> {
+    const conversations = this.#state.conversations;
+    const index = conversations.findIndex((c) => c.conversation_id === conversationId);
+    const conversation = conversations[index];
+    if (conversation === undefined || (!conversation.unread_count && !conversation.marked_unread)) {
+      return;
+    }
+    const { unread_count: _, marked_unread: __, ...read } = conversation;
+    this.#set({ conversations: conversations.with(index, read) });
+    try {
+      await this.client.call("conversations.markRead", {
+        conversation_id: conversationId,
+        ...(conversation.last_message ? { message_id: conversation.last_message.message_id } : {}),
+      });
+    } catch (error) {
+      this.#set({ error: `Could not mark the conversation as read: ${describe(error)}` });
+    }
+  }
+
   /** Sends a text message to the selected conversation. */
   async send(text: string): Promise<void> {
     const conversationId = this.#state.selected;

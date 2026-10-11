@@ -300,12 +300,51 @@ ol {
   font-size: 12px;
 }
 
+.conversation-bottom {
+  display: flex;
+  gap: var(--space);
+  align-items: center;
+}
+
 .conversation-preview {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   color: var(--color-muted);
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Unread (API 1.4): the preview in the text color, and a badge. */
+.conversation.unread .conversation-preview {
+  color: var(--color-text);
+}
+
+.conversation.unread .conversation-time {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.unread-badge {
+  flex: none;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+  text-align: center;
+}
+
+/* Marked as unread, with nothing new: a dot. */
+.unread-badge:empty {
+  min-width: 10px;
+  height: 10px;
+  padding: 0;
 }
 
 .conversation[aria-current="true"] {

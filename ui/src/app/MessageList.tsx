@@ -15,6 +15,8 @@ export interface MessageListProps {
   onOlder: () => void;
   /** The ID of the element that names the conversation, which names the list. */
   labelledBy?: string;
+  /** Called when the user scrolls to the newest message, or away from it. The list opens there. */
+  onBottomChange?: (atBottom: boolean) => void;
 }
 
 /**
@@ -46,7 +48,7 @@ function shownOf(messages: readonly Message[], shift: boolean, news: Message | u
  * the top, and keeps the message being read in place when they arrive.
  * Render one per conversation (key it by conversation ID).
  */
-export function MessageList({ messages, history, onOlder, labelledBy }: MessageListProps) {
+export function MessageList({ messages, history, onOlder, labelledBy, onBottomChange }: MessageListProps) {
   const ref = useRef<VListHandle>(null);
   const atBottom = useRef(true);
 
@@ -102,7 +104,11 @@ export function MessageList({ messages, history, onOlder, labelledBy }: MessageL
           if (handle === null) {
             return;
           }
-          atBottom.current = handle.scrollSize - offset - handle.viewportSize < 2;
+          const bottom = handle.scrollSize - offset - handle.viewportSize < 2;
+          if (bottom !== atBottom.current) {
+            atBottom.current = bottom;
+            onBottomChange?.(bottom);
+          }
           loadIfNeeded();
         }}
         onResize={loadIfNeeded}
