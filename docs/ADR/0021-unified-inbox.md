@@ -101,7 +101,7 @@ A reload reads the state, then replaces the store's. An event received meanwhile
 | The Android app runs the whole journey (login, inbox, thread, echo, back) | **verified** on the API 30 emulator with an exploration build for WebView 83 (a `chrome83` build and `minWebViewVersion` lowered for the run); with the real build on WebView 111 or later: to be **verified** by CI's API 35 job | exploration run, `.github/workflows/checks.yml` |
 | Capacitor loads `errorPath` below `minWebViewVersion` and injects its bridge without an inline script | **verified** in its sources and on the emulator | Capacitor 8.5.3 `Bridge.java`, `CapConfig.java` |
 | The interface's benchmark on Android still loads under the update page's threshold (it navigates to `bench/index.html` itself) | **verified** on the API 30 emulator | `ui/README.md`, `bench/run.mjs --target android` |
-| Screen readers announce the inbox rows with their position and description | **assumed** from the accessibility tree (UiAutomator2 sees the name as text and the description as hint); not tested with TalkBack or NVDA | WAI-ARIA 1.2 |
+| Screen readers announce the inbox rows with their position and description | **assumed** from the accessibility tree (UiAutomator2 sees a button's name as text and its description as hint); not tested with TalkBack or NVDA | WAI-ARIA 1.2 |
 | A person whose conversations span pages gains them as pages load | **verified** by unit tests of `inboxEntries`; not exercised end to end | `ui/src/inbox.test.ts` |
 
 ## Consequences

@@ -2,7 +2,7 @@
 
 Appium 3 with WebdriverIO, run by Node's built-in test runner. Why Appium and not Maestro: [ADR 0007](../../../docs/ADR/0007-mobile-e2e-tool.md).
 
-The **hello tests** open the system Settings app to prove that the toolchain works on its own: emulator or simulator, Appium, the platform driver. The **app test** (`android.app.test.mjs`, T1.3, rewritten in T2.5) installs Musubee's Android app, adds an echo account through the interface, opens a conversation from the inbox, sends a message, waits for the echo and goes back to the inbox with Android's back action. On a web view older than the app's `minWebViewVersion` (111; the API 30 emulator images ship WebView 83) it checks the page asking to update it instead (ADR 0021). It reads the web view through UiAutomator2's accessibility tree, where an element's accessible name is its text and its description its hint, so it needs no chromedriver.
+The **hello tests** open the system Settings app to prove that the toolchain works on its own: emulator or simulator, Appium, the platform driver. The **app test** (`android.app.test.mjs`, T1.3, rewritten in T2.5) installs Musubee's Android app, adds an echo account through the interface, opens a conversation from the inbox, sends a message, waits for the echo and goes back to the inbox with Android's back action. On a web view older than the app's `minWebViewVersion` (111; the API 30 emulator images ship WebView 83) it checks the page asking to update it instead (ADR 0021). It reads the web view through UiAutomator2's accessibility tree, where a button's accessible name is its text and its description its hint (a text field's label is its hint), so it needs no chromedriver.
 
 ## Setup
 
