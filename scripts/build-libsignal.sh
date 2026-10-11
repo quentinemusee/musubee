@@ -63,8 +63,10 @@ if [ -n "$abi" ]; then
   if [ "$ndk_host" = windows-x86_64 ]; then
     # Rust and CMake are Windows programs: Windows paths, and the NDK's
     # .cmd wrapper of clang for the target and API.
-    ndk_cc=$(cygpath -m "$ndk_cc").cmd
-    ndk_ar=$(cygpath -m "$ndk_ar").exe
+    # cygpath adds .exe itself to a program that exists (llvm-ar), so
+    # convert the directory only.
+    ndk_cc=$(cygpath -m "$ndk_bin")/${ndk_cc##*/}.cmd
+    ndk_ar=$(cygpath -m "$ndk_bin")/llvm-ar.exe
   fi
   if [ ! -f "$ndk_cc" ]; then
     echo "no NDK clang at $ndk_cc" >&2
