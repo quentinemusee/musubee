@@ -7,7 +7,15 @@
 // stream), and logs to core.log in its data directory, never to the
 // standard streams.
 //
-//	musubee-core -data DIR [-log-level info]
+//	musubee-core -data DIR [-log-level info] [-key-from-stdin]
+//
+// With -key-from-stdin, the first line of the standard input is the master
+// key of the secrets at rest, 32 bytes in base64, before the API stream:
+// the desktop app keeps it in the system's secure storage on macOS and
+// Linux (docs/ADR/0027). The standard input rather than a flag or an
+// environment variable, so that the key shows neither in the system's list
+// of processes nor in the environment of the process. Without it, the core
+// keeps its own key file in the data directory (docs/ADR/0019).
 //
 // The Telegram network is offered when MUSUBEE_TG_API_ID and
 // MUSUBEE_TG_API_HASH hold the application's credentials
@@ -20,6 +28,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -27,32 +36,42 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/quentinemusee/musubee/core/api/stream"
 	"github.com/quentinemusee/musubee/core/embedded"
+	"github.com/quentinemusee/musubee/core/secrets"
 )
 
 func main() {
 	dataDir := flag.String("data", "", "data directory of the core (required)")
 	logLevel := flag.String("log-level", "info", "level of core.log: debug, info, warn or error")
+	keyFromStdin := flag.Bool("key-from-stdin", false, "read the master key (base64) from the first line of the standard input")
 	flag.Parse()
 	if *dataDir == "" || flag.NArg() > 0 {
 		flag.Usage()
 		os.Exit(2)
 	}
-	if err := run(*dataDir, *logLevel); err != nil {
+	if err := run(*dataDir, *logLevel, *keyFromStdin); err != nil {
 		fmt.Fprintln(os.Stderr, "musubee-core:", err)
 		os.Exit(1)
 	}
 }
 
-func run(dataDir, logLevel string) error {
+func run(dataDir, logLevel string, keyFromStdin bool) error {
 	telegram, err := telegramConfig(os.Getenv)
 	if err != nil {
 		return err
 	}
-	config, err := json.Marshal(embedded.Config{DataDir: dataDir, LogLevel: logLevel, Telegram: telegram})
+	input := bufio.NewReader(os.Stdin)
+	var databaseKey string
+	if keyFromStdin {
+		if databaseKey, err = readKey(input); err != nil {
+			return err
+		}
+	}
+	config, err := json.Marshal(embedded.Config{DataDir: dataDir, LogLevel: logLevel, Telegram: telegram, DatabaseKey: databaseKey})
 	if err != nil {
 		return err
 	}
@@ -73,7 +92,21 @@ func run(dataDir, logLevel string) error {
 		}
 		os.Exit(code)
 	}()
-	return stream.Serve(core, embedded.ClosedEvent(), os.Stdin, os.Stdout)
+	return stream.Serve(core, embedded.ClosedEvent(), input, os.Stdout)
+}
+
+// readKey reads the master key from the first line of the input. The error
+// never quotes the line.
+func readKey(input *bufio.Reader) (string, error) {
+	line, err := input.ReadString('\n')
+	if err != nil {
+		return "", errors.New("-key-from-stdin: no key line on the standard input")
+	}
+	key := strings.TrimRight(line, "\r\n")
+	if _, err := secrets.ParseKey(key); err != nil {
+		return "", fmt.Errorf("-key-from-stdin: %w", err)
+	}
+	return key, nil
 }
 
 // telegramConfig reads the Telegram credentials from the environment: none

@@ -27,7 +27,17 @@ const (
 	// permissions. Used where no secure storage is wired yet (macOS, Linux
 	// and iOS without a key from the application; docs/ADR/0019).
 	ProtectionNone Protection = "none"
+	// ProtectionSafeStorage: the key file is encrypted by the desktop app
+	// with Electron's safeStorage (the macOS Keychain, or libsecret or
+	// KWallet on Linux; docs/ADR/0027), and the app gives the key to the
+	// core. The core cannot open such a file itself.
+	ProtectionSafeStorage Protection = "electron-safestorage"
 )
+
+// ErrKeyHeldByApp is returned by LoadOrCreate for a key file that only the
+// desktop app can open: the core must not replace it with a new key, which
+// would lose every sealed secret.
+var ErrKeyHeldByApp = errors.New("the key file is kept by the desktop app's secure storage: start the core from the app")
 
 // KeyFileName is the file of the master key in the data directory, when the
 // embedding application does not give one.
@@ -53,6 +63,9 @@ func LoadOrCreate(dir string) (Key, Protection, error) {
 	var f keyFile
 	if err := json.Unmarshal(data, &f); err != nil || f.Version != 1 {
 		return Key{}, "", errors.New("the key file is not valid")
+	}
+	if f.Protection == ProtectionSafeStorage {
+		return Key{}, "", ErrKeyHeldByApp
 	}
 	blob, err := base64.StdEncoding.DecodeString(f.Key)
 	if err != nil {

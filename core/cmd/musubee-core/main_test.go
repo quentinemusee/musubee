@@ -6,6 +6,8 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"io"
 	"os"
@@ -202,6 +204,70 @@ func TestTelegramConfig(t *testing.T) {
 			t.Errorf("%v: no error", vars)
 		} else if strings.Contains(err.Error(), "fake-hash") || strings.Contains(err.Error(), "forty-two") {
 			t.Errorf("the error quotes a value: %v", err)
+		}
+	}
+}
+
+// newKey returns a random master key in base64, as the desktop app sends it.
+func newKey(t *testing.T) string {
+	t.Helper()
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		t.Fatal(err)
+	}
+	return base64.StdEncoding.EncodeToString(raw)
+}
+
+// With -key-from-stdin, the core takes its key from the first line of its
+// input and keeps no key file; another key does not open its database.
+func TestKeyFromStdin(t *testing.T) {
+	dir := t.TempDir()
+	key := newKey(t)
+	p, lines := startCollecting(t, "-data", dir, "-key-from-stdin")
+	if _, err := io.WriteString(p.stdin, key+"\r\n"+`{"id":1,"command":"core.hello"}`+"\n"); err != nil {
+		t.Fatal(err)
+	}
+	if line, _ := next(t, lines); !strings.HasPrefix(line, `{"id":1,"result":`) {
+		t.Fatalf("response to core.hello: %s", line)
+	}
+	_ = p.stdin.Close()
+	for _, ok := next(t, lines); ok; _, ok = next(t, lines) {
+	}
+	if err := waitExit(t, p); err != nil {
+		t.Fatalf("exit: %v; stderr: %s", err, p.stderr)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "core.key")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("core.key with a key from the input: %v", err)
+	}
+	log, err := os.ReadFile(filepath.Join(dir, "core.log"))
+	if err != nil || strings.Contains(string(log), key) || !strings.Contains(string(log), `"protection":"host"`) {
+		t.Errorf("core.log: %v; it must say the key is the host's, without the key", err)
+	}
+
+	other := newKey(t)
+	cmd := exec.Command(binary, "-data", dir, "-key-from-stdin")
+	cmd.Stdin = strings.NewReader(other + "\n")
+	out, err := cmd.CombinedOutput()
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) || exit.ExitCode() != 1 || !strings.Contains(string(out), "another key") || strings.Contains(string(out), other) {
+		t.Errorf("start with another key: %v; output: %s", err, out)
+	}
+}
+
+// A missing or invalid key line stops the core, without quoting the line.
+func TestKeyFromStdinRefusesABadKey(t *testing.T) {
+	for _, input := range []string{"", "not a key\n", base64.StdEncoding.EncodeToString(make([]byte, 16)) + "\n", newKey(t)} {
+		dir := t.TempDir()
+		cmd := exec.Command(binary, "-data", dir, "-key-from-stdin")
+		cmd.Stdin = strings.NewReader(input)
+		out, err := cmd.CombinedOutput()
+		var exit *exec.ExitError
+		line := strings.TrimSpace(input)
+		if !errors.As(err, &exit) || exit.ExitCode() != 1 || !strings.HasPrefix(string(out), "musubee-core: -key-from-stdin: ") || (line != "" && strings.Contains(string(out), line)) {
+			t.Errorf("input %q: %v; output: %s", input, err, out)
+		}
+		if _, err := os.Stat(filepath.Join(dir, "core.key")); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("input %q: a key file was created: %v", input, err)
 		}
 	}
 }
