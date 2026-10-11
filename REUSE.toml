@@ -75,3 +75,14 @@ path = ["apps/mobile/android/gradle/wrapper/gradle-wrapper.jar", "apps/mobile/an
 precedence = "closest"
 SPDX-FileCopyrightText = "2015 the original authors (Gradle)"
 SPDX-License-Identifier = "Apache-2.0"
+
+# mautrix-signal v0.2609.0 (https://github.com/mautrix/signal), copied without
+# its cmd/ and its libsignal submodule (docs/ADR/0025), with Musubee's changes
+# listed in core/replace/mautrix-signal/MUSUBEE.md. Its Go files carry the
+# AGPL-3.0-or-later notice as text, not as SPDX tags; the files that come from
+# Signal carry their own SPDX tags (AGPL-3.0-only), which take precedence.
+[[annotations]]
+path = ["core/replace/mautrix-signal/**"]
+precedence = "closest"
+SPDX-FileCopyrightText = ["2023-2026 Tulir Asokan, Scott Weber, Sumner Evans and the mautrix-signal contributors", "2026 Quentin Raimbaud"]
+SPDX-License-Identifier = "AGPL-3.0-or-later"
