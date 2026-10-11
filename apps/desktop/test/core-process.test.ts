@@ -3,7 +3,7 @@
 
 // The supervisor with the real core (built by global-setup.ts).
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, inject, test } from "vitest";
@@ -19,14 +19,14 @@ afterEach(async () => {
   }
 });
 
-function newCore(options: Partial<CoreProcessOptions> = {}): { core: CoreProcess; statuses: CoreStatus[] } {
+function newCore(options: Partial<CoreProcessOptions> = {}): { core: CoreProcess; statuses: CoreStatus[]; dataDir: string } {
   const dataDir = mkdtempSync(join(tmpdir(), "musubee-core-process-"));
   dirs.push(dataDir);
   const core = new CoreProcess({ executable: inject("coreExecutable"), dataDir, restartDelayMs: () => 50, ...options });
   const statuses: CoreStatus[] = [];
   core.onStatus((status) => statuses.push(status));
   running.push(core);
-  return { core, statuses };
+  return { core, statuses, dataDir };
 }
 
 function until(predicate: () => boolean, what: string, timeoutMs = 30_000): Promise<void> {
@@ -115,6 +115,32 @@ describe("CoreProcess", () => {
     await until(() => core.status.state === "failed", "the failed status");
     expect(statuses.map((s) => s.state)).toEqual(["restarting", "restarting", "failed"]);
     expect(core.status).toMatchObject({ reason: expect.stringContaining("could not start the core") });
+  });
+
+  test("gives the core the app's key on its input, at every start", async () => {
+    const { core, statuses, dataDir } = newCore();
+    const databaseKey = Buffer.alloc(32, 9).toString("base64");
+    core.start({ databaseKey });
+    await ready(core);
+    const pid = core.pid!;
+    process.kill(pid);
+    // Without the key on its input, the restarted core would read the first
+    // request as its key and exit.
+    await until(() => core.status.state === "ready" && core.pid !== pid, "the restarted core");
+    expect(statuses).toEqual([{ state: "ready" }, { state: "restarting", attempt: 1 }, { state: "ready" }]);
+    await core.stop();
+    // The core kept no key file of its own, and logged where its key came from, not the key.
+    expect(existsSync(join(dataDir, "core.key"))).toBe(false);
+    const log = readFileSync(join(dataDir, "core.log"), "utf8");
+    expect(log.match(/"protection":"host"/g)).toHaveLength(2);
+    expect(log).not.toContain(databaseKey);
+  });
+
+  test("fail() reports a core that cannot start, without starting it", () => {
+    const { core, statuses } = newCore();
+    core.fail("the core's key file is not valid");
+    expect(statuses).toEqual([{ state: "failed", reason: "the core's key file is not valid" }]);
+    expect(core.pid).toBeUndefined();
   });
 
   test("stop() closes the core cleanly", async () => {
