@@ -76,7 +76,7 @@ The thread is virtualized with virtua since T2.4 (ADR 0020, with its measurement
 
 The echo network (a test network inside the core) gains:
 
-- a **group** conversation, "Echo Group", where Instant Echo answers: groups appear in the inbox, and linking a group to a person is refused (tested);
+- a **group** conversation, "Echo Group", where a member named Instant Echo answers: groups appear in the inbox, and linking a group to a person is refused (tested). Its members are other remote users than the direct contacts of the same names: in mautrix-go v0.31.0, `Ghost.UpdateInfo` writes the ghost's fields before taking its lock, and a login's direct and group conversations are created at once, so a ghost shared by both raced (found by CI's race detector, reproduced locally). A real network (Telegram: a contact in a direct conversation and a group) can meet the same race. The locking of `Ghost.UpdateInfo` is fixed upstream after v0.31.0 (mautrix/go#571, found in T1.1); after the upgrade, the group may share its members with the direct conversations again;
 - **"crowd" logins** (usernames starting with "crowd"): 120 more contacts with one message each, for pagination;
 - **"offline" logins** (usernames starting with "offline"): connected right after the login only; afterwards the account reports `transient_disconnect` with "No network: the echo network simulates a device without connection."
 
