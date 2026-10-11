@@ -319,10 +319,10 @@ signal core seal:   go test -tags=goolm,musubee_signal -count=1 -run 'Store|New'
 
 The staging journey of T2.6 also checks that every sealed column of `core.db` holds only sealed values.
 
-Verified in T2.11 (CI on Linux, Android emulator API 30; the run script also on Windows with a local emulator; see ADR 0028). Android builds of libsignal need a Linux or macOS host and `ANDROID_NDK_HOME`; `$out` and `$bin` are directories, `$cc` the NDK's clang for the ABI and API 24 (for example `x86_64-linux-android24-clang`):
+Verified in T2.11 (CI on Linux with an Android 11 x86_64 emulator; Windows for the build, the links and the run script; see ADR 0028). Android builds of libsignal need `ANDROID_NDK_HOME`; `$out` and `$bin` are directories, `$cc` the NDK's clang for the ABI and API 24: `x86_64-linux-android24-clang` on Linux and macOS, `clang.exe --target=x86_64-linux-android24` on Windows (the `.cmd` wrapper overflows cmd.exe's command line):
 
 ```
-libsignal android:  scripts/build-libsignal.sh $out x86_64            (or arm64-v8a, armeabi-v7a, x86)
-signal tests build: CGO_ENABLED=1 GOOS=android GOARCH=amd64 CC=$cc LIBRARY_PATH=$out CGO_LDFLAGS="-L$out $(cat $out/cgo-ldflags)" go test -c -tags=goolm,musubee_signal -o $bin/ ./core/connector/signal/ ./core/embedded/
+libsignal android:  scripts/build-libsignal.sh $out x86_64            (or arm64-v8a, armeabi-v7a, x86; Windows: UCRT64 first in PATH)
+signal tests build: CGO_ENABLED=1 GOOS=android GOARCH=amd64 CC="$cc" LIBRARY_PATH=$out CGO_LDFLAGS="-L$out" go test -c -tags=goolm,musubee_signal -o $bin/ ./core/connector/signal/ ./core/embedded/
 android go tests:   ANDROID_SERIAL=emulator-5554 scripts/run-android-go-tests.sh $bin/*.test     (Git Bash: MSYS_NO_PATHCONV=1)
 ```
