@@ -345,6 +345,10 @@ func TestMessageGoesThroughTheConnectorToLocalStorage(t *testing.T) {
 		t.Errorf("stream orders %d, %d are not increasing", messages[0].Unsigned.BeeperHSOrder, messages[1].Unsigned.BeeperHSOrder)
 	}
 	// bridgev2 keeps its own mapping of both messages to network message IDs.
+	// It saves the echo's row after sending it to the room: wait for it.
+	waitFor(t, "bridgev2's message rows", func() (bool, error) {
+		return h.bridgedMessageCount(echoBridge, login.ID, echo.ContactInstant) >= 2, nil
+	})
 	if n := h.bridgedMessageCount(echoBridge, login.ID, echo.ContactInstant); n != 2 {
 		t.Errorf("bridgev2 message table has %d rows for the conversation, want 2", n)
 	}
