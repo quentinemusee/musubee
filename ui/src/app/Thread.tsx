@@ -4,6 +4,7 @@
 import { Fragment, useCallback, useMemo, useState, type FormEvent } from "react";
 import type { Conversation, Message } from "../core-api/types.gen";
 import { MessageList } from "./MessageList";
+import { closeConversation } from "./navigation";
 import { useAppState, useStore } from "./state";
 
 const noMessages: readonly Message[] = [];
@@ -22,7 +23,13 @@ export function Thread() {
   }
   return (
     <section className="thread" aria-labelledby="thread-title">
-      <h2 id="thread-title">{person?.name ?? (conversation.name || "Unnamed conversation")}</h2>
+      <div className="thread-header">
+        {/* Shown on a narrow screen only, where the thread hides the inbox. */}
+        <button type="button" className="secondary back" aria-label="Back to conversations" onClick={() => closeConversation(store)}>
+          ‹
+        </button>
+        <h2 id="thread-title">{person?.name ?? (conversation.name || "Unnamed conversation")}</h2>
+      </div>
       {person === undefined ? null : <Switcher personId={person.person_id} name={person.name} selected={selected} />}
       {/* One key for both: siblings with the same key confuse React, which
           then leaves old rows in the DOM. */}

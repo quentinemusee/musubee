@@ -125,6 +125,18 @@ describe("Store", () => {
     expect(state.conversations[0]).toMatchObject({ activity_ms: 4, last_message: { message_id: "m4" } });
   });
 
+  test("deselects a conversation, and keeps its messages", async () => {
+    const shell = scriptedShell(coreState([conversation("c1", "Adam")]));
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    await store.select("c1");
+    store.deselect();
+    expect(store.getState().selected).toBeUndefined();
+    expect(store.getState().messages["c1"]?.map((m) => m.message_id)).toEqual(["m1", "m2"]);
+  });
+
   test("reads the persons, and applies their events", async () => {
     const alice: Person = { person_id: "h1", name: "Alice", conversation_ids: ["c1"] };
     const shell = scriptedShell(coreState([conversation("c1", "Alice"), conversation("c2", "Alice")], [alice]));

@@ -6,13 +6,17 @@ import type { Account } from "../core-api/types.gen";
 import type { CoreStatus } from "../shell";
 import { AddAccount } from "./AddAccount";
 import { Inbox } from "./Inbox";
+import { useBackToInbox } from "./navigation";
 import { useAppState, useStore } from "./state";
 import { Thread } from "./Thread";
 
 export function App() {
+  const store = useStore();
   const [addingAccount, setAddingAccount] = useState(false);
   const loaded = useAppState((s) => s.loaded);
   const hasAccounts = useAppState((s) => s.accounts.length > 0);
+  const view = useAppState((s) => (s.selected === undefined ? "inbox" : "thread"));
+  useBackToInbox(store);
   return (
     <div className="app">
       <header className="app-header">
@@ -25,7 +29,8 @@ export function App() {
           <AddAccount onDone={() => setAddingAccount(false)} canCancel={hasAccounts} />
         </main>
       ) : (
-        <div className="app-body">
+        // On a narrow screen, the inbox or the thread alone (data-view).
+        <div className="app-body" data-view={view}>
           <nav className="sidebar" aria-label="Conversations">
             <Accounts />
             <button type="button" className="secondary" onClick={() => setAddingAccount(true)}>
