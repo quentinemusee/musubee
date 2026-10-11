@@ -13,8 +13,9 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, ipcMain, protocol, session, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, ipcMain, protocol, safeStorage, session, type IpcMainInvokeEvent } from "electron";
 import { APP_ORIGIN, APP_SCHEME, APP_URL, serveAppFile } from "./app-protocol.js";
+import { CoreKeyError, loadCoreKey } from "./core-key.js";
 import { CoreProcess, type CoreStatus } from "./core-process.js";
 import { RequestValidator } from "./ipc.js";
 
@@ -41,9 +42,10 @@ if (!app.requestSingleInstanceLock()) {
 
 function main(): void {
   const validator = new RequestValidator(JSON.parse(readFileSync(join(resources, "core-api.schema.json"), "utf8")));
+  const coreDataDir = join(app.getPath("userData"), "core");
   const core = new CoreProcess({
     executable: coreExecutable,
-    dataDir: join(app.getPath("userData"), "core"),
+    dataDir: coreDataDir,
     // The core's own log is in its data directory; this is only what it
     // writes when it crashes.
     onStderr: (line) => console.error(`[core] ${line}`),
@@ -139,7 +141,7 @@ function main(): void {
     protocol.handle(APP_SCHEME, (request) => serveAppFile(uiRoot, request.url));
     session.defaultSession.setPermissionRequestHandler((_, __, callback) => callback(false));
     session.defaultSession.setPermissionCheckHandler(() => false);
-    core.start();
+    startCore(core, coreDataDir);
     app.on("activate", () => {
       if (windows.size === 0) {
         void openWindow(windows);
@@ -147,6 +149,30 @@ function main(): void {
     });
     await openWindow(windows);
   });
+}
+
+/**
+ * Starts the core with the key that the app keeps in the system's secure
+ * storage (core-key.ts), or lets it keep its own. safeStorage works only
+ * once the app is ready.
+ */
+function startCore(core: CoreProcess, dataDir: string): void {
+  let databaseKey: string | undefined;
+  try {
+    const key = loadCoreKey(dataDir, safeStorage);
+    if (key.source === "safe-storage") {
+      databaseKey = key.key;
+      console.info(`The core's key is in the system's secure storage (${key.event})`);
+    } else if (process.platform !== "win32") {
+      console.warn(`The core's key is not in the system's secure storage: ${key.reason}`);
+    }
+  } catch (error) {
+    const reason = error instanceof CoreKeyError ? error.message : `the core's key: ${String(error)}`;
+    console.error(`The core cannot start: ${reason}`);
+    core.fail(reason);
+    return;
+  }
+  core.start(databaseKey === undefined ? {} : { databaseKey });
 }
 
 async function openWindow(windows: Set<BrowserWindow>): Promise<void> {

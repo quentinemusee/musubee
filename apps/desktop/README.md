@@ -14,6 +14,7 @@ Why Electron and not Wails or Tauri: [`docs/ADR/0001-stack.md`](../../docs/ADR/0
 | `src/core-process.ts` | `CoreProcess`, the supervisor of the core (`core/cmd/musubee-core`): its own request IDs, restart with backoff, `failed` after five crashes in a minute, clean stop |
 | `src/ipc.ts` | `RequestValidator`: checks every request of the interface against the core API schema (Ajv) before it reaches the core |
 | `src/app-protocol.ts` | Serves the built interface on `app://musubee/` with the content security policy |
+| `src/core-key.ts` | The core's master key on macOS and Linux, kept with Electron `safeStorage` and given to the core on its input (ADR 0027) |
 | `src/preload.cts` | The preload: exposes `window.musubee.core` (`call`, `onEvent`, `onStatus`), nothing else |
 | `scripts/build.mjs` | Builds the core, the interface and the main process into `resources/` and `dist/` |
 | `test/` | Unit tests (Vitest); the supervisor's tests run the real core, built by `test/global-setup.ts` |
@@ -24,7 +25,7 @@ Why Electron and not Wails or Tauri: [`docs/ADR/0001-stack.md`](../../docs/ADR/0
 - `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, `webSecurity: true` for every window displaying the interface. The end-to-end tests check that the page has no Node.js and that the renderer is sandboxed.
 - The preload exposes a minimal API; **every IPC message is validated** in the main process: only the app's own main frame on `app://musubee` is answered, and each request must match the schema.
 - The interface is served by a custom protocol with a strict content security policy (no inline script, no `eval`, no network). Navigation, new windows, `<webview>` and every permission request are refused.
-- Keys and tokens must live in the OS secure storage, never in plaintext on disk. **Not met yet**: the Telegram session key is stored in plaintext in the core's database (ADR 0014, known gaps); to fix before any public release.
+- Keys and tokens must live in the OS secure storage, never in plaintext on disk. The core seals the accounts' sessions under a master key (ADR 0019): on Windows the core keeps it with DPAPI; on macOS and Linux the app keeps it with Electron `safeStorage` (the Keychain, or libsecret or KWallet) and gives it to the core on the first line of its standard input, never on its command line or in its environment (ADR 0027). **Not met** on a Linux desktop without a password store (`safeStorage` backend `basic_text`): the core keeps a plain key file there, and both the app and the core log a warning.
 - Telegram's application credentials come from the environment, never from the repository (see below).
 
 ## Commands
