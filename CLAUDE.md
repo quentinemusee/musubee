@@ -300,7 +300,7 @@ libsignal:          scripts/build-libsignal.sh $out          (Windows: in Git Ba
 signal flags:       CGO_ENABLED=1 LIBRARY_PATH=$out CGO_LDFLAGS="-L$out $(cat $out/cgo-ldflags)"   (before each command below)
 signal core:        go test -tags=goolm,musubee_signal -count=1 ./core/connector/signal/ ./core/embedded/
 signal copy:        cd core/replace/mautrix-signal && GOWORK=off go test -count=1 ./pkg/libsignalgo/... ./pkg/signalmeow/...
-signal staging e2e: go test -tags=goolm,signal,musubee_signal -count=1 -v ./infra/signaltest/   (needs the staging account, see its README; not run yet)
+signal staging e2e: go test -tags=goolm,signal,musubee_signal -count=1 -v ./infra/signaltest/   (needs the staging account, see its README)
 ```
 
 Verified in T2.8 (Windows, Node 24.20, Electron 44.7.0; see ADR 0024):
