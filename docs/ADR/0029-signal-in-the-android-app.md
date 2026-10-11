@@ -61,7 +61,7 @@ The x86 libsignal build exposed a bug of the build script on Windows hosts: `cyg
 |---|---|---|
 | A build without the property is unchanged, and `SignalTest` is skipped there | **verified** (Windows host, emulator API 30 x86: 13 tests, 0 failures, 3 skipped by assumption) | `connectedDebugAndroidTest` |
 | A build with `-Pmusubee.signal=staging` offers Signal, and its QR login reaches staging and returns a linking code | **verified** (same emulator: 13 tests, 0 failures, 2 skipped) | `SignalTest` |
-| The same on API 30 and 35 x86_64 on CI, with the Appium journey on the Signal build | **unknown** until this task's CI run | `.github/workflows/checks.yml`, job `android` |
+| The same on API 30 and 35 x86_64 on CI, with the Appium journey on the Signal build | **verified** (run 38180342503: 13 tests each with `musubeeSignalRequire=1`, libsignal from the cache of the `signal-android` job, no rebuild between assembling and testing) | `.github/workflows/checks.yml`, job `android` |
 | arm64-v8a: the app with Signal on a phone | **unknown** (needs the maintainer's consent to use the Pixel 8 Pro) | |
 | Linking an account from the app | **unknown**, and probably not possible as is: see below | |
 | Memory and battery with a Signal account connected | **unknown** | |
