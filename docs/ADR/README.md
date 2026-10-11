@@ -36,3 +36,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0024](0024-merging-in-the-interface.md) | Merging conversations in the interface: from the thread, with likely matches first | accepted | T2.8 |
 | [0025](0025-signal-on-device.md) | Signal on the device: mautrix-signal in the core behind a build tag, from a patched copy that can reach Signal's staging service | accepted | T2.6 |
 | [0026](0026-signal-secrets-at-rest.md) | Signal's secrets at rest: signalmeow's store seals its secret columns, in our copy | accepted | T2.9 |
+| [0028](0028-signal-on-android-ci.md) | Signal on Android in CI: libsignal built per ABI with the app's NDK, the Signal tests run on an emulator | proposed | T2.11 |
