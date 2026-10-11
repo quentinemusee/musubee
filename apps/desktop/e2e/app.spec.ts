@@ -39,10 +39,10 @@ function newDataDir(): string {
   return dir;
 }
 
-async function launch(dataDir: string, switches: string[] = []): Promise<Running> {
+async function launch(dataDir: string, env: Record<string, string> = {}): Promise<Running> {
   const app = await electron.launch({
-    args: [appDir, ...switches],
-    env: { ...process.env, MUSUBEE_USER_DATA_DIR: dataDir, MUSUBEE_E2E: "1" },
+    args: [appDir],
+    env: { ...process.env, ...env, MUSUBEE_USER_DATA_DIR: dataDir, MUSUBEE_E2E: "1" },
   });
   const page = await app.firstWindow();
   await expect(page.getByRole("status", { name: "App status" })).toHaveText(/Ready|Loading/);
@@ -503,10 +503,12 @@ test("the core's key is kept by the system's secure storage, and opens the accou
 
 test("a plain key file moves into the system's secure storage, and the account stays", async () => {
   // Chromium's --password-store=basic exists on Linux only: it hides the
-  // keyring from the first start, so the core makes its plain key file.
+  // keyring from the first start, so the core makes its plain key file. The
+  // app applies it in end-to-end mode only (src/main.ts), since it removes
+  // the one that Playwright adds to every start.
   test.skip(process.platform !== "linux", "Linux only");
   const dataDir = newDataDir();
-  let { app, page } = await launch(dataDir, ["--password-store=basic"]);
+  let { app, page } = await launch(dataDir, { MUSUBEE_E2E_PASSWORD_STORE: "basic" });
   await addEchoAccount(page, "moved");
   await expect(page.getByText("Connected")).toBeVisible();
   const plain = coreKeyFile(dataDir);
