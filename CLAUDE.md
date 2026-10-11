@@ -326,3 +326,11 @@ core key on input:  go test -tags=goolm -count=1 -run 'KeyFromStdin|KeyFileOfThe
 app key handling:   cd apps/desktop && npx vitest run test/core-key.test.ts test/core-process.test.ts
 key in the app:     cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "key"     (Linux CI: GNOME keyring, see checks.yml)
 ```
+
+Verified in T2.11 (CI on Linux with an Android 11 x86_64 emulator; Windows for the build, the links and the run script; see ADR 0028). Android builds of libsignal need `ANDROID_NDK_HOME`; `$out` and `$bin` are directories, `$cc` the NDK's clang for the ABI and API 24: `x86_64-linux-android24-clang` on Linux and macOS, `clang.exe --target=x86_64-linux-android24` on Windows (the `.cmd` wrapper overflows cmd.exe's command line):
+
+```
+libsignal android:  scripts/build-libsignal.sh $out x86_64            (or arm64-v8a, armeabi-v7a, x86; Windows: UCRT64 first in PATH)
+signal tests build: CGO_ENABLED=1 GOOS=android GOARCH=amd64 CC="$cc" LIBRARY_PATH=$out CGO_LDFLAGS="-L$out" go test -c -tags=goolm,musubee_signal -o $bin/ ./core/connector/signal/ ./core/embedded/
+android go tests:   ANDROID_SERIAL=emulator-5554 scripts/run-android-go-tests.sh $bin/*.test     (Git Bash: MSYS_NO_PATHCONV=1)
+```

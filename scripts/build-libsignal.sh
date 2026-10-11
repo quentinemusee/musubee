@@ -3,16 +3,28 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # Builds libsignal-ffi, the C library of libsignal that mautrix-signal's
-# libsignalgo links, for the host: Linux, macOS, or Windows x86_64 with the
-# GNU toolchain of MSYS2 UCRT64 (docs/ADR/0022, docs/ADR/0025).
+# libsignalgo links: for the host (Linux, macOS, or Windows x86_64 with the
+# GNU toolchain of MSYS2 UCRT64), or for one Android ABI with the NDK of the
+# app (docs/ADR/0022, docs/ADR/0025, docs/ADR/0028).
 #
-#   scripts/build-libsignal.sh OUTPUT_DIR
+#   scripts/build-libsignal.sh OUTPUT_DIR [ANDROID_ABI]
 #
 # OUTPUT_DIR receives libsignal_ffi.a and cgo-ldflags, the extra linker flags
-# of the host (empty on Linux and macOS). Build Go code that uses Signal with:
+# of the target (empty on Linux, macOS and Android), and for Android a
+# libc++.a that links the C++ runtime statically. Build Go code that uses
+# Signal with:
 #
 #   LIBRARY_PATH=OUTPUT_DIR CGO_LDFLAGS="-LOUTPUT_DIR $(cat OUTPUT_DIR/cgo-ldflags)" \
 #     go test -tags=goolm,musubee_signal ...
+#
+# ANDROID_ABI is arm64-v8a, armeabi-v7a, x86_64 or x86. Android builds need
+# ANDROID_NDK_HOME set to the NDK (28.2.13676358, the app's), and ANDROID_API
+# (default 24, the app's minSdkVersion); Go then builds with GOOS=android,
+# CGO_ENABLED=1 and CC set to the NDK's clang for that ABI and API, as the
+# app's Gradle build does (apps/mobile/android). On a Windows host, give Go
+# "clang.exe --target=x86_64-linux-android24" (for x86_64) rather than the
+# NDK's .cmd wrapper: a link with libsignal exceeds cmd.exe's limit on the
+# length of a command line.
 #
 # Needs git, a Rust toolchain manager (rustup), protoc, cmake and a C/C++
 # compiler; on Windows, MSYS2 UCRT64 first in PATH with its gcc, cmake,
@@ -26,7 +38,42 @@ set -euo pipefail
 # its pkg/libsignalgo/libsignal submodule, tag v0.102.2.
 LIBSIGNAL_COMMIT=8fc2113bda042fc972a166a24b974b0d34155c6c
 
-out=${1:?usage: build-libsignal.sh OUTPUT_DIR}
+out=${1:?usage: build-libsignal.sh OUTPUT_DIR [ANDROID_ABI]}
+abi=${2:-}
+
+# Android: the Rust target, and the NDK clang's target prefix (armv7a, not
+# armv7, for 32-bit ARM), as in the app's Gradle build.
+if [ -n "$abi" ]; then
+  case "$abi" in
+    arm64-v8a) target=aarch64-linux-android clang=aarch64-linux-android ;;
+    armeabi-v7a) target=armv7-linux-androideabi clang=armv7a-linux-androideabi ;;
+    x86_64) target=x86_64-linux-android clang=x86_64-linux-android ;;
+    x86) target=i686-linux-android clang=i686-linux-android ;;
+    *) echo "unknown Android ABI $abi: arm64-v8a, armeabi-v7a, x86_64 or x86" >&2; exit 2 ;;
+  esac
+  case "$(uname -s)" in
+    Linux) ndk_host="linux-x86_64" ;;
+    Darwin) ndk_host="darwin-x86_64" ;;
+    MINGW* | MSYS* | CYGWIN*) ndk_host="windows-x86_64" ;;
+    *) echo "no Android NDK for this host: $(uname -s)" >&2; exit 2 ;;
+  esac
+  ndk_bin=${ANDROID_NDK_HOME:?Android builds need ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/$ndk_host/bin
+  ndk_cc=$ndk_bin/$clang${ANDROID_API:-24}-clang
+  ndk_ar=$ndk_bin/llvm-ar
+  if [ "$ndk_host" = windows-x86_64 ]; then
+    # Rust and CMake are Windows programs: Windows paths, and the NDK's
+    # .cmd wrapper of clang for the target and API.
+    # cygpath adds .exe itself to a program that exists (llvm-ar), so
+    # convert the directory only.
+    ndk_cc=$(cygpath -m "$ndk_bin")/${ndk_cc##*/}.cmd
+    ndk_ar=$(cygpath -m "$ndk_bin")/llvm-ar.exe
+  fi
+  if [ ! -f "$ndk_cc" ]; then
+    echo "no NDK clang at $ndk_cc" >&2
+    exit 2
+  fi
+fi
+
 mkdir -p "$out"
 out=$(cd "$out" && pwd)
 src=${LIBSIGNAL_SRC:-${RUNNER_TEMP:-$PWD/build}/libsignal-$LIBSIGNAL_COMMIT}
@@ -57,6 +104,9 @@ fi
 export RUSTUP_TOOLCHAIN
 # rustup looks for itself under CARGO_HOME: run it with the default one.
 env -u CARGO_HOME rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal > /dev/null
+if [ -n "$abi" ]; then
+  env -u CARGO_HOME rustup target add --toolchain "$RUSTUP_TOOLCHAIN" "$target" > /dev/null
+fi
 rustc --version
 cargo fetch > /dev/null
 
@@ -74,18 +124,47 @@ if $windows; then
   test "$(grep -c '(defined(__ELF__) || defined(__APPLE__))' "$header")" = 3
 fi
 
-# mautrix-signal's build-rust.sh, plus the list of native libraries.
+if [ -n "$abi" ]; then
+  # The environment of libsignal's own Android build (java/build_jni.sh),
+  # verified for the four ABIs in ADR 0022: the NDK's clang as C compiler
+  # and linker, the size-optimised release profile, BoringSSL's C++ runtime
+  # linked statically.
+  target_cc=$(echo "$target" | tr '-' '_')
+  target_env=$(echo "$target" | tr '[:lower:]-' '[:upper:]_')
+  export "CC_$target_cc=$ndk_cc" "CARGO_TARGET_${target_env}_LINKER=$ndk_cc"
+  export TARGET_AR="$ndk_ar"
+  export CARGO_PROFILE_RELEASE_OPT_LEVEL=s CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+  export CFLAGS=-DOPENSSL_SMALL CXXFLAGS=-DOPENSSL_SMALL BORING_BSSL_RUST_CPPLIB=static:-bundle=c++
+  rustflags='--cfg aes_armv8 --cfg curve25519_dalek_bits="64" --print native-static-libs'
+  target_args=(--target "$target")
+  lib=target/$target/release/libsignal_ffi.a
+else
+  # mautrix-signal's build-rust.sh, plus the list of native libraries.
+  rustflags="-Ctarget-feature=-crt-static --print native-static-libs"
+  target_args=()
+  lib=target/release/libsignal_ffi.a
+fi
+
 start=$(date +%s)
-if ! RUSTFLAGS="-Ctarget-feature=-crt-static --print native-static-libs" RUSTC_WRAPPER="" \
-  cargo build -p libsignal-ffi --profile=release > "$out/build.log" 2>&1; then
+if ! RUSTFLAGS="$rustflags" RUSTC_WRAPPER="" \
+  cargo build -p libsignal-ffi --profile=release ${target_args[@]+"${target_args[@]}"} > "$out/build.log" 2>&1; then
   tail -50 "$out/build.log"
   exit 1
 fi
 echo "Build time: $(( $(date +%s) - start )) s"
-cp target/release/libsignal_ffi.a "$out/"
+cp "$lib" "$out/"
 
 : > "$out/cgo-ldflags"
-if $windows; then
+if [ -n "$abi" ]; then
+  # The C++ runtime that BoringSSL needs must be linked statically: a device
+  # has no libc++_shared.so unless an app ships it. libsignalgo links with
+  # -lstdc++, which the NDK's clang turns into -lc++, which the NDK resolves
+  # to libc++_shared.so; -static-libstdc++ does not change that in a C link
+  # (run 38168466838). This libc++.a, a linker script like the NDK's own
+  # static one, comes first through -L OUTPUT_DIR.
+  echo "INPUT(-lc++_static -lc++abi)" > "$out/libc++.a"
+fi
+if $windows && [ -z "$abi" ]; then
   # Go's link step also needs the system libraries that rustc lists, and
   # libwindows.0.52.0.a, an import library that cargo passes to rustc with
   # -L: the one of the windows_x86_64_gnu crate, since cargo fetch downloads

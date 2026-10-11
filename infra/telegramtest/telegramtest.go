@@ -20,7 +20,9 @@ package telegramtest
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
+	"time"
 )
 
 const (
@@ -61,4 +63,25 @@ func CredentialsFromEnv() (Credentials, error) {
 // IsPublicTestApp reports whether these are the public test credentials.
 func (c Credentials) IsPublicTestApp() bool {
 	return c.APIID == PublicTestAppID && c.APIHash == PublicTestAppHash
+}
+
+// MaxFloodWait is the longest FLOOD_WAIT that the tests wait out before
+// logging the bot in again; a longer one fails the test with its delay.
+const MaxFloodWait = 60 * time.Second
+
+var floodWaitPattern = regexp.MustCompile(`FLOOD_WAIT(?: \(|_)(\d+)`)
+
+// FloodWait returns the delay that Telegram asks for in an error message
+// ("rpc error code 420: FLOOD_WAIT (10)", or the API's FLOOD_WAIT_10):
+// bot logins in quick succession, as CI's Telegram jobs make, get one.
+func FloodWait(message string) (time.Duration, bool) {
+	m := floodWaitPattern.FindStringSubmatch(message)
+	if m == nil {
+		return 0, false
+	}
+	seconds, err := strconv.Atoi(m[1])
+	if err != nil {
+		return 0, false
+	}
+	return time.Duration(seconds) * time.Second, true
 }
