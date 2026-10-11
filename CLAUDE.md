@@ -262,14 +262,6 @@ matrix unit:        go test -tags=goolm -count=1 ./core/connector/matrix/
 matrix journey:     go test -tags=goolm,integration -count=1 -v ./infra/matrixtest/     (needs Docker; starts its own Synapse)
 ```
 
-Verified in T2.5 (Windows, Go 1.27.1, Node 24.20, JDK 21, emulator API 30; see ADR 0021). The Android app shows the interface of `ui/`, which needs Android System WebView 111 or later:
-
-```
-android web view:   cd ui && npm ci && npm run build && cd ../apps/mobile && npm run sync    (copies ui/dist and web/ into www/, then cap sync)
-android app e2e:    cd apps/mobile/e2e && MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android:app   (WebView < 111: checks the update page only)
-desktop inbox e2e:  cd apps/desktop && npm run build && npx playwright test app.spec.ts
-```
-
 Verified in T2.3 (Windows with DPAPI, Go 1.27.1; Android emulator API 30, JDK 21; the Matrix and Telegram journeys check the database files on CI; see ADR 0019):
 
 ```
@@ -284,4 +276,12 @@ Verified in T2.4 (Windows, Node 24.20, Electron 44.7.0; Android emulator API 30;
 thread list check:  cd ui && npm run bench:build && npm run bench:check     (opens a small Electron window; Linux: xvfb-run)
 thread list bench:  node bench/run.mjs --target electron --n 1000,5000,20000 --throttle 1,4 --runs 3
 android bench:      MUSUBEE_BENCH_TARGET=chrome83 npm run bench:build, then see ui/README.md (the page goes into the debug app)
+```
+
+Verified in T2.5 (Windows, Go 1.27.1, Node 24.20, JDK 21, emulator API 30; see ADR 0021). The Android app shows the interface of `ui/`, which needs Android System WebView 111 or later:
+
+```
+android web view:   cd ui && npm ci && npm run build && cd ../apps/mobile && npm run sync    (copies ui/dist and web/ into www/, then cap sync)
+android app e2e:    cd apps/mobile/e2e && MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android:app   (WebView < 111: checks the update page only)
+desktop inbox e2e:  cd apps/desktop && npm run build && npx playwright test app.spec.ts
 ```
