@@ -33,3 +33,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0021](0021-unified-inbox.md) | The unified inbox: conversations by activity in pages, merged per person in the interface, and the interface in the Android app | accepted | T2.5 |
 | [0022](0022-signal-on-device-spike.md) | Signal on the device, spike: libsignal builds for the core's targets, and mautrix-signal can reach Signal's staging servers with a patch | accepted | T2.6 |
 | [0023](0023-read-state.md) | Read state: a read position per conversation in the core, unread counts in the API, read when seen | accepted | T2.7 |
+| [0024](0024-merging-in-the-interface.md) | Merging conversations in the interface: from the thread, with likely matches first | accepted | T2.8 |

@@ -292,3 +292,10 @@ Verified in T2.7 (Windows, Go 1.27.1 with MSYS2 UCRT64, Node 24.20, Electron 44.
 read state:         go test -tags=goolm -count=1 -run 'ReadState|UpgradeFromV2' -v ./core/localmatrix/ ./core/embedded/
 unread in the app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "unread count"
 ```
+
+Verified in T2.8 (Windows, Node 24.20, Electron 44.7.0; see ADR 0024):
+
+```
+merge suggestions:  cd ui && npx vitest run src/merge.test.ts src/store.test.ts
+merge in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "merge two conversations"
+```
