@@ -244,9 +244,16 @@ func loginAs(t *testing.T, c *Core, username string, total int) string {
 // three contacts and a group.
 const conversationsPerLogin = 4
 
+// timeoutFor is how long n conversations may take to appear: a crowd login
+// creates more than a hundred, which took over 15 s on CI's Windows runner
+// under the race detector.
+func timeoutFor(n int) time.Duration {
+	return eventTimeout + time.Duration(n)*250*time.Millisecond
+}
+
 func waitConversations(t *testing.T, c *Core, n int) []api.Conversation {
 	t.Helper()
-	deadline := time.Now().Add(eventTimeout)
+	deadline := time.Now().Add(timeoutFor(n))
 	for {
 		convs := call[api.ConversationsListResult](t, c, api.CommandConversationsList, nil).Conversations
 		if len(convs) >= n {
@@ -739,7 +746,7 @@ func TestGroupEcho(t *testing.T) {
 func TestCrowdIsOrderedByActivity(t *testing.T) {
 	c := open(t)
 	loginAs(t, c, "crowd", conversationsPerLogin+echo.CrowdSize)
-	deadline := time.Now().Add(eventTimeout)
+	deadline := time.Now().Add(timeoutFor(echo.CrowdSize))
 	var crowd []api.Conversation
 	for {
 		crowd = crowd[:0]
