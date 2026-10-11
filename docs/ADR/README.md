@@ -31,3 +31,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0019](0019-secrets-at-rest.md) | Secrets at rest: sessions sealed in the database, a master key in the OS secure storage | accepted | T2.3 |
 | [0020](0020-ui-state-and-thread-list.md) | UI state and the thread list: the app's own store, and a list virtualized with virtua | accepted | T2.4 |
 | [0021](0021-unified-inbox.md) | The unified inbox: conversations by activity in pages, merged per person in the interface, and the interface in the Android app | accepted | T2.5 |
+| [0023](0023-read-state.md) | Read state: a read position per conversation in the core, unread counts in the API, read when seen | accepted | T2.7 |

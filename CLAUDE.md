@@ -285,3 +285,10 @@ android web view:   cd ui && npm ci && npm run build && cd ../apps/mobile && npm
 android app e2e:    cd apps/mobile/e2e && MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android:app   (WebView < 111: checks the update page only)
 desktop inbox e2e:  cd apps/desktop && npm run build && npx playwright test app.spec.ts
 ```
+
+Verified in T2.7 (Windows, Go 1.27.1 with MSYS2 UCRT64, Node 24.20, Electron 44.7.0; see ADR 0023):
+
+```
+read state:         go test -tags=goolm -count=1 -run 'ReadState|UpgradeFromV2' -v ./core/localmatrix/ ./core/embedded/
+unread in the app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "unread count"
+```
