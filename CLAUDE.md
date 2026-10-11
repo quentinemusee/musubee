@@ -334,3 +334,10 @@ libsignal android:  scripts/build-libsignal.sh $out x86_64            (or arm64-
 signal tests build: CGO_ENABLED=1 GOOS=android GOARCH=amd64 CC="$cc" LIBRARY_PATH=$out CGO_LDFLAGS="-L$out" go test -c -tags=goolm,musubee_signal -o $bin/ ./core/connector/signal/ ./core/embedded/
 android go tests:   ANDROID_SERIAL=emulator-5554 scripts/run-android-go-tests.sh $bin/*.test     (Git Bash: MSYS_NO_PATHCONV=1)
 ```
+
+Verified in T2.12 (Windows, Go 1.27.1, JDK 21, emulator API 30 x86; CI's API 30 and 35 x86_64 emulators; see ADR 0029, `apps/mobile/README.md`). Signal stays off unless asked: `$dir` holds one libsignal per ABI, `$dir/<abi>`, from the T2.11 command:
+
+```
+android signal:     ./gradlew -Pmusubee.abis=x86_64 -Pmusubee.signal=staging -Pmusubee.libsignal=$dir :app:assembleDebug
+android signal e2e: ANDROID_SERIAL=emulator-5554 ./gradlew -Pmusubee.abis=x86_64 -Pmusubee.signal=staging -Pmusubee.libsignal=$dir :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.musubee.core.SignalTest
+```

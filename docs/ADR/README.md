@@ -38,3 +38,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0026](0026-signal-secrets-at-rest.md) | Signal's secrets at rest: signalmeow's store seals its secret columns, in our copy | accepted | T2.9 |
 | [0027](0027-desktop-key-in-safestorage.md) | The core's master key on macOS and Linux: kept by the desktop app with Electron safeStorage, given to the core on its input | accepted | T2.10 |
 | [0028](0028-signal-on-android-ci.md) | Signal on Android in CI: libsignal built per ABI with the app's NDK, the Signal tests run on an emulator | accepted | T2.11 |
+| [0029](0029-signal-in-the-android-app.md) | Signal in the Android app: an opt-in Gradle property, libsignal prepared per ABI | accepted | T2.12 |
