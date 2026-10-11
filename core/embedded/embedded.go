@@ -28,6 +28,7 @@ import (
 	"github.com/quentinemusee/musubee/core/bridgehost"
 	"github.com/quentinemusee/musubee/core/connector/echo"
 	"github.com/quentinemusee/musubee/core/connector/matrix"
+	"github.com/quentinemusee/musubee/core/connector/signal"
 	"github.com/quentinemusee/musubee/core/connector/telegram"
 	"github.com/quentinemusee/musubee/core/localmatrix"
 	"github.com/quentinemusee/musubee/core/persons"
@@ -43,6 +44,7 @@ const (
 	echoBridge     networkid.BridgeID = "echo"
 	matrixBridge   networkid.BridgeID = matrix.NetworkID
 	telegramBridge networkid.BridgeID = "telegram"
+	signalBridge   networkid.BridgeID = "signal"
 )
 
 // eventQueueSize bounds the events waiting for the application. When the
@@ -61,6 +63,10 @@ type Config struct {
 	// Telegram enables the Telegram network. Without it, the core does not
 	// offer Telegram.
 	Telegram *TelegramConfig `json:"telegram,omitempty"`
+	// Signal enables the Signal network, in cores built with it (build tag
+	// musubee_signal, docs/ADR/0025). Without it, the core does not offer
+	// Signal; with it, a core built without Signal does not open.
+	Signal *SignalConfig `json:"signal,omitempty"`
 	// DatabaseKey is the master key of the secrets at rest, 32 bytes in
 	// base64, kept by the embedding application in the operating system's
 	// secure storage (the Android Keystore). Without it, the core keeps its
@@ -76,6 +82,13 @@ type Config struct {
 type TelegramConfig struct {
 	APIID   int    `json:"api_id"`
 	APIHash string `json:"api_hash"`
+}
+
+// SignalConfig chooses the Signal service.
+type SignalConfig struct {
+	// Environment is "production" (the default) or "staging", Signal's test
+	// service, whose accounts are separate.
+	Environment string `json:"environment,omitempty"`
 }
 
 // Core is one running core.
@@ -190,6 +203,16 @@ func (c *Core) start(cfg Config) error {
 			return err
 		}
 		c.networks = append(c.networks, telegramBridge)
+	}
+	if cfg.Signal != nil {
+		sc, err := signal.New(signal.Config{Environment: cfg.Signal.Environment})
+		if err != nil {
+			return fmt.Errorf("invalid configuration: %w", err)
+		}
+		if _, err = host.AddNetwork(signalBridge, sc); err != nil {
+			return err
+		}
+		c.networks = append(c.networks, signalBridge)
 	}
 	// Subscribe before starting, so that no event of the start is missed.
 	updates, unsubscribe := host.Matrix.Subscribe(eventQueueSize)
