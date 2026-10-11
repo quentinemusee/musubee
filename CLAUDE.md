@@ -293,6 +293,16 @@ read state:         go test -tags=goolm -count=1 -run 'ReadState|UpgradeFromV2' 
 unread in the app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "unread count"
 ```
 
+Verified in T2.6 (Windows, Go 1.27.1, MSYS2 UCRT64, Rust 1.98.1 GNU host; CI on Linux, Windows and macOS; see ADR 0025, `infra/signaltest/README.md`). Signal needs libsignal-ffi, built once (about 13 minutes on Windows), and cgo; `$out` is the output directory, a Windows path (`D:/...`) on Windows. Run the copy's own commands with `GOWORK=off` from `core/replace/mautrix-signal`:
+
+```
+libsignal:          scripts/build-libsignal.sh $out          (Windows: in Git Bash, UCRT64 first in PATH)
+signal flags:       CGO_ENABLED=1 LIBRARY_PATH=$out CGO_LDFLAGS="-L$out $(cat $out/cgo-ldflags)"   (before each command below)
+signal core:        go test -tags=goolm,musubee_signal -count=1 ./core/connector/signal/ ./core/embedded/
+signal copy:        cd core/replace/mautrix-signal && GOWORK=off go test -count=1 ./pkg/libsignalgo/... ./pkg/signalmeow/...
+signal staging e2e: go test -tags=goolm,signal,musubee_signal -count=1 -v ./infra/signaltest/   (needs the staging account, see its README; not run yet)
+```
+
 Verified in T2.8 (Windows, Node 24.20, Electron 44.7.0; see ADR 0024):
 
 ```
