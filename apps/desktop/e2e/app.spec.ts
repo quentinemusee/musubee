@@ -7,7 +7,7 @@
 //
 //   npm run build && npm run test:e2e
 
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,9 +39,9 @@ function newDataDir(): string {
   return dir;
 }
 
-async function launch(dataDir: string): Promise<Running> {
+async function launch(dataDir: string, switches: string[] = []): Promise<Running> {
   const app = await electron.launch({
-    args: [appDir],
+    args: [appDir, ...switches],
     env: { ...process.env, MUSUBEE_USER_DATA_DIR: dataDir, MUSUBEE_E2E: "1" },
   });
   const page = await app.firstWindow();
@@ -441,6 +441,85 @@ test("an account without network keeps its conversations and says so", async () 
   await page.getByLabel("Message").fill("while offline");
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByRole("log").locator('[data-status="failed"]', { hasText: "while offline" })).toBeVisible();
+  await app.close();
+});
+
+/** The core's key file (core/secrets/keyfile.go, src/core-key.ts). */
+function coreKeyFile(dataDir: string): { protection: string; key: string } {
+  return JSON.parse(readFileSync(join(dataDir, "core", "core.key"), "utf8")) as { protection: string; key: string };
+}
+
+/** Whether safeStorage can keep the core's key here (src/core-key.ts). */
+async function secureStorageUsable(app: ElectronApplication): Promise<boolean> {
+  return app.evaluate(({ safeStorage }) => {
+    if (!safeStorage.isEncryptionAvailable()) {
+      return false;
+    }
+    const backend = process.platform === "linux" ? safeStorage.getSelectedStorageBackend() : "system";
+    return backend !== "basic_text" && backend !== "unknown";
+  });
+}
+
+/** The key, decrypted by the app's safeStorage. */
+function decryptKey(app: ElectronApplication, blob: string): Promise<string> {
+  return app.evaluate(({ safeStorage }, encrypted) => safeStorage.decryptString(Buffer.from(encrypted, "base64")), blob);
+}
+
+// CI sets MUSUBEE_REQUIRE_SAFESTORAGE on macOS and Linux, where it provides
+// a Keychain or a GNOME keyring: there, falling back to the plain key file
+// is a failure, not a skip.
+const requireSecureStorage = process.env["MUSUBEE_REQUIRE_SAFESTORAGE"] === "1";
+
+test("the core's key is kept by the system's secure storage, and opens the account again", async () => {
+  const dataDir = newDataDir();
+  let { app, page } = await launch(dataDir);
+  await addEchoAccount(page, "keyed");
+  await expect(page.getByText("Connected")).toBeVisible();
+  const usable = await secureStorageUsable(app);
+  const file = coreKeyFile(dataDir);
+  if (process.platform === "win32") {
+    expect(file.protection).toBe("dpapi");
+  } else {
+    expect(usable || !requireSecureStorage, "safeStorage is usable").toBe(true);
+    expect(file.protection).toBe(usable ? "electron-safestorage" : "none");
+  }
+  if (file.protection === "electron-safestorage") {
+    const key = await decryptKey(app, file.key);
+    expect(Buffer.from(key, "base64")).toHaveLength(32);
+    const log = readFileSync(join(dataDir, "core", "core.log"), "utf8");
+    expect(log).toContain('"protection":"host"');
+    expect(log).not.toContain(key);
+  }
+  await app.close();
+
+  // The account's sealed session opens with the same key.
+  ({ app, page } = await launch(dataDir));
+  await expect(page.getByText("Connected")).toBeVisible();
+  expect(coreKeyFile(dataDir)).toEqual(file);
+  await app.close();
+});
+
+test("a plain key file moves into the system's secure storage, and the account stays", async () => {
+  // Chromium's --password-store=basic exists on Linux only: it hides the
+  // keyring from the first start, so the core makes its plain key file.
+  test.skip(process.platform !== "linux", "Linux only");
+  const dataDir = newDataDir();
+  let { app, page } = await launch(dataDir, ["--password-store=basic"]);
+  await addEchoAccount(page, "moved");
+  await expect(page.getByText("Connected")).toBeVisible();
+  const plain = coreKeyFile(dataDir);
+  expect(plain.protection).toBe("none");
+  await app.close();
+
+  ({ app, page } = await launch(dataDir));
+  const usable = await secureStorageUsable(app);
+  expect(usable || !requireSecureStorage, "safeStorage is usable").toBe(true);
+  test.skip(!usable, "no keyring on this desktop");
+  await expect(page.getByText("Connected")).toBeVisible();
+  const moved = coreKeyFile(dataDir);
+  expect(moved.protection).toBe("electron-safestorage");
+  expect(await decryptKey(app, moved.key)).toBe(plain.key);
+  expect(readFileSync(join(dataDir, "core", "core.key"), "utf8")).not.toContain(plain.key);
   await app.close();
 });
 

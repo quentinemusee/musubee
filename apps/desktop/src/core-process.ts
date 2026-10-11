@@ -13,6 +13,9 @@
 //   unless it failed too often in a short time.
 // - stop() ends its input, which makes it close cleanly, and kills it if it
 //   does not exit in time.
+// - The master key of its secrets at rest, when the app keeps it
+//   (core-key.ts), is the first line of its input, at every start: never
+//   on its command line or in its environment (docs/ADR/0027).
 //
 // This module does not import Electron, so that it runs under plain Node in
 // the tests.
@@ -63,6 +66,7 @@ export class CoreProcess {
   #restartTimer: NodeJS.Timeout | null = null;
   #exited: Promise<void> = Promise.resolve();
   #startedAt = 0;
+  #databaseKey: string | undefined;
   readonly #statusListeners = new Set<(status: CoreStatus) => void>();
   readonly #eventListeners = new Set<(event: string) => void>();
   /** Start-up times of the core, from spawn to its first response, in milliseconds. */
@@ -98,12 +102,23 @@ export class CoreProcess {
     return () => this.#eventListeners.delete(listener);
   }
 
-  start(): void {
+  /**
+   * Starts the core. databaseKey, the master key in base64, is kept for the
+   * restarts; without it, the core keeps its own key file.
+   */
+  start(options: { databaseKey?: string } = {}): void {
     if (this.#child !== null || this.#stopping) {
       return;
     }
+    if (options.databaseKey !== undefined) {
+      this.#databaseKey = options.databaseKey;
+    }
     this.#startedAt = performance.now();
-    const child = spawn(this.#options.executable, ["-data", this.#options.dataDir, "-log-level", this.#options.logLevel], {
+    const args = ["-data", this.#options.dataDir, "-log-level", this.#options.logLevel];
+    if (this.#databaseKey !== undefined) {
+      args.push("-key-from-stdin");
+    }
+    const child = spawn(this.#options.executable, args, {
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
     });
@@ -128,9 +143,19 @@ export class CoreProcess {
       }
       exit();
     });
+    if (this.#databaseKey !== undefined) {
+      child.stdin.write(`${this.#databaseKey}\n`);
+    }
     // The core reads its input as soon as it has opened its database; this
     // first request tells when it is ready.
     this.#write(child, { id: PROBE_ID, command: "core.hello" });
+  }
+
+  /** Reports that the core cannot start, without starting it (a key that does not open). */
+  fail(reason: string): void {
+    if (this.#child === null && !this.#stopping) {
+      this.#setStatus({ state: "failed", reason });
+    }
   }
 
   /**
