@@ -450,13 +450,15 @@ function coreKeyFile(dataDir: string): { protection: string; key: string } {
 }
 
 /** Whether safeStorage can keep the core's key here (src/core-key.ts). */
-async function secureStorageUsable(app: ElectronApplication): Promise<boolean> {
+async function secureStorageUsable(app: ElectronApplication): Promise<{ usable: boolean; state: string }> {
   return app.evaluate(({ safeStorage }) => {
-    if (!safeStorage.isEncryptionAvailable()) {
-      return false;
-    }
+    const available = safeStorage.isEncryptionAvailable();
     const backend = process.platform === "linux" ? safeStorage.getSelectedStorageBackend() : "system";
-    return backend !== "basic_text" && backend !== "unknown";
+    // The state goes into the failure message: which backend Chromium chose.
+    return {
+      usable: available && backend !== "basic_text" && backend !== "unknown",
+      state: `safeStorage available: ${available}, backend: ${backend}`,
+    };
   });
 }
 
@@ -475,12 +477,12 @@ test("the core's key is kept by the system's secure storage, and opens the accou
   let { app, page } = await launch(dataDir);
   await addEchoAccount(page, "keyed");
   await expect(page.getByText("Connected")).toBeVisible();
-  const usable = await secureStorageUsable(app);
+  const { usable, state } = await secureStorageUsable(app);
   const file = coreKeyFile(dataDir);
   if (process.platform === "win32") {
     expect(file.protection).toBe("dpapi");
   } else {
-    expect(usable || !requireSecureStorage, "safeStorage is usable").toBe(true);
+    expect(usable || !requireSecureStorage, state).toBe(true);
     expect(file.protection).toBe(usable ? "electron-safestorage" : "none");
   }
   if (file.protection === "electron-safestorage") {
@@ -512,8 +514,8 @@ test("a plain key file moves into the system's secure storage, and the account s
   await app.close();
 
   ({ app, page } = await launch(dataDir));
-  const usable = await secureStorageUsable(app);
-  expect(usable || !requireSecureStorage, "safeStorage is usable").toBe(true);
+  const { usable, state } = await secureStorageUsable(app);
+  expect(usable || !requireSecureStorage, state).toBe(true);
   test.skip(!usable, "no keyring on this desktop");
   await expect(page.getByText("Connected")).toBeVisible();
   const moved = coreKeyFile(dataDir);

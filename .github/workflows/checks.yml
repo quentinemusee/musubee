@@ -528,9 +528,18 @@ jobs:
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
             sudo apt-get update -qq
-            sudo apt-get install -y -qq xvfb gnome-keyring dbus-daemon
+            sudo apt-get install -y -qq xvfb gnome-keyring dbus-daemon libsecret-tools
+            # The login keyring, created with an empty password and unlocked,
+            # then its Secret Service on the session bus. secret-tool checks
+            # it before the tests, so that a broken keyring on the runner is
+            # not taken for a failure of the app.
             dbus-run-session -- bash -c '
+              set -e
               printf "" | gnome-keyring-daemon --unlock --components=secrets >/dev/null
+              eval "$(gnome-keyring-daemon --start --components=secrets)"
+              printf probe | secret-tool store --label=musubee-ci-probe musubee ci-probe
+              test "$(secret-tool lookup musubee ci-probe)" = probe
+              echo "keyring ready"
               XDG_CURRENT_DESKTOP=GNOME xvfb-run --auto-servernum npm run test:e2e'
           else
             npm run test:e2e
