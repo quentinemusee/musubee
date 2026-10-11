@@ -1,0 +1,292 @@
+# SPDX-FileCopyrightText: 2026 Quentin Raimbaud
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# T2.6 spike: can the Signal connector's native part, libsignal's C API
+# (libsignal-ffi, Rust), be built for every target of the core, and what does
+# it cost? It builds mautrix-signal's pinned libsignal on Linux, macOS,
+# Windows (x86_64-pc-windows-gnu, linked by MSYS2 UCRT64's GCC like the core,
+# docs/ADR/0010) and Android (the four ABIs, with the NDK of the app), prints
+# the archive sizes and the native libraries Rust wants linked, runs the Go
+# tests of libsignalgo on the desktop systems, and builds mautrix-signal's
+# bridge binary as a size estimate. Nothing is added to the core. Results and
+# what each step works around: docs/ADR/0022-signal-on-device-spike.md.
+#
+# It runs by hand and on pull requests that change it, so that the spike can
+# be repeated when mautrix-signal or libsignal moves (about 20 minutes, the
+# Windows job being the longest). The downloads (Rust crates, protoc, CMake,
+# the NDK) happen on GitHub's runners, never on a developer's machine.
+
+name: libsignal-spike
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/libsignal-spike.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The latest mautrix-signal release, and the libsignal commit it pins as a
+  # submodule (pkg/libsignalgo/libsignal).
+  SIGNAL_REF: v0.2609.0
+  NDK_VERSION: 28.2.13676358
+  # The app's minSdkVersion (apps/mobile/android/variables.gradle).
+  ANDROID_API: "24"
+  CARGO_TERM_COLOR: never
+
+jobs:
+  desktop:
+    name: libsignal-ffi (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: mautrix/signal
+          ref: ${{ env.SIGNAL_REF }}
+          submodules: true
+          path: signal
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.27.1"
+          cache: false
+
+      - name: Install the build tools (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq protobuf-compiler clang libclang-dev cmake > /dev/null
+
+      - name: Install the build tools (macOS)
+        if: runner.os == 'macOS'
+        run: brew install protobuf cmake
+
+      # The core is built with MSYS2 UCRT64's GCC on Windows (ADR 0010):
+      # libsignal must therefore be a GNU-ABI static library. Rust's GNU
+      # toolchain is the host, not only the target: with the MSVC host,
+      # boring-sys treats the build as cross-compiling and CMake picks cl.
+      - name: Install the build tools (Windows, MSYS2 UCRT64)
+        if: runner.os == 'Windows'
+        run: |
+          /c/msys64/usr/bin/pacman.exe -S --noconfirm --needed \
+            mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake \
+            mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-nasm \
+            mingw-w64-ucrt-x86_64-clang mingw-w64-ucrt-x86_64-protobuf \
+            mingw-w64-ucrt-x86_64-dlfcn mingw-w64-ucrt-x86_64-zlib > /dev/null
+          echo "C:\\msys64\\ucrt64\\bin" >> "$GITHUB_PATH"
+          {
+            echo "LIBCLANG_PATH=C:\\msys64\\ucrt64\\bin"
+            echo "CMAKE_GENERATOR=Ninja"
+            echo "RUSTUP_TOOLCHAIN=$(cat signal/pkg/libsignalgo/libsignal/rust-toolchain)-x86_64-pc-windows-gnu"
+            echo "CC=gcc"
+            echo "CXX=g++"
+          } >> "$GITHUB_ENV"
+
+      - name: Tool versions
+        working-directory: signal/pkg/libsignalgo/libsignal
+        run: |
+          if [ -n "${RUSTUP_TOOLCHAIN:-}" ]; then
+            rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+          else
+            rustup show active-toolchain || rustup toolchain install "$(cat rust-toolchain)" --profile minimal
+          fi
+          rustc --version; cargo --version; go version
+          protoc --version; cmake --version | head -1
+          gcc --version | head -1 || true; clang --version | head -1 || true
+
+      # The BoringSSL of signalapp/boring signal-v5.2.0 calls
+      # fiat_p256_adx_mul and fiat_p256_adx_sqr whenever GCC targets x86_64,
+      # but their assembly is only built for ELF and Apple targets: MinGW
+      # links fail on these two symbols (run 38141910249). Upstream BoringSSL
+      # has since narrowed the condition to ELF and Apple; apply the same
+      # condition to the fetched sources.
+      - name: Patch BoringSSL's P-256 assembly condition (Windows)
+        if: runner.os == 'Windows'
+        working-directory: signal/pkg/libsignalgo/libsignal
+        run: |
+          cargo fetch > /dev/null
+          header=$(find "$(cygpath "$USERPROFILE")/.cargo" -path '*boringssl/third_party/fiat/p256_64.h' | head -1)
+          echo "Patching $header"
+          sed -i 's/^#if !defined(OPENSSL_NO_ASM) \&\& defined(__GNUC__) \&\& defined(__x86_64__)$/#if !defined(OPENSSL_NO_ASM) \&\& defined(__GNUC__) \&\& defined(__x86_64__) \&\& (defined(__ELF__) || defined(__APPLE__))/' "$header"
+          # Three lines carry the condition; anything else means boring-sys
+          # changed and this patch must be looked at again.
+          test "$(grep -c '(defined(__ELF__) || defined(__APPLE__))' "$header")" = 3
+
+      - name: Build libsignal-ffi
+        working-directory: signal/pkg/libsignalgo/libsignal
+        run: |
+          start=$(date +%s)
+          # build-rust.sh of mautrix-signal, plus the list of native libraries.
+          RUSTFLAGS="-Ctarget-feature=-crt-static --print native-static-libs" RUSTC_WRAPPER="" \
+            cargo build -p libsignal-ffi --profile=release 2>&1 | tee ../../../../build.log
+          echo "Build time: $(( $(date +%s) - start )) s"
+          dir=target/release
+          ls -l "$dir"/libsignal_ffi.a
+          echo "LIBSIGNAL_DIR=$PWD/$dir" >> "$GITHUB_ENV"
+
+      - name: Native libraries Rust wants linked
+        run: grep -h "native-static-libs" build.log | sort -u
+
+      # mautrix-signal's cgo flags (pkg/libsignalgo/cflags.go) are enough on
+      # Linux and macOS. On Windows, Go's link step also needs the system
+      # libraries that rustc lists, and the directory of libwindows.0.52.0.a,
+      # an import library that cargo passes to rustc with -L: the one of the
+      # windows_x86_64_gnu crate, since cargo fetch downloads the crates of
+      # every target and an aarch64 copy links with "machine type arm64
+      # conflicts with x64" (run 38143238631).
+      - name: Link flags
+        run: |
+          flags=""
+          if [ "$RUNNER_OS" = Windows ]; then
+            winlib=$(dirname "$(find "$(cygpath "$USERPROFILE")/.cargo/registry/src" -path '*/windows_x86_64_gnu-*/lib/libwindows.0.52.0.a' | head -1)")
+            flags="-L$winlib $(grep -h "native-static-libs:" build.log | head -1 | sed 's/.*native-static-libs: //')"
+          fi
+          echo "CGO_LDFLAGS: $flags"
+          echo "SIGNAL_CGO_LDFLAGS=$flags" >> "$GITHUB_ENV"
+
+      # In bash steps on Windows, Git's /mingw64/bin comes before UCRT64's
+      # bin even when UCRT64 is added to GITHUB_PATH: UCRT64's ld then loads
+      # Git's MinGW DLLs and exits with status 1 or 5 without a message
+      # (runs 38138873227, 38140618561; CLAUDE.md section 8). Put UCRT64 first
+      # in each step that links.
+      - name: Go tests of libsignalgo
+        working-directory: signal
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then export PATH="/c/msys64/ucrt64/bin:$PATH"; fi
+          export LIBRARY_PATH="$LIBSIGNAL_DIR"
+          CGO_LDFLAGS="$SIGNAL_CGO_LDFLAGS" go test -count=1 ./pkg/libsignalgo/...
+
+      - name: Size of mautrix-signal's bridge binary (stripped)
+        working-directory: signal
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then export PATH="/c/msys64/ucrt64/bin:$PATH"; fi
+          export LIBRARY_PATH="$LIBSIGNAL_DIR"
+          CGO_LDFLAGS="$SIGNAL_CGO_LDFLAGS" go build -tags=goolm -trimpath -ldflags="-s -w" -o mautrix-signal.bin ./cmd/mautrix-signal
+          ls -l mautrix-signal.bin
+
+  android:
+    name: libsignal-ffi (Android ${{ matrix.abi }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: arm64-v8a
+            rust: aarch64-linux-android
+            clang: aarch64-linux-android
+            goarch: arm64
+          - abi: armeabi-v7a
+            rust: armv7-linux-androideabi
+            clang: armv7a-linux-androideabi
+            goarch: arm
+          - abi: x86_64
+            rust: x86_64-linux-android
+            clang: x86_64-linux-android
+            goarch: amd64
+          - abi: x86
+            rust: i686-linux-android
+            clang: i686-linux-android
+            goarch: "386"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        # bash with pipefail, so that "cargo build | tee" fails with cargo.
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: mautrix/signal
+          ref: ${{ env.SIGNAL_REF }}
+          submodules: true
+          path: signal
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.27.1"
+          cache: false
+
+      - name: Install the build tools and the NDK
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq protobuf-compiler clang libclang-dev cmake > /dev/null
+          # yes ends with SIGPIPE when sdkmanager exits: not a failure.
+          { yes || :; } | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION" > /dev/null
+          ndk="$ANDROID_HOME/ndk/$NDK_VERSION"
+          bin="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          echo "ANDROID_NDK_HOME=$ndk" >> "$GITHUB_ENV"
+          echo "NDK_BIN=$bin" >> "$GITHUB_ENV"
+          echo "NDK_CC=$bin/${{ matrix.clang }}${ANDROID_API}-clang" >> "$GITHUB_ENV"
+
+      # The environment of libsignal's own Android build (java/build_jni.sh):
+      # the NDK's clang as C compiler and linker, size-optimised release
+      # profile, static libc++ for BoringSSL.
+      - name: Build libsignal-ffi
+        working-directory: signal/pkg/libsignalgo/libsignal
+        run: |
+          rustup show active-toolchain || rustup toolchain install "$(cat rust-toolchain)" --profile minimal
+          rustup target add "${{ matrix.rust }}"
+          rustc --version
+          triple_env=$(echo "${{ matrix.rust }}" | tr '[:lower:]-' '[:upper:]_')
+          triple_cc=$(echo "${{ matrix.rust }}" | tr '-' '_')
+          export "CC_${triple_cc}=$NDK_CC"
+          export "CARGO_TARGET_${triple_env}_LINKER=$NDK_CC"
+          export TARGET_AR="$NDK_BIN/llvm-ar"
+          export CARGO_PROFILE_RELEASE_OPT_LEVEL=s
+          export CARGO_PROFILE_RELEASE_LTO=fat
+          export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+          export CFLAGS="-DOPENSSL_SMALL"
+          export CXXFLAGS="-DOPENSSL_SMALL"
+          export BORING_BSSL_RUST_CPPLIB="static:-bundle=c++"
+          start=$(date +%s)
+          RUSTFLAGS="--cfg aes_armv8 --cfg curve25519_dalek_bits=\"64\" --print native-static-libs" RUSTC_WRAPPER="" \
+            cargo build -p libsignal-ffi --profile=release --target "${{ matrix.rust }}" 2>&1 | tee ../../../../build.log
+          echo "Build time: $(( $(date +%s) - start )) s"
+          dir="target/${{ matrix.rust }}/release"
+          ls -l "$dir"/libsignal_ffi.a
+          echo "LIBSIGNAL_DIR=$PWD/$dir" >> "$GITHUB_ENV"
+
+      - name: Native libraries Rust wants linked
+        run: grep -h "native-static-libs" build.log | sort -u
+
+      # Cross-compiled only: running needs an emulator or a device.
+      - name: Link the Go tests of libsignalgo (mautrix-signal's link flags)
+        working-directory: signal
+        env:
+          CGO_ENABLED: "1"
+          GOOS: android
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          export CC="$NDK_CC" CGO_LDFLAGS="-L$LIBSIGNAL_DIR"
+          go test -c -o libsignalgo.test ./pkg/libsignalgo
+          ls -l libsignalgo.test
+
+      - name: Size of mautrix-signal's bridge binary for Android (stripped)
+        working-directory: signal
+        env:
+          CGO_ENABLED: "1"
+          GOOS: android
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          export CC="$NDK_CC" CGO_LDFLAGS="-L$LIBSIGNAL_DIR -static-libstdc++ -lc++abi"
+          go build -tags=goolm -trimpath -ldflags="-s -w" -o mautrix-signal.bin ./cmd/mautrix-signal
+          ls -l mautrix-signal.bin
