@@ -80,7 +80,6 @@ function byLabel(predicate, kind = "*") {
 }
 
 const exactly = (label) => (attr) => `${attr}="${label}"`;
-const containing = (label) => (attr) => `contains(${attr}, "${label}")`;
 const BUTTON = "android.widget.Button";
 
 // Waits for an element, closing an "isn't responding" dialog of another app
@@ -143,7 +142,9 @@ test(
     await (await waitFor(exactly("Instant Echo"), "Instant Echo in the inbox", { kind: BUTTON })).click();
 
     const text = "hello from Appium";
-    await typeInto(await waitFor(containing("Write a message"), "the composer", { kind: "android.widget.EditText" }), text);
+    // Its label: WebView 83 adds the placeholder to the hint, 124 does not.
+    const composer = (attr) => `starts-with(${attr}, "Message")`;
+    await typeInto(await waitFor(composer, "the composer", { kind: "android.widget.EditText" }), text);
     await (await waitFor(exactly("Send"), "the Send button", { kind: BUTTON })).click();
     await waitFor(exactly(`Instant Echo: ${text}`), "the echo");
 
