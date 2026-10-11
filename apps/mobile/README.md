@@ -75,6 +75,28 @@ ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest   -Pandroi
 
 Without them it is skipped (`musubeeTgRequire=1` makes it fail instead, as in CI). It logs timings and memory under the tag `MusubeeTelegramTest`, never the tokens nor the messages.
 
+### Signal
+
+The app offers Signal only when it is built with it (ADR 0029), and should not reach users with it yet: ADR 0025 leaves an open point before any app ships Signal. Prepare libsignal-ffi once per ABI with the build script of ADR 0028 (Rust, cmake, protoc and the NDK; about 5 minutes per ABI, more on Windows), into one directory per ABI:
+
+```
+ANDROID_NDK_HOME=<sdk>/ndk/28.2.13676358 scripts/build-libsignal.sh <dir>/x86_64 x86_64
+```
+
+On Windows, run it in Git Bash with MSYS2 UCRT64 first in `PATH`, as for the desktop build (`CLAUDE.md` section 8). Then pass the service and the directory to every Gradle command, for example:
+
+```
+./gradlew -Pmusubee.abis=x86_64 -Pmusubee.signal=staging -Pmusubee.libsignal=<dir> :app:assembleDebug
+```
+
+`musubee.signal` is `staging` (Signal's test service, which CI uses) or `production`. Each selected ABI needs its `libsignal_ffi.a`; the build stops with the command to run when one is missing. `BuildConfig.SIGNAL_ENVIRONMENT` holds the service, and the core service adds `"signal"` to the core's configuration. The interface then offers Signal's QR code login; it shows the code as text, and linking from the phone that runs Signal is an open question (ADR 0029).
+
+The instrumented test `SignalTest` checks that the core offers Signal and that the QR login returns a linking code from Signal's service, then cancels it; it needs network access, no phone. It is skipped in builds without Signal (`musubeeSignalRequire=1` makes it fail instead, as in CI):
+
+```
+ANDROID_SERIAL=emulator-5554 ./gradlew -Pmusubee.abis=x86_64 -Pmusubee.signal=staging -Pmusubee.libsignal=<dir> :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.musubee.core.SignalTest
+```
+
 ### Measurements
 
 - `ANDROID_SERIAL=emulator-5554 ./measure-core.sh 5` runs `CoreLibraryTest#measurements` 5 times in fresh processes and prints one JSON line per run: call cost, round trip, memory.
