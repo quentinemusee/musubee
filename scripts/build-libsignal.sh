@@ -52,9 +52,9 @@ if [ -n "$abi" ]; then
     *) echo "unknown Android ABI $abi: arm64-v8a, armeabi-v7a, x86_64 or x86" >&2; exit 2 ;;
   esac
   case "$(uname -s)" in
-    Linux) ndk_host=linux-x86_64 ;;
-    Darwin) ndk_host=darwin-x86_64 ;;
-    MINGW* | MSYS* | CYGWIN*) ndk_host=windows-x86_64 ;;
+    Linux) ndk_host="linux-x86_64" ;;
+    Darwin) ndk_host="darwin-x86_64" ;;
+    MINGW* | MSYS* | CYGWIN*) ndk_host="windows-x86_64" ;;
     *) echo "no Android NDK for this host: $(uname -s)" >&2; exit 2 ;;
   esac
   ndk_bin=${ANDROID_NDK_HOME:?Android builds need ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/$ndk_host/bin
