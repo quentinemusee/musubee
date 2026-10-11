@@ -142,6 +142,12 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 - 🧪 Test: the copy's store on a real SQLite database with real libsignal objects, the core's sealer, and the staging journey checking `core.db`.
 - Outcome: signalmeow's store, in our copy, seals its nineteen secret columns (the device's keys and password, sessions, pre-keys, sender keys, profile keys, group master keys, the event buffer and the backup tables) in Go, before each query and when each row is scanned, with a sealer per store (change 2 of `MUSUBEE.md`, ADR 0026); with a sealer, a value that does not open is an error. The core requires the master key for Signal and seals with AES-256-GCM, one derived key per column (`signal/` purposes). ADR 0019's driver was not extended: signalmeow's generic column names would need a SQL parser on every read. Names and phone numbers stay in clear, like the rest of the core's personal data. Verified on Windows: the copy's tests (every column sealed, read back, refused in clear; the test caught a column unsealed by hand), the core's tests with and without Signal, lint, and the staging journey (every sealed column of `core.db` holds only sealed values). Left before an app ships Signal: the sender certificate outcome (ADR 0025), libsignal for Android on CI, the connector in the apps.
 
+**T2.11 — libsignal for Android on CI** (E2.9)
+- Deliverable: what ADR 0025 and ADR 0026 left before the Android app gets Signal: libsignal-ffi built for Android by the repository's build script and cached on CI, and the Signal code tested on Android, not only linked; ADR.
+- Acceptance: the tests of the mautrix-signal copy and of the core's Signal code pass on an Android emulator; arm64-v8a links; no binary needs `libc++_shared.so`.
+- 🧪 Test: the test binaries, built with `GOOS=android`, run on CI's x86_64 emulator with adb.
+- Outcome: in progress (ADR 0028).
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).
