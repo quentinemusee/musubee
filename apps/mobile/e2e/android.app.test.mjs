@@ -18,8 +18,9 @@
 // Run: npm run test:android:app
 //
 // The page is read through UiAutomator2, which sees the accessibility tree
-// of the web view: no chromedriver is needed. An element's accessible name
-// is its text, and its accessible description (aria-describedby) its hint.
+// of the web view: no chromedriver is needed. A button's accessible name
+// is its text, and its accessible description (aria-describedby) its hint;
+// a text field's label is its hint.
 
 import { after, before, test } from "node:test";
 import { existsSync, readFileSync } from "node:fs";
