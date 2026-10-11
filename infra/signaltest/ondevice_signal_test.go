@@ -38,8 +38,12 @@ import (
 	"testing"
 	"time"
 
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
+
 	"github.com/quentinemusee/musubee/core/api"
 	"github.com/quentinemusee/musubee/core/embedded"
+	"github.com/quentinemusee/musubee/core/secrets"
+	"github.com/quentinemusee/musubee/core/storage/sqlite"
 	"github.com/quentinemusee/musubee/infra/coretest"
 )
 
@@ -257,13 +261,18 @@ func TestSignalOnDevice(t *testing.T) {
 	t.Logf("core memory: heap %.1f MiB in use, %.1f MiB from the system; %d goroutines",
 		float64(stats.HeapAllocBytes)/(1<<20), float64(stats.HeapSysBytes)/(1<<20), stats.Goroutines)
 
-	// 4. Log out: the core unlinks itself.
+	// 4. The secrets are sealed in the database (ADR 0019 and 0026), while
+	// the account is linked: logging out deletes them.
+	coretest.CheckSessionsSealed(t, dataDir)
+	checkSignalStoreSealed(t, dataDir)
+
+	// 5. Log out: the core unlinks itself.
 	coretest.Call(t, c, api.CommandAccountsLogout, api.AccountsLogoutParams{AccountID: account}, nil)
 	if err := c.Close(); err != nil {
 		t.Errorf("closing the core: %v", err)
 	}
 
-	// 5. The log holds neither message.
+	// 6. The log holds neither message.
 	logData, err := os.ReadFile(filepath.Join(dataDir, "core.log"))
 	if err != nil {
 		t.Fatal(err)
@@ -272,5 +281,40 @@ func TestSignalOnDevice(t *testing.T) {
 		if strings.Contains(string(logData), text) {
 			t.Errorf("core.log contains %s", what)
 		}
+	}
+}
+
+// checkSignalStoreSealed checks that every value of signalmeow's sealed
+// columns is sealed in the core's database, and that the columns a linked
+// account always fills hold values. It never prints a value.
+func checkSignalStoreSealed(t *testing.T, dataDir string) {
+	t.Helper()
+	db, err := sqlite.Open(filepath.Join(dataDir, "core.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	filled := map[string]bool{
+		store.PurposeDeviceACIIdentityKeyPair: true,
+		store.PurposeDevicePNIIdentityKeyPair: true,
+		store.PurposeDevicePassword:           true,
+		store.PurposeSessionRecord:            true,
+		store.PurposePreKey:                   true,
+		store.PurposeKyberPreKey:              true,
+	}
+	for _, purpose := range store.Purposes {
+		table, column, _ := strings.Cut(purpose, ".")
+		var total, sealed int
+		query := fmt.Sprintf("SELECT COUNT(%[1]s), COUNT(CASE WHEN CAST(%[1]s AS TEXT) LIKE '%[2]s%%' THEN 1 END) FROM %[3]s", column, secrets.SealedPrefix, table)
+		if err := db.QueryRow(t.Context(), query).Scan(&total, &sealed); err != nil {
+			t.Fatal(err)
+		}
+		if sealed != total {
+			t.Errorf("%s: %d of %d values stored in clear", purpose, total-sealed, total)
+		}
+		if filled[purpose] && total == 0 {
+			t.Errorf("%s holds no value", purpose)
+		}
+		t.Logf("%s: %d values, %d sealed", purpose, total, sealed)
 	}
 }
