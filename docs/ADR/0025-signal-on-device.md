@@ -23,7 +23,7 @@ ADR 0022 found Signal on the device feasible: libsignal's C library (`libsignal-
 4. **The copy can talk to staging**: `signalmeow.SetEnvironment` (new file `environment.go`) points the host names, the gRPC target, the contact discovery server and enclave, and the zkgroup parameters at production or staging; they were constants upstream. The choice applies to the whole process (package variables): a second connector asking for another service gets `ErrEnvironmentChanged`.
 5. **No application ships Signal yet**, for two reasons: the secrets at rest (below), and the outcome of the sender certificate analysis (below). The desktop and Android builds keep building without the tag.
 6. **CI builds libsignal-ffi and caches it** (`scripts/build-libsignal.sh`, the `signal` job of `checks.yml`), on Linux, Windows and macOS, then runs the copy's tests and the core's Signal tests with the tag.
-7. **The journey test** (`infra/signaltest`) runs against staging with signal-cli as the user's phone. It needs the maintainer's staging registration (`infra/signaltest/register-staging.ps1`), so it has not run yet.
+7. **The journey test** (`infra/signaltest`) runs against staging with signal-cli as the user's phone. The maintainer registered their number on staging once (`infra/signaltest/register-staging.ps1`); the test passed on the first run (see Measurements). It runs on the maintainer's machine, not on CI yet.
 
 ### Staging values
 
@@ -71,7 +71,18 @@ Windows 11, Go 1.27.1, MSYS2 UCRT64 GCC 16.2.0, 2026-10-11; `musubee-core.exe` b
 | `-tags=goolm` (pure Go, what the desktop app ships today) | 56.3 MB |
 | `-tags=goolm,musubee_signal` (cgo, libsignal-ffi linked statically) | 96.3 MB |
 
-Signal adds 40 MB to the Windows core, on top of the 36 MB that Telegram added (ADR 0014). Most of it is libsignal: ADR 0022 measured mautrix-signal's whole bridge at 60 MB. Shrinking it (lld, stripping the archive's debug sections, which ADR 0022 found link the same) is left for when the desktop app ships Signal. Not measured yet: the Android size, and the core's memory with a Signal account.
+Signal adds 40 MB to the Windows core, on top of the 36 MB that Telegram added (ADR 0014). Most of it is libsignal: ADR 0022 measured mautrix-signal's whole bridge at 60 MB. Shrinking it (lld, stripping the archive's debug sections, which ADR 0022 found link the same) is left for when the desktop app ships Signal. Not measured yet: the Android size.
+
+The staging journey (`infra/signaltest`, Windows, signal-cli 0.14.9 on Java 25, 2026-10-11), first run:
+
+| Step | Time |
+|---|---|
+| QR code shown to the core linked (signal-cli `addDevice`) | 9.6 s |
+| Note to Self from the phone to the core | 4.9 s |
+| Answer from the core seen by the phone | 18.6 s (an upper bound: signal-cli receives in polls of up to 10 s) |
+| Whole test, logout and checks included | 54.8 s |
+
+The phone's device list then read `["" "Musubee"]` (the primary device has no name). The core, linked and connected, used 4.6 MiB of heap, 13.2 MiB from the system, and 31 goroutines: one measurement, on the desktop.
 
 ## Licenses
 
@@ -86,8 +97,8 @@ mautrix-signal is AGPL-3.0-or-later, with files from Signal under AGPL-3.0-only;
 | mautrix-signal's own tests (libsignalgo, signalmeow) pass on our copy | **verified** (Windows); Linux and macOS on CI | the `signal` job |
 | `SetEnvironment` switches every value above and back | **verified** (Go test) | `environment_musubee_test.go` |
 | The staging values are Signal's | **verified** (read in Signal-Android, libsignal v0.102.2 and signal-cli 0.14.9) | see Sources |
-| The core links to a staging account and exchanges Note to Self messages both ways | **unknown**: the journey test is written, not run (needs the maintainer's registration) | `infra/signaltest` |
-| The core's log holds no message text during the journey | **unknown**: checked by the journey test | same |
+| The core links to a staging account and exchanges Note to Self messages both ways | **verified** (Windows, staging, 2026-10-11); not on CI yet | `infra/signaltest` |
+| The core's log holds no message text during the journey | **verified** (same run) | same |
 | libsignal-ffi builds and the tests pass on CI's three systems with the cache | **verified once the pull request's CI is green** | the `signal` job |
 | Memory and battery cost of Signal in the core on Android | **unknown**: measured when the connector goes into the Android build | — |
 | signalmeow's secrets are in plaintext in the database | **verified** (read in the schema) | `pkg/signalmeow/store/upgrades/00-latest.sql` |
