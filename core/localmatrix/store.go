@@ -546,13 +546,15 @@ func (s *store) advanceReadMarker(ctx context.Context, roomID id.RoomID, order i
 	return n > 0, err
 }
 
-// unreadQuery counts, up to a limit, the messages of others after the
-// user's read position, which is the read marker or the user's own last
-// message, whichever is later: writing in a room implies reading it.
+// unreadQuery counts, up to a limit ($3), the messages of others stored
+// up to a stream order ($4) after the user's read position, which is the
+// read marker or the user's own last message, whichever is later: writing
+// in a room implies reading it.
 const unreadQuery = `
 SELECT COUNT(*) FROM (
 	SELECT 1 FROM local_event
 	WHERE room_id=$1 AND event_type='m.room.message' AND state_key IS NULL AND sender<>$2
+	  AND stream_order <= $4
 	  AND stream_order > MAX(
 		COALESCE((SELECT stream_order FROM local_read_marker WHERE room_id=$1), 0),
 		COALESCE((SELECT MAX(stream_order) FROM local_event
@@ -560,9 +562,11 @@ SELECT COUNT(*) FROM (
 	LIMIT $3
 )`
 
-func (s *store) readState(ctx context.Context, roomID id.RoomID, userID id.UserID) (*ReadState, error) {
+// readState returns the user's read state of a room, counting the messages
+// stored up to upTo.
+func (s *store) readState(ctx context.Context, roomID id.RoomID, userID id.UserID, upTo int64) (*ReadState, error) {
 	var st ReadState
-	if err := s.db.QueryRow(ctx, unreadQuery, roomID, userID, MaxUnread).Scan(&st.Unread); err != nil {
+	if err := s.db.QueryRow(ctx, unreadQuery, roomID, userID, MaxUnread, upTo).Scan(&st.Unread); err != nil {
 		return nil, err
 	}
 	var marked event.MarkedUnreadEventContent

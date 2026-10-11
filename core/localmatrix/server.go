@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"sync"
 	"time"
@@ -457,7 +458,14 @@ func (s *Server) BridgeState(ctx context.Context, bridgeID, loginID string) (*Br
 
 // ReadState returns the device user's read state of a room.
 func (s *Server) ReadState(ctx context.Context, roomID id.RoomID) (*ReadState, error) {
-	return s.store.readState(ctx, roomID, s.userID)
+	return s.store.readState(ctx, roomID, s.userID, math.MaxInt64)
+}
+
+// ActivityReadState returns the device user's read state of a room as of
+// its activity: the messages stored after ra.LastMessage do not count, so
+// that a count and a last message read a moment apart agree.
+func (s *Server) ActivityReadState(ctx context.Context, ra *RoomActivity) (*ReadState, error) {
+	return s.store.readState(ctx, ra.Room.ID, s.userID, ra.lastOrder)
 }
 
 // MarkRead records that the user read a room up to a message, as a Matrix
