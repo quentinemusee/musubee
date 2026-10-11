@@ -1,4 +1,4 @@
--- v0 -> v2 (compatible with v1+): Latest revision
+-- v0 -> v3 (compatible with v1+): Latest revision
 -- SPDX-FileCopyrightText: 2026 Quentin Raimbaud
 -- SPDX-License-Identifier: AGPL-3.0-or-later
 --
@@ -67,7 +67,15 @@ CREATE TABLE local_profile (
     extra       TEXT NOT NULL
 );
 
--- Per-user room data: tags, mute, unread marker, read receipt.
+-- The device user's read position in each room (v3): the messages of others
+-- stored after it are unread. It only moves forward.
+CREATE TABLE local_read_marker (
+    room_id      TEXT   NOT NULL PRIMARY KEY REFERENCES local_room (room_id) ON DELETE CASCADE,
+    stream_order BIGINT NOT NULL,
+    updated_at   BIGINT NOT NULL
+);
+
+-- Per-user room data: tags, mute, "marked as unread", read receipts of others.
 CREATE TABLE local_room_account_data (
     user_id    TEXT NOT NULL,
     room_id    TEXT NOT NULL REFERENCES local_room (room_id) ON DELETE CASCADE,

@@ -542,3 +542,157 @@ func roomIDs(rooms []*localmatrix.RoomActivity) []id.RoomID {
 	}
 	return ids
 }
+
+func TestReadState(t *testing.T) {
+	server := newServer(t, localmatrix.Options{})
+	conn := newConnector(t, server, "echo")
+	ctx := t.Context()
+	roomID := createDM(t, server, conn, "alice")
+	alice := conn.GhostIntent("alice")
+	user, _, err := conn.NewUserIntent(ctx, server.UserID(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	send := func(intent bridgev2.MatrixAPI, body string) id.EventID {
+		t.Helper()
+		resp, err := intent.SendMessage(ctx, roomID, event.EventMessage, &event.Content{
+			Parsed: &event.MessageEventContent{MsgType: event.MsgText, Body: body},
+		}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resp.EventID
+	}
+	updates, unsubscribe := server.Subscribe(1000)
+	defer unsubscribe()
+	// readUpdates returns how many read state updates of the room were
+	// published since the last call.
+	readUpdates := func() int {
+		n := 0
+		for len(updates) > 0 {
+			if update := <-updates; update.ReadState == roomID {
+				n++
+			} else if update.ReadState != "" {
+				t.Errorf("read state update of another room: %s", update.ReadState)
+			}
+		}
+		return n
+	}
+	expect := func(what string, unread int, marked bool) {
+		t.Helper()
+		st, err := server.ReadState(ctx, roomID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if st.Unread != unread || st.MarkedUnread != marked {
+			t.Errorf("%s: read state %+v, want %d unread, marked unread %v", what, *st, unread, marked)
+		}
+	}
+
+	// The room's state events are not messages, so they are never unread.
+	expect("new room", 0, false)
+	send(alice, "1")
+	send(alice, "2")
+	send(alice, "3")
+	expect("three messages from Alice", 3, false)
+	send(user, "mine")
+	expect("after the user wrote", 0, false)
+	first := send(alice, "4")
+	send(alice, "5")
+	expect("two more", 2, false)
+	readUpdates()
+
+	if err = server.MarkRead(ctx, roomID, first); err != nil {
+		t.Fatal(err)
+	}
+	expect("read up to message 4", 1, false)
+	if n := readUpdates(); n != 1 {
+		t.Errorf("reading published %d updates, want 1", n)
+	}
+	// Going back changes nothing.
+	if err = server.MarkRead(ctx, roomID, first); err != nil {
+		t.Fatal(err)
+	}
+	if n := readUpdates(); n != 0 {
+		t.Errorf("reading again published %d updates, want none", n)
+	}
+	if err = server.MarkRead(ctx, roomID, "$unknown"); !errors.Is(err, localmatrix.ErrNotFound) {
+		t.Errorf("MarkRead of an unknown event: %v, want ErrNotFound", err)
+	}
+
+	// Alice's own receipts do not touch the user's read state.
+	if err = alice.MarkRead(ctx, roomID, "$whatever", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	expect("after Alice's receipt", 1, false)
+
+	// The user read the room in another app: the network names an event
+	// this storage may not have, and the time of the receipt places it.
+	if err = user.MarkRead(ctx, roomID, "$from-the-network", time.Now().Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	expect("read on another device", 0, false)
+	if n := readUpdates(); n != 1 {
+		t.Errorf("a read on another device published %d updates, want 1", n)
+	}
+
+	// Marked as unread on another device, then read here.
+	if err = user.MarkUnread(ctx, roomID, true); err != nil {
+		t.Fatal(err)
+	}
+	expect("marked unread", 0, true)
+	if err = alice.MarkUnread(ctx, roomID, false); err != nil {
+		t.Fatal(err)
+	}
+	expect("Alice's flag", 0, true)
+	last := send(alice, "6")
+	readUpdates()
+	if err = server.MarkRead(ctx, roomID, last); err != nil {
+		t.Fatal(err)
+	}
+	expect("read here", 0, false)
+	if n := readUpdates(); n != 1 {
+		t.Errorf("reading a marked room published %d updates, want 1", n)
+	}
+}
+
+// TestUpgradeFromV2 checks the migration that adds the read markers to a
+// database written before them.
+func TestUpgradeFromV2(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "core.db")
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := localmatrix.New(db, localmatrix.Options{Log: zerolog.Nop()})
+	if err = server.Upgrade(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	roomID := createDM(t, server, newConnector(t, server, "echo"), "alice")
+	// Back to version 2, as the core of T2.5 left it.
+	if _, err = db.Exec(t.Context(), `DROP TABLE local_read_marker; UPDATE local_version SET version=2`); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+
+	db, err = sqlite.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	server = localmatrix.New(db, localmatrix.Options{Log: zerolog.Nop()})
+	if err = server.Upgrade(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	evt, err := server.MessagesBefore(t.Context(), roomID, 0, 1)
+	if err != nil || len(evt) != 0 {
+		t.Fatalf("MessagesBefore = %v, %v", evt, err)
+	}
+	timeline, err := server.Timeline(t.Context(), roomID, 0, 1)
+	if err != nil || len(timeline) != 1 {
+		t.Fatalf("Timeline = %v, %v", timeline, err)
+	}
+	if err = server.MarkRead(t.Context(), roomID, timeline[0].ID); err != nil {
+		t.Errorf("MarkRead after the upgrade: %v", err)
+	}
+}

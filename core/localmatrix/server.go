@@ -182,6 +182,9 @@ type Update struct {
 	MessageStatus *MessageStatus
 	// BridgeState is the new connection state of a bridge or a login.
 	BridgeState *BridgeState
+	// ReadState is a room whose read state (ReadState) changed for the
+	// device user: read on another device, read here, or marked unread.
+	ReadState id.RoomID
 }
 
 // BridgeState is the connection state reported by a bridge for one login, or
@@ -450,4 +453,88 @@ func (s *Server) BridgeState(ctx context.Context, bridgeID, loginID string) (*Br
 		return nil, err
 	}
 	return state, nil
+}
+
+// ReadState returns the device user's read state of a room.
+func (s *Server) ReadState(ctx context.Context, roomID id.RoomID) (*ReadState, error) {
+	return s.store.readState(ctx, roomID, s.userID)
+}
+
+// MarkRead records that the user read a room up to a message, as a Matrix
+// client's read receipt does, and clears the room's "marked as unread"
+// flag. The receipt is then handed to the room's bridge, which tells the
+// network when its connector supports read receipts. A receipt behind the
+// current read position changes nothing.
+func (s *Server) MarkRead(ctx context.Context, roomID id.RoomID, eventID id.EventID) error {
+	room, err := s.store.getRoom(ctx, roomID)
+	if err != nil {
+		return err
+	}
+	if _, err = s.store.getEvent(ctx, roomID, eventID); err != nil {
+		return err
+	}
+	now := time.Now()
+	changed, err := s.markRead(ctx, roomID, eventID, now)
+	if err != nil {
+		return err
+	}
+	if wasMarked, err := s.setMarkedUnread(ctx, roomID, false); err != nil {
+		return err
+	} else if wasMarked {
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+	s.publish(Update{ReadState: roomID})
+	conn := s.connector(room.BridgeID)
+	if conn == nil || conn.br == nil {
+		return nil
+	}
+	receipt := &event.Event{
+		Type:   event.EphemeralEventReceipt,
+		RoomID: roomID,
+		Content: event.Content{Parsed: &event.ReceiptEventContent{
+			eventID: {event.ReceiptTypeRead: {s.userID: {Timestamp: now}}},
+		}},
+	}
+	receipt.Mautrix.EventSource = event.SourceEphemeral
+	// The read state is stored: a bridge that cannot pass the receipt on
+	// only leaves the network unaware, which bridgev2 logs.
+	conn.br.QueueMatrixEvent(conn.br.Log.WithContext(ctx), receipt)
+	return nil
+}
+
+// markRead moves the user's read position in a room to an event (or to the
+// time of the receipt, for an event this storage does not have).
+func (s *Server) markRead(ctx context.Context, roomID id.RoomID, eventID id.EventID, ts time.Time) (bool, error) {
+	order, err := s.store.readOrder(ctx, roomID, eventID, ts)
+	if err != nil || order == 0 {
+		return false, err
+	}
+	return s.store.advanceReadMarker(ctx, roomID, order, time.Now())
+}
+
+// setMarkedUnread sets the user's "marked as unread" flag of a room, and
+// reports whether it was set before.
+func (s *Server) setMarkedUnread(ctx context.Context, roomID id.RoomID, unread bool) (bool, error) {
+	var before event.MarkedUnreadEventContent
+	_, err := s.store.getRoomAccountData(ctx, s.userID, roomID, accountDataUnread, &before)
+	if err != nil {
+		return false, err
+	}
+	if before.Unread == unread {
+		return before.Unread, nil
+	}
+	err = s.store.setRoomAccountData(ctx, s.userID, roomID, accountDataUnread, &event.MarkedUnreadEventContent{Unread: unread})
+	return before.Unread, err
+}
+
+// ClearMarkedUnread clears the user's "marked as unread" flag of a room.
+func (s *Server) ClearMarkedUnread(ctx context.Context, roomID id.RoomID) error {
+	was, err := s.setMarkedUnread(ctx, roomID, false)
+	if err == nil && was {
+		s.publish(Update{ReadState: roomID})
+	}
+	return err
 }

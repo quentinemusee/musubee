@@ -225,7 +225,46 @@ func (c *Core) conversation(ctx context.Context, activity *localmatrix.RoomActiv
 		}
 		conv.LastMessage = &msg
 	}
+	read, err := c.host.Matrix.ReadState(ctx, room.ID)
+	if err != nil {
+		return nil, err
+	}
+	conv.UnreadCount = int64(read.Unread)
+	conv.MarkedUnread = read.MarkedUnread
 	return conv, nil
+}
+
+func (c *Core) conversationsMarkRead(ctx context.Context, p api.ConversationsMarkReadParams) (api.Empty, error) {
+	roomID, err := c.room(ctx, p.ConversationID)
+	if err != nil {
+		return api.Empty{}, err
+	}
+	var eventID id.EventID
+	if p.MessageID != "" {
+		msgRoom, evt, err := parseMessageID(p.MessageID)
+		if err != nil {
+			return api.Empty{}, err
+		}
+		if msgRoom != roomID {
+			return api.Empty{}, newError(api.ErrorCodeNotFound, "no message %q in conversation %q", p.MessageID, p.ConversationID)
+		}
+		eventID = evt
+	} else {
+		last, err := c.host.Matrix.MessagesBefore(ctx, roomID, 0, 1)
+		if err != nil {
+			return api.Empty{}, err
+		}
+		if len(last) == 0 {
+			// Nothing to read; a "marked unread" flag still goes.
+			return api.Empty{}, c.host.Matrix.ClearMarkedUnread(ctx, roomID)
+		}
+		eventID = last[0].ID
+	}
+	err = c.host.Matrix.MarkRead(ctx, roomID, eventID)
+	if errors.Is(err, localmatrix.ErrNotFound) {
+		return api.Empty{}, newError(api.ErrorCodeNotFound, "no message %q", p.MessageID)
+	}
+	return api.Empty{}, err
 }
 
 // room returns the room of a conversation ID, or a not_found error.

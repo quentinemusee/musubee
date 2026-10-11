@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.3"
+const APIVersion = "1.4"
 
 // Command names.
 const (
@@ -39,6 +39,12 @@ const (
 	// recently active first. Without a limit, returns them all; with one, returns
 	// a page and a cursor to the next. Ordered by activity since API 1.3.
 	CommandConversationsList = "conversations.list"
+	// Records that the user read a conversation up to a message (by default its
+	// last one), and clears its marked_unread flag. The network is told when it
+	// supports read receipts. Reading never moves back: a message before the
+	// current read position changes nothing. The conversation is then sent again
+	// in a conversation.updated event, if its read state changed. Since API 1.4.
+	CommandConversationsMarkRead = "conversations.markRead"
 	// Returns the latest messages of a conversation, or the ones before a cursor,
 	// oldest first.
 	CommandMessagesList = "messages.list"
@@ -74,7 +80,9 @@ const (
 const (
 	// An account was added or its connection state changed.
 	EventAccountUpdated = "account.updated"
-	// A conversation was created or its name or kind changed.
+	// A conversation was created or changed: its name or kind, its person, its
+	// last message (sent after its message.added event, since API 1.4) or its
+	// read state (since API 1.4).
 	EventConversationUpdated = "conversation.updated"
 	// A message was stored: received, or sent from this device.
 	EventMessageAdded = "message.added"
@@ -105,6 +113,7 @@ var Commands = []CommandSpec{
 	{Name: CommandLoginWait, Params: reflect.TypeFor[LoginProcessParams](), Result: reflect.TypeFor[LoginStep]()},
 	{Name: CommandLoginCancel, Params: reflect.TypeFor[LoginProcessParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsList, Params: reflect.TypeFor[ConversationsListParams](), Result: reflect.TypeFor[ConversationsListResult]()},
+	{Name: CommandConversationsMarkRead, Params: reflect.TypeFor[ConversationsMarkReadParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandMessagesList, Params: reflect.TypeFor[MessagesListParams](), Result: reflect.TypeFor[MessagesListResult]()},
 	{Name: CommandMessagesSend, Params: reflect.TypeFor[MessagesSendParams](), Result: reflect.TypeFor[MessagesSendResult]()},
 	{Name: CommandPersonsList, Params: reflect.TypeFor[Empty](), Result: reflect.TypeFor[PersonsListResult]()},
@@ -348,6 +357,13 @@ type Conversation struct {
 	// The last message of the conversation, the one its thread shows last, if it
 	// has any. Since API 1.3.
 	LastMessage *Message `json:"last_message,omitempty"`
+	// How many messages of others arrived after the user's read position: the
+	// last message the user read here or on another device, or their own last
+	// message, whichever is later. At most 1000; omitted when 0. Since API 1.4.
+	UnreadCount int64 `json:"unread_count,omitempty"`
+	// The user marked the conversation as unread (on another device, for now);
+	// reading it clears the flag. Omitted when false. Since API 1.4.
+	MarkedUnread bool `json:"marked_unread,omitempty"`
 }
 
 // ConversationKind is $defs/ConversationKind of the schema.
@@ -357,6 +373,14 @@ const (
 	ConversationKindDirect ConversationKind = "direct"
 	ConversationKindGroup  ConversationKind = "group"
 )
+
+// ConversationsMarkReadParams is $defs/ConversationsMarkReadParams of the
+// schema.
+type ConversationsMarkReadParams struct {
+	ConversationID string `json:"conversation_id"`
+	// The last message the user read. Omitted: the conversation's last message.
+	MessageID string `json:"message_id,omitempty"`
+}
 
 // ConversationsListParams is $defs/ConversationsListParams of the schema.
 type ConversationsListParams struct {
