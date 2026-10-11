@@ -251,6 +251,12 @@ func timeoutFor(n int) time.Duration {
 	return eventTimeout + time.Duration(n)*250*time.Millisecond
 }
 
+// listPollInterval spaces the conversation lists of a test that waits:
+// each reads every conversation, its last message and its unread count,
+// and listing a crowd of them in a loop slows bridgev2's own writes down
+// on slow CI runners.
+const listPollInterval = 100 * time.Millisecond
+
 func waitConversations(t *testing.T, c *Core, n int) []api.Conversation {
 	t.Helper()
 	deadline := time.Now().Add(timeoutFor(n))
@@ -262,7 +268,7 @@ func waitConversations(t *testing.T, c *Core, n int) []api.Conversation {
 		if time.Now().After(deadline) {
 			t.Fatalf("conversations = %+v, want %d", convs, n)
 		}
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(listPollInterval)
 	}
 }
 
@@ -761,7 +767,7 @@ func TestCrowdIsOrderedByActivity(t *testing.T) {
 		if time.Now().After(deadline) {
 			t.Fatalf("%d crowd contacts with a message, want %d", len(crowd), echo.CrowdSize)
 		}
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(listPollInterval)
 	}
 	for i, conv := range crowd {
 		want := fmt.Sprintf("Crowd Contact %03d", echo.CrowdSize-i)
