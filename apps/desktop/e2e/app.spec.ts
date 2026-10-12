@@ -476,6 +476,31 @@ test("an account without network keeps its conversations and says so", async () 
   await app.close();
 });
 
+test("an account whose session ended is logged in to again, and keeps its conversations", async () => {
+  const dataDir = newDataDir();
+  let { app, page } = await launch(dataDir);
+  await addEchoAccount(page, "expired");
+  await sendAndGetEcho(page, "before the session ended");
+  await app.close();
+
+  // The echo network refuses an "expired" account's session after a restart.
+  ({ app, page } = await launch(dataDir));
+  await expect(page.getByText("Session ended: the echo network simulates a session that the network ended.")).toBeVisible();
+  await page.getByRole("button", { name: "Log in again to Echo: expired" }).click();
+  await expect(page.getByRole("heading", { name: "Log in again to Echo: expired" })).toBeVisible();
+  // Only the flows of the account's network, and the username filled in.
+  await page.getByRole("button", { name: "Echo: Username" }).click();
+  await expect(page.getByLabel("Username")).toHaveValue("expired");
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByText("Connected")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Log in again to Echo: expired" })).toBeHidden();
+  await page.getByRole("button", { name: "Instant Echo" }).click();
+  await expect(page.getByRole("log").locator(".message", { hasText: "before the session ended" })).toHaveCount(2);
+  await sendAndGetEcho(page, "after logging in again");
+  await app.close();
+});
+
 /** The core's key file (core/secrets/keyfile.go, src/core-key.ts). */
 function coreKeyFile(dataDir: string): { protection: string; key: string } {
   return JSON.parse(readFileSync(join(dataDir, "core", "core.key"), "utf8")) as { protection: string; key: string };
