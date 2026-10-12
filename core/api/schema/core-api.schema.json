@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.4",
+  "x-musubee-api-version": "1.5",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -109,7 +109,7 @@
           "additionalProperties": false
         },
         "login.start": {
-          "description": "Starts adding an account with one of the network's login flows, and returns the first step.",
+          "description": "Starts adding an account with one of the network's login flows, and returns the first step. With an account_id, logs in to that account again instead (for example in state bad_credentials), keeping its conversations: the flow must be one of the account's network. A login that ends on another account adds it and leaves this one as it was. Since API 1.5 for account_id.",
           "type": "object",
           "properties": {
             "params": { "$ref": "#/$defs/LoginStartParams" },
@@ -453,7 +453,11 @@
       "type": "object",
       "properties": {
         "network_id": { "type": "string" },
-        "flow_id": { "type": "string" }
+        "flow_id": { "type": "string" },
+        "account_id": {
+          "description": "The account to log in to again, from accounts.list. Since API 1.5.",
+          "type": "string"
+        }
       },
       "required": ["network_id", "flow_id"],
       "additionalProperties": false

@@ -44,6 +44,19 @@ func (c *Core) loginStart(ctx context.Context, p api.LoginStartParams) (api.Logi
 	if !known {
 		return api.LoginStep{}, newError(api.ErrorCodeNotFound, "no login flow %q on %s", p.FlowID, p.NetworkID)
 	}
+	var override *bridgev2.UserLogin
+	if p.AccountID != "" {
+		accountNetwork, loginID, err := parseAccountID(p.AccountID)
+		if err != nil {
+			return api.LoginStep{}, err
+		}
+		if accountNetwork == network {
+			override = br.GetCachedUserLoginByID(loginID)
+		}
+		if override == nil {
+			return api.LoginStep{}, newError(api.ErrorCodeNotFound, "no account %q on %s", p.AccountID, p.NetworkID)
+		}
+	}
 	user, err := c.host.User(ctx, network)
 	if err != nil {
 		return api.LoginStep{}, err
@@ -52,7 +65,7 @@ func (c *Core) loginStart(ctx context.Context, p api.LoginStartParams) (api.Logi
 	if err != nil {
 		return api.LoginStep{}, networkError(err)
 	}
-	step, err := process.Start(ctx)
+	step, err := startLogin(ctx, process, override)
 	if err != nil {
 		process.Cancel()
 		return api.LoginStep{}, networkError(err)
@@ -63,6 +76,26 @@ func (c *Core) loginStart(ctx context.Context, p api.LoginStartParams) (api.Logi
 	c.logins[id] = lp
 	c.loginsMu.Unlock()
 	return c.advance(id, lp, step)
+}
+
+// startLogin starts a process, telling the connector which login it
+// replaces when there is one, as bridgev2's provisioning API does. A
+// connector without the override interfaces starts as for a new account:
+// logging in to the same remote account still reuses its login.
+//
+// Unlike the provisioning API, a login that completes on another remote
+// account does not delete the replaced one: that would remove its
+// conversations without the user asking (ADR 0030).
+func startLogin(ctx context.Context, process bridgev2.LoginProcess, override *bridgev2.UserLogin) (*bridgev2.LoginStep, error) {
+	if override != nil {
+		if withParams, ok := process.(bridgev2.LoginProcessWithParams); ok {
+			return withParams.StartWithParams(ctx, bridgev2.LoginStartParams{Override: override})
+		}
+		if overridable, ok := process.(bridgev2.LoginProcessWithOverride); ok {
+			return overridable.StartWithOverride(ctx, override)
+		}
+	}
+	return process.Start(ctx)
 }
 
 func (c *Core) loginSubmit(ctx context.Context, p api.LoginSubmitParams) (api.LoginStep, error) {
