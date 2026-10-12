@@ -25,6 +25,7 @@
     "@playwright/test": "^1.64.0",
     "@types/node": "^24.19.1",
     "electron": "^44.7.0",
+    "jsqr": "^1.4.0",
     "oxlint": "^1.87.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"
