@@ -154,7 +154,7 @@ func (h *harness) login(bridgeID networkid.BridgeID, username string) *bridgev2.
 		h.t.Fatalf("getting the user: %v", err)
 	}
 	flows := br.Network.GetLoginFlows()
-	if len(flows) != 2 || flows[0].ID != echo.FlowUsername || flows[1].ID != echo.FlowCode {
+	if len(flows) != 3 || flows[0].ID != echo.FlowUsername || flows[1].ID != echo.FlowCode || flows[2].ID != echo.FlowQR {
 		h.t.Fatalf("unexpected login flows: %+v", flows)
 	}
 	process, err := br.Network.CreateLogin(ctx, user, echo.FlowUsername)

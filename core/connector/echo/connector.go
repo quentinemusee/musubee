@@ -254,8 +254,11 @@ func (c *Connector) LoadUserLogin(_ context.Context, login *bridgev2.UserLogin) 
 const (
 	FlowUsername     = "username"
 	FlowCode         = "code"
+	FlowQR           = "qr"
 	stepUsername     = "com.musubee.echo.username"
 	stepCode         = "com.musubee.echo.code"
+	stepQR           = "com.musubee.echo.qr"
+	qrPrefix         = "musubee-echo:"
 	fieldUsername    = "username"
 	usernamePattern  = `^[a-z0-9]{1,32}$`
 	stepCompleteID   = "com.musubee.echo.complete"
@@ -263,8 +266,9 @@ const (
 	loginInstruction = "Choose any username: the echo network has no accounts."
 )
 
-// GetLoginFlows lists the login flows: choosing a username, or a code
-// confirmed by the network itself (a stand-in for QR code logins).
+// GetLoginFlows lists the login flows: choosing a username, or a code or a
+// QR code confirmed by the network itself (stand-ins for the QR code logins
+// that a phone confirms).
 func (c *Connector) GetLoginFlows() []bridgev2.LoginFlow {
 	return []bridgev2.LoginFlow{{
 		Name:        "Username",
@@ -274,6 +278,10 @@ func (c *Connector) GetLoginFlows() []bridgev2.LoginFlow {
 		Name:        "Code",
 		Description: "Show a code that the network confirms by itself after the echo delay.",
 		ID:          FlowCode,
+	}, {
+		Name:        "QR code",
+		Description: "Show a QR code that the network confirms by itself after the echo delay.",
+		ID:          FlowQR,
 	}}
 }
 
@@ -283,7 +291,9 @@ func (c *Connector) CreateLogin(_ context.Context, user *bridgev2.User, flowID s
 	case FlowUsername:
 		return &loginProcess{connector: c, user: user}, nil
 	case FlowCode:
-		return newCodeLoginProcess(c, user), nil
+		return newCodeLoginProcess(c, user, bridgev2.LoginDisplayTypeCode), nil
+	case FlowQR:
+		return newCodeLoginProcess(c, user, bridgev2.LoginDisplayTypeQR), nil
 	default:
 		return nil, fmt.Errorf("unknown login flow %q", flowID)
 	}

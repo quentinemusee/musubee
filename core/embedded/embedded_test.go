@@ -381,7 +381,7 @@ func TestInvalidRequests(t *testing.T) {
 func TestNetworksList(t *testing.T) {
 	c := open(t)
 	networks := call[api.NetworksListResult](t, c, api.CommandNetworksList, nil).Networks
-	if len(networks) != 2 || networks[0].NetworkID != "echo" || networks[0].Name != "Echo" || len(networks[0].LoginFlows) != 2 {
+	if len(networks) != 2 || networks[0].NetworkID != "echo" || networks[0].Name != "Echo" || len(networks[0].LoginFlows) != 3 {
 		t.Fatalf("networks = %+v", networks)
 	}
 	if m := networks[1]; m.NetworkID != "matrix" || m.Name != "Matrix" || len(m.LoginFlows) != 1 || m.LoginFlows[0].FlowID != "password" {
@@ -429,7 +429,7 @@ func TestTelegramIsOfferedWithCredentials(t *testing.T) {
 func TestLoginWithUsername(t *testing.T) {
 	c := open(t)
 	callFails(t, c, api.CommandLoginStart, api.LoginStartParams{NetworkID: "telegram", FlowID: "qr"}, api.ErrorCodeNotFound)
-	callFails(t, c, api.CommandLoginStart, api.LoginStartParams{NetworkID: "echo", FlowID: "qr"}, api.ErrorCodeNotFound)
+	callFails(t, c, api.CommandLoginStart, api.LoginStartParams{NetworkID: "echo", FlowID: "password"}, api.ErrorCodeNotFound)
 
 	step := call[api.LoginStep](t, c, api.CommandLoginStart, api.LoginStartParams{NetworkID: "echo", FlowID: "username"})
 	if step.Type != api.LoginStepTypeUserInput || len(step.Fields) != 1 || step.Fields[0].Type != api.LoginFieldTypeUsername || step.Fields[0].Pattern == "" {
@@ -529,6 +529,22 @@ func TestLoginWithCode(t *testing.T) {
 	callFails(t, c, api.CommandLoginSubmit, api.LoginSubmitParams{ProcessID: step.ProcessID, Values: map[string]string{}}, api.ErrorCodeInvalidParams)
 	done := call[api.LoginStep](t, c, api.CommandLoginWait, api.LoginProcessParams{ProcessID: step.ProcessID})
 	if done.Type != api.LoginStepTypeComplete || done.AccountID != accountID("echo", networkid.UserLoginID("code"+step.Display.Data)) {
+		t.Fatalf("last step = %+v", done)
+	}
+}
+
+func TestLoginWithQRCode(t *testing.T) {
+	c := open(t)
+	step := call[api.LoginStep](t, c, api.CommandLoginStart, api.LoginStartParams{NetworkID: "echo", FlowID: "qr"})
+	if step.Type != api.LoginStepTypeDisplayAndWait || step.Display == nil || step.Display.Type != api.LoginDisplayTypeQR || !step.Display.CanCancel {
+		t.Fatalf("first step = %+v", step)
+	}
+	code, ok := strings.CutPrefix(step.Display.Data, "musubee-echo:")
+	if !ok || code == "" {
+		t.Fatalf("QR code data = %q", step.Display.Data)
+	}
+	done := call[api.LoginStep](t, c, api.CommandLoginWait, api.LoginProcessParams{ProcessID: step.ProcessID})
+	if done.Type != api.LoginStepTypeComplete || done.AccountID != accountID("echo", networkid.UserLoginID("qr"+code)) {
 		t.Fatalf("last step = %+v", done)
 	}
 }
