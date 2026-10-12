@@ -143,9 +143,15 @@ test(
     await (await waitFor(exactly("Instant Echo"), "Instant Echo in the inbox", { kind: BUTTON })).click();
 
     const text = "hello from Appium";
-    // Its label: WebView 83 adds the placeholder to the hint, 124 does not.
-    const composer = (attr) => `starts-with(${attr}, "Message")`;
-    await typeInto(await waitFor(composer, "the composer", { kind: "android.widget.EditText" }), text);
+    // The thread's only text field. Not by its label: WebView 83 adds the
+    // placeholder to the hint, 124 does not, and 153 on Android 17 exposes
+    // neither the label nor the placeholder (docs/ADR/0029).
+    const composer = driver.$("//android.widget.EditText");
+    await composer.waitForExist({ timeout: 60_000 }).catch(async (error) => {
+      await describeScreen();
+      throw error;
+    });
+    await typeInto(composer, text);
     await (await waitFor(exactly("Send"), "the Send button", { kind: BUTTON })).click();
     await waitFor(exactly(`Instant Echo: ${text}`), "the echo");
 
