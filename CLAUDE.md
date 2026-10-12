@@ -349,3 +349,10 @@ qr codes:           cd ui && npx vitest run src/qr.test.ts
 echo qr login:      go test -tags=goolm -count=1 -run 'LoginWithQRCode' -v ./core/embedded/
 qr in the app:      cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "QR code login"
 ```
+
+Verified in T2.14 (Windows, Go 1.27.1 with MSYS2 UCRT64, Node 24.20, Electron 44.7.0; see ADR 0030):
+
+```
+log in again:       go test -tags=goolm -count=1 -run 'LoginAgain' -v ./core/embedded/
+again in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "session ended"
+```
