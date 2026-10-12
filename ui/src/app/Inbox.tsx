@@ -99,19 +99,20 @@ const InboxRow = memo(function InboxRow({ entry, current, now, networkNames, onO
   return (
     <div className="inbox-row">
       {/* Named by the name alone, so that the preview does not make names
-          ambiguous; the preview describes the button. */}
+          ambiguous; the preview describes the button. aria-label rather than
+          aria-labelledby: Android System WebView 153 on Android 17 computes
+          a name from aria-labelledby but leaves it out of Android's
+          accessibility tree, where the row then has no name (ADR 0029). */}
       <button
         type="button"
         className={badge === undefined ? "conversation" : "conversation unread"}
         aria-current={current ? "true" : undefined}
-        aria-labelledby={`${id}-name`}
+        aria-label={entry.name}
         aria-describedby={badge === undefined ? `${id}-meta ${id}-preview` : `${id}-unread ${id}-meta ${id}-preview`}
         onClick={() => onOpen(latest.conversation_id)}
       >
         <span className="conversation-top">
-          <span id={`${id}-name`} className="conversation-name">
-            {entry.name}
-          </span>
+          <span className="conversation-name">{entry.name}</span>
           {activity === undefined ? null : (
             <time className="conversation-time" dateTime={new Date(activity).toISOString()}>
               {activityLabel(activity, now)}
