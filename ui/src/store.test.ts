@@ -125,6 +125,29 @@ describe("Store", () => {
     expect(state.conversations[0]).toMatchObject({ activity_ms: 4, last_message: { message_id: "m4" } });
   });
 
+  test("keeps a status that the core's events gave before the send's answer", async () => {
+    // A message to an account without network fails at once: the core's
+    // events can reach the store before the answer of messages.send, which
+    // still says "sending" and must not undo the failure.
+    const shell = scriptedShell({
+      ...coreState([conversation("c1", "Adam")]),
+      "messages.send": () => {
+        const sending = message("m3", 3, { from_me: true, status: "sending", text: "hello" });
+        shell.emit("message.added", { message: sending });
+        shell.emit("message.updated", { message: { ...sending, status: "failed", error: "You're not logged in" } });
+        return { message: sending };
+      },
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    await store.select("c1");
+
+    await store.send("hello");
+    expect(ids(store.getState().messages["c1"] ?? [])).toEqual(["m1:1:received", "m2:2:received", "m3:3:failed"]);
+  });
+
   test("deselects a conversation, and keeps its messages", async () => {
     const shell = scriptedShell(coreState([conversation("c1", "Adam")]));
     const store = new Store(shell.core);

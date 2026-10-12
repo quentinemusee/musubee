@@ -309,7 +309,13 @@ export class Store {
     }
     try {
       const { message } = await this.client.call("messages.send", { conversation_id: conversationId, text });
-      this.#upsertMessage(message);
+      // The core's events about the message may have arrived first, and are
+      // newer than this answer: a send that fails at once (an account
+      // without network) would otherwise stay "sending".
+      const known = this.#state.messages[message.conversation_id]?.some((m) => m.message_id === message.message_id);
+      if (!known) {
+        this.#upsertMessage(message);
+      }
     } catch (error) {
       this.#set({ error: `Could not send the message: ${describe(error)}` });
     }
