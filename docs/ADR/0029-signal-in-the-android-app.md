@@ -52,6 +52,11 @@ A task per ABI runs the build script.
 | Debug APK, x86_64 | | 83.5 MB |
 | Shared libraries the x86_64 core needs | | `liblog`, `libdl`, `libm`, `libz`, `libc`: no `libc++_shared.so` |
 | `login.start` to the linking code, emulator API 30 (x86) against staging | | 339 and 368 ms (two runs) |
+| Core, arm64-v8a (stripped) | | 74.5 MB |
+| Debug APK, arm64-v8a | | 78.8 MB |
+| Shared libraries the arm64-v8a core needs | | `liblog`, `libdl`, `libm`, `libz`, `libc` |
+| `login.start` to the linking code, Pixel 8 Pro (Android 17) against staging | | 363 and 412 ms (two runs) |
+| Core opened, Pixel 8 Pro: PSS after opening, after the ping loops (`CoreLibraryTest.measurements`) | | 88.9 MB, 115.9 MB (Go heap 2.7 MB) |
 
 The x86 libsignal build exposed a bug of the build script on Windows hosts: `cygpath -m` appends `.exe` to a program that exists, which made the archiver `llvm-ar.exe.exe`. It was fixed in T2.11's branch before this task.
 
@@ -62,9 +67,11 @@ The x86 libsignal build exposed a bug of the build script on Windows hosts: `cyg
 | A build without the property is unchanged, and `SignalTest` is skipped there | **verified** (Windows host, emulator API 30 x86: 13 tests, 0 failures, 3 skipped by assumption) | `connectedDebugAndroidTest` |
 | A build with `-Pmusubee.signal=staging` offers Signal, and its QR login reaches staging and returns a linking code | **verified** (same emulator: 13 tests, 0 failures, 2 skipped) | `SignalTest` |
 | The same on API 30 and 35 x86_64 on CI, with the Appium journey on the Signal build | **verified** (run 38180342503: 13 tests each with `musubeeSignalRequire=1`, libsignal from the cache of the `signal-android` job, no rebuild between assembling and testing) | `.github/workflows/checks.yml`, job `android` |
-| arm64-v8a: the app with Signal on a phone | **unknown** (needs the maintainer's consent to use the Pixel 8 Pro) | |
+| arm64-v8a: the app with Signal on a phone | **verified** (Pixel 8 Pro, Android 17, WebView 153, 2026-10-12: 13 instrumented tests with `musubeeSignalRequire=1`, 0 failures, 2 skipped (soak, Telegram); then the Appium journey) | `connectedDebugAndroidTest`, `android.app.test.mjs` |
 | Linking an account from the app | **unknown**, and probably not possible as is: see below | |
 | Memory and battery with a Signal account connected | **unknown** | |
+
+**Android System WebView 153 on Android 17**, met on the phone, leaves an accessible name that comes from another element (`aria-labelledby`, `<label for>`) out of Android's accessibility tree, and exposes neither the name nor the placeholder of a text field; Blink computes the names (read over DevTools), and `aria-label` and `aria-describedby` do reach the tree. The inbox's rows therefore name themselves with `aria-label`, and the Appium journey finds the composer as the thread's only text field. What TalkBack reads there is **unknown**: it may follow Android's "labeled by" relation, which UiAutomator's dump does not show.
 
 **Linking from a phone is an open problem.** Signal links a device when the primary phone's Signal app scans the code that the new device shows. The interface shows the code as text (`AddAccount.tsx`), not as a QR image; and even drawn, a code on the screen of the phone that runs Signal cannot be scanned by that same phone. Whether Signal's app can link from a code given another way (an image, a link) is unknown. The answer belongs to the onboarding work (E2.2): drawing the code is needed in any case, for the desktop and for a second phone.
 
