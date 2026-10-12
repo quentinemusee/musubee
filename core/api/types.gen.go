@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.4"
+const APIVersion = "1.5"
 
 // Command names.
 const (
@@ -24,7 +24,10 @@ const (
 	// an account.updated event with the state logged_out. Since API 1.1.
 	CommandAccountsLogout = "accounts.logout"
 	// Starts adding an account with one of the network's login flows, and returns
-	// the first step.
+	// the first step. With an account_id, logs in to that account again instead
+	// (for example in state bad_credentials), keeping its conversations: the flow
+	// must be one of the account's network. A login that ends on another account
+	// adds it and leaves this one as it was. Since API 1.5 for account_id.
 	CommandLoginStart = "login.start"
 	// Submits the fields of a user_input step, and returns the next step.
 	CommandLoginSubmit = "login.submit"
@@ -246,6 +249,8 @@ type AccountsLogoutParams struct {
 type LoginStartParams struct {
 	NetworkID string `json:"network_id"`
 	FlowID    string `json:"flow_id"`
+	// The account to log in to again, from accounts.list. Since API 1.5.
+	AccountID string `json:"account_id,omitempty"`
 }
 
 // LoginSubmitParams is $defs/LoginSubmitParams of the schema.

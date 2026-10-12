@@ -32,8 +32,8 @@ type client struct {
 
 	lock      sync.Mutex
 	connected bool
-	// fresh is set for a login just made: an offline login (OfflinePrefix)
-	// connects only then.
+	// fresh is set for a login just made: an offline or expired login
+	// (OfflinePrefix, ExpiredPrefix) connects only then.
 	fresh bool
 	// ctx is cancelled on disconnection, which drops the pending echoes.
 	ctx    context.Context
@@ -58,8 +58,11 @@ func (c *client) portalKey(portal networkid.PortalID) networkid.PortalKey {
 	return networkid.PortalKey{ID: portal, Receiver: c.login.ID}
 }
 
-// errOffline is the error of an offline login (OfflinePrefix).
-const errOffline status.BridgeStateErrorCode = "echo-offline"
+// Errors of offline and expired logins (OfflinePrefix, ExpiredPrefix).
+const (
+	errOffline status.BridgeStateErrorCode = "echo-offline"
+	errExpired status.BridgeStateErrorCode = "echo-expired"
+)
 
 // Connect marks the login as connected and announces every conversation,
 // which creates the rooms on first connection.
@@ -77,6 +80,15 @@ func (c *client) Connect(ctx context.Context) {
 			StateEvent: status.StateTransientDisconnect,
 			Error:      errOffline,
 			Message:    "No network: the echo network simulates a device without connection.",
+		})
+		return
+	}
+	if strings.HasPrefix(c.login.RemoteName, ExpiredPrefix) && !c.fresh {
+		c.lock.Unlock()
+		c.login.BridgeState.Send(status.BridgeState{
+			StateEvent: status.StateBadCredentials,
+			Error:      errExpired,
+			Message:    "Session ended: the echo network simulates a session that the network ended.",
 		})
 		return
 	}

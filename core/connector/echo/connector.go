@@ -24,7 +24,10 @@
 //     each sent one message, a minute apart, the last one most recently;
 //   - a username starting with OfflinePrefix connects right after the login,
 //     but never again: from the next start of the core on, it stays
-//     disconnected, as on a device without network.
+//     disconnected, as on a device without network;
+//   - a username starting with ExpiredPrefix connects right after the login,
+//     but from the next start of the core on, its session is refused, as when
+//     a network ends a session: the user must log in again.
 //
 // It replaces Beeper's dummybridge, which has no license (docs/ADR/0004).
 package echo
@@ -114,6 +117,7 @@ const (
 	CrowdPrefix   = "crowd"
 	CrowdSize     = 120
 	OfflinePrefix = "offline"
+	ExpiredPrefix = "expired"
 
 	crowdIDPrefix = "echo-crowd-"
 )

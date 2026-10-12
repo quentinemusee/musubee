@@ -28,22 +28,36 @@ type loginProcess struct {
 	user      *bridgev2.User
 }
 
-var _ bridgev2.LoginProcessUserInput = (*loginProcess)(nil)
+var (
+	_ bridgev2.LoginProcessUserInput    = (*loginProcess)(nil)
+	_ bridgev2.LoginProcessWithOverride = (*loginProcess)(nil)
+)
 
 func (lp *loginProcess) Start(context.Context) (*bridgev2.LoginStep, error) {
+	return usernameStep(""), nil
+}
+
+// StartWithOverride starts logging in to a login again: the username is
+// filled in with the login's.
+func (lp *loginProcess) StartWithOverride(_ context.Context, override *bridgev2.UserLogin) (*bridgev2.LoginStep, error) {
+	return usernameStep(override.RemoteName), nil
+}
+
+func usernameStep(username string) *bridgev2.LoginStep {
 	return &bridgev2.LoginStep{
 		Type:         bridgev2.LoginStepTypeUserInput,
 		StepID:       stepUsername,
 		Instructions: loginInstruction,
 		UserInputParams: &bridgev2.LoginUserInputParams{
 			Fields: []bridgev2.LoginInputDataField{{
-				Type:    bridgev2.LoginInputFieldTypeUsername,
-				ID:      fieldUsername,
-				Name:    "Username",
-				Pattern: usernamePattern,
+				Type:         bridgev2.LoginInputFieldTypeUsername,
+				ID:           fieldUsername,
+				Name:         "Username",
+				Pattern:      usernamePattern,
+				DefaultValue: username,
 			}},
 		},
-	}, nil
+	}
 }
 
 func (lp *loginProcess) Cancel() {}
