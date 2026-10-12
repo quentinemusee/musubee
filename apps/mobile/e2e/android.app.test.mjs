@@ -116,7 +116,13 @@ async function describeScreen() {
 }
 
 async function typeInto(element, text) {
-  await element.waitForEnabled({ timeout: 10_000 });
+  // A field that never shows up or stays disabled: print what the screen
+  // holds instead, since the error alone does not tell the two apart.
+  await element.waitForEnabled({ timeout: 10_000 }).catch(async (error) => {
+    console.log(`Field exists: ${await element.isExisting().catch(() => "unknown")}`);
+    await describeScreen();
+    throw error;
+  });
   await element.click();
   await element.setValue(text);
 }
