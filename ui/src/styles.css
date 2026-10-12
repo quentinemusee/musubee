@@ -551,6 +551,29 @@ ol {
   font-variant-numeric: tabular-nums;
 }
 
+/* A login step's QR code (QrCode): large enough for a phone's camera at
+   arm's length, never wider than the panel. */
+.qr-code {
+  display: block;
+  width: min(100%, 320px);
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.qr-text {
+  margin-top: 8px;
+  color: var(--color-muted);
+}
+
+.login-link {
+  display: block;
+  margin-top: 4px;
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
 /* The person panel (PersonPanel): merging the same person's conversations. */
 .person-button {
   margin-left: auto;

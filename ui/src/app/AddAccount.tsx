@@ -6,6 +6,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import type { LoginField, LoginStep } from "../core-api/types.gen";
+import { QrCode } from "./QrCode";
 import { useAppState, useStore } from "./state";
 
 interface Props {
@@ -115,7 +116,11 @@ export function AddAccount({ onDone, canCancel }: Props) {
       ) : (
         <div className="login-display">
           {step.instructions ? <p>{step.instructions}</p> : null}
-          {step.display?.data ? <output className="login-code">{step.display.data}</output> : null}
+          {!step.display?.data ? null : step.display.type === "qr" ? (
+            <QrCode data={step.display.data} />
+          ) : (
+            <output className="login-code">{step.display.data}</output>
+          )}
           <p className="hint">Waiting for the network…</p>
         </div>
       )}

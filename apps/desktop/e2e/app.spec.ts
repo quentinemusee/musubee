@@ -12,6 +12,8 @@ import { tmpdir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from "@playwright/test";
+// jsQR is CommonJS: under NodeNext its function is the export named default.
+import jsqr from "jsqr";
 // Also brings window.musubee, as the interface sees it.
 import type { CoreStatus } from "../../../ui/src/shell.ts";
 
@@ -108,6 +110,36 @@ test("log out of an account: it goes away with its conversations", async () => {
   await page.getByRole("button", { name: "Log out", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Add an account" })).toBeVisible();
   expect(await page.evaluate(`window.musubee.core.call(JSON.stringify({ id: 1, command: "conversations.list" }))`)).toContain('"conversations":[]');
+  await app.close();
+});
+
+test("a QR code login shows a code that a phone can scan, then adds the account", async () => {
+  const { app, page } = await launch(newDataDir());
+  await expect(page.getByRole("heading", { name: "Add an account" })).toBeVisible();
+  await page.getByRole("button", { name: "Echo: QR code" }).click();
+  // The echo network confirms the code by itself after two seconds: read
+  // the image's source and the text at once, and decode the image after.
+  const qr = page.getByRole("img", { name: "QR code" });
+  await expect(qr).toBeVisible();
+  const [src, text] = await Promise.all([qr.getAttribute("src"), page.locator(".login-link").textContent()]);
+  expect(src).toMatch(/^data:image\/svg\+xml,/);
+  expect(text).toMatch(/^musubee-echo:[0-9a-f]{6}$/);
+
+  // Draw the image as the screen would, then decode it as a phone would.
+  const { pixels, width } = await page.evaluate(async (source) => {
+    const image = new Image();
+    image.src = source;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 400;
+    const context = canvas.getContext("2d")!;
+    context.drawImage(image, 0, 0, 400, 400);
+    return { pixels: Array.from(context.getImageData(0, 0, 400, 400).data), width: 400 };
+  }, src!);
+  expect(jsqr.default(Uint8ClampedArray.from(pixels), width, width)?.data).toBe(text);
+
+  await expect(page.getByText(`Echo: qr${text!.slice("musubee-echo:".length)}`)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Add an account" })).toBeHidden();
   await app.close();
 });
 
