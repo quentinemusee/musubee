@@ -82,45 +82,55 @@ func completeLogin(ctx context.Context, connector *Connector, user *bridgev2.Use
 	}, nil
 }
 
-// codeLoginProcess shows a code and completes by itself after the echo
-// delay, like a QR code login that the user confirms on their phone. It
-// exercises the display_and_wait steps of user interfaces.
+// codeLoginProcess shows a code, or a QR code of "musubee-echo:" and the
+// code, and completes by itself after the echo delay, like a QR code login
+// that the user confirms on their phone. It exercises the display_and_wait
+// steps of user interfaces.
 type codeLoginProcess struct {
 	connector *Connector
 	user      *bridgev2.User
+	display   bridgev2.LoginDisplayType
 	code      string
 }
 
 var _ bridgev2.LoginProcessDisplayAndWait = (*codeLoginProcess)(nil)
 
-func newCodeLoginProcess(connector *Connector, user *bridgev2.User) *codeLoginProcess {
+// newCodeLoginProcess starts a login that shows a code
+// (bridgev2.LoginDisplayTypeCode) or a QR code (bridgev2.LoginDisplayTypeQR).
+func newCodeLoginProcess(connector *Connector, user *bridgev2.User, display bridgev2.LoginDisplayType) *codeLoginProcess {
 	b := make([]byte, 3)
 	_, _ = rand.Read(b)
-	return &codeLoginProcess{connector: connector, user: user, code: hex.EncodeToString(b)}
+	return &codeLoginProcess{connector: connector, user: user, display: display, code: hex.EncodeToString(b)}
 }
 
 func (lp *codeLoginProcess) Start(context.Context) (*bridgev2.LoginStep, error) {
-	return &bridgev2.LoginStep{
+	step := &bridgev2.LoginStep{
 		Type:         bridgev2.LoginStepTypeDisplayAndWait,
 		StepID:       stepCode,
 		Instructions: "The echo network confirms this code by itself in a moment.",
 		DisplayAndWaitParams: &bridgev2.LoginDisplayAndWaitParams{
-			Type:      bridgev2.LoginDisplayTypeCode,
+			Type:      lp.display,
 			Data:      lp.code,
 			CanCancel: true,
 		},
-	}, nil
+	}
+	if lp.display == bridgev2.LoginDisplayTypeQR {
+		step.StepID = stepQR
+		step.Instructions = "The echo network confirms this QR code by itself in a moment."
+		step.DisplayAndWaitParams.Data = qrPrefix + lp.code
+	}
+	return step, nil
 }
 
-// Wait completes the login as "code" followed by the code, after the echo
-// delay, unless ctx ends first.
+// Wait completes the login as "code" (or "qr") followed by the code, after
+// the echo delay, unless ctx ends first.
 func (lp *codeLoginProcess) Wait(ctx context.Context) (*bridgev2.LoginStep, error) {
 	select {
 	case <-ctx.Done():
 		return nil, context.Cause(ctx)
 	case <-time.After(lp.connector.Config.EchoDelay):
 	}
-	return completeLogin(ctx, lp.connector, lp.user, "code"+lp.code)
+	return completeLogin(ctx, lp.connector, lp.user, string(lp.display)+lp.code)
 }
 
 func (lp *codeLoginProcess) Cancel() {}
