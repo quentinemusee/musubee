@@ -3,20 +3,25 @@
 
 // Adds an account by walking the steps of a network's login flow, as the
 // core describes them (login.* commands): the interface knows no network.
+// Given an account, logs in to it again instead, with the flows of its
+// network only (login.start's account_id).
 
 import { useEffect, useState, type FormEvent } from "react";
-import type { LoginField, LoginStep } from "../core-api/types.gen";
+import type { Account, LoginField, LoginStep } from "../core-api/types.gen";
 import { QrCode } from "./QrCode";
 import { useAppState, useStore } from "./state";
 
 interface Props {
   onDone: () => void;
   canCancel: boolean;
+  /** The account to log in to again, with its label. */
+  again?: { account: Account; label: string };
 }
 
-export function AddAccount({ onDone, canCancel }: Props) {
+export function AddAccount({ onDone, canCancel, again }: Props) {
   const store = useStore();
-  const networks = useAppState((s) => s.networks);
+  const allNetworks = useAppState((s) => s.networks);
+  const networks = again === undefined ? allNetworks : allNetworks.filter((n) => n.network_id === again.account.network_id);
   const [step, setStep] = useState<LoginStep | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +84,10 @@ export function AddAccount({ onDone, canCancel }: Props) {
 
   return (
     <section className="add-account" aria-labelledby="add-account-title">
-      <h2 id="add-account-title">Add an account</h2>
+      <h2 id="add-account-title">{again === undefined ? "Add an account" : `Log in again to ${again.label}`}</h2>
+      {again !== undefined && step === null ? (
+        <p className="hint">Its conversations stay on this device while you log in.</p>
+      ) : null}
       {error !== null ? (
         <p className="form-error" role="alert">
           {error}
@@ -97,7 +105,13 @@ export function AddAccount({ onDone, canCancel }: Props) {
                   disabled={busy}
                   title={flow.description}
                   onClick={() =>
-                    void run(() => store.client.call("login.start", { network_id: network.network_id, flow_id: flow.flow_id }))
+                    void run(() =>
+                      store.client.call("login.start", {
+                        network_id: network.network_id,
+                        flow_id: flow.flow_id,
+                        ...(again === undefined ? {} : { account_id: again.account.account_id }),
+                      }),
+                    )
                   }
                 >
                   {`${network.name}: ${flow.name}`}

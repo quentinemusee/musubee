@@ -10,9 +10,12 @@ import { useBackToInbox } from "./navigation";
 import { useAppState, useStore } from "./state";
 import { Thread } from "./Thread";
 
+/** What the login screen does: add an account, or log in to one again. */
+type Adding = { again?: { account: Account; label: string } };
+
 export function App() {
   const store = useStore();
-  const [addingAccount, setAddingAccount] = useState(false);
+  const [adding, setAdding] = useState<Adding | null>(null);
   const loaded = useAppState((s) => s.loaded);
   const hasAccounts = useAppState((s) => s.accounts.length > 0);
   const view = useAppState((s) => (s.selected === undefined ? "inbox" : "thread"));
@@ -24,16 +27,21 @@ export function App() {
         <StatusLine />
       </header>
       <ErrorBanner />
-      {addingAccount || (loaded && !hasAccounts) ? (
+      {adding !== null || (loaded && !hasAccounts) ? (
         <main className="app-main">
-          <AddAccount onDone={() => setAddingAccount(false)} canCancel={hasAccounts} />
+          <AddAccount
+            key={adding?.again?.account.account_id ?? ""}
+            onDone={() => setAdding(null)}
+            canCancel={hasAccounts}
+            {...(adding?.again === undefined ? {} : { again: adding.again })}
+          />
         </main>
       ) : (
         // On a narrow screen, the inbox or the thread alone (data-view).
         <div className="app-body" data-view={view}>
           <nav className="sidebar" aria-label="Conversations">
-            <Accounts />
-            <button type="button" className="secondary" onClick={() => setAddingAccount(true)}>
+            <Accounts onLogInAgain={(account, label) => setAdding({ again: { account, label } })} />
+            <button type="button" className="secondary" onClick={() => setAdding({})}>
               Add an account
             </button>
             <Inbox />
@@ -95,7 +103,7 @@ const STATE_LABELS: Record<string, string> = {
   unknown_error: "Not working",
 };
 
-function Accounts() {
+function Accounts({ onLogInAgain }: { onLogInAgain: (account: Account, label: string) => void }) {
   const accounts = useAppState((s) => s.accounts);
   const networks = useAppState((s) => s.networks);
   if (accounts.length === 0) {
@@ -105,21 +113,19 @@ function Accounts() {
     <section aria-labelledby="accounts-title">
       <h2 id="accounts-title">Accounts</h2>
       <ul className="accounts">
-        {accounts.map((account) => (
-          <AccountItem
-            key={account.account_id}
-            account={account}
-            label={`${networks.find((n) => n.network_id === account.network_id)?.name ?? account.network_id}${account.name ? `: ${account.name}` : ""}`}
-          />
-        ))}
+        {accounts.map((account) => {
+          const label = `${networks.find((n) => n.network_id === account.network_id)?.name ?? account.network_id}${account.name ? `: ${account.name}` : ""}`;
+          return <AccountItem key={account.account_id} account={account} label={label} onLogInAgain={() => onLogInAgain(account, label)} />;
+        })}
       </ul>
     </section>
   );
 }
 
 // Logging out removes the account's conversations from the device: the
-// button asks for a confirmation first.
-function AccountItem({ account, label }: { account: Account; label: string }) {
+// button asks for a confirmation first. An account whose session the network
+// ended offers to log in to it again, which keeps them.
+function AccountItem({ account, label, onLogInAgain }: { account: Account; label: string; onLogInAgain: () => void }) {
   const store = useStore();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -148,9 +154,16 @@ function AccountItem({ account, label }: { account: Account; label: string }) {
           </button>
         </fieldset>
       ) : (
-        <button type="button" className="link" aria-label={`Log out of ${label}`} onClick={() => setConfirming(true)}>
-          Log out…
-        </button>
+        <span className="account-actions">
+          {account.state === "bad_credentials" ? (
+            <button type="button" aria-label={`Log in again to ${label}`} onClick={onLogInAgain}>
+              Log in again
+            </button>
+          ) : null}
+          <button type="button" className="link" aria-label={`Log out of ${label}`} onClick={() => setConfirming(true)}>
+            Log out…
+          </button>
+        </span>
       )}
     </li>
   );
