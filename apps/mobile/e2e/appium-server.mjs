@@ -8,6 +8,7 @@
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { createServer } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -21,10 +22,29 @@ function appiumMain() {
   return join(dirname(pkgPath), bin);
 }
 
-async function waitForStatus(url, timeoutMs) {
+/**
+ * A port that no one listens on now, chosen by the system. A random port
+ * could be in use: once it was 5555, the adb port of the emulator
+ * emulator-5554, and Appium failed with EADDRINUSE.
+ */
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+async function waitForStatus(url, timeoutMs, exited) {
   const deadline = Date.now() + timeoutMs;
   let lastError;
   while (Date.now() < deadline) {
+    if (exited()) {
+      throw new Error(`Appium exited before it answered at ${url}`);
+    }
     try {
       const res = await fetch(`${url}/status`);
       if (res.ok) {
@@ -41,13 +61,13 @@ async function waitForStatus(url, timeoutMs) {
 
 /**
  * Returns { url, stop }. Uses MUSUBEE_APPIUM_URL when set; otherwise starts a
- * local server on a free-ish port and returns a function that stops it.
+ * local server on a free port and returns a function that stops it.
  */
 export async function startAppium() {
   if (process.env.MUSUBEE_APPIUM_URL) {
     return { url: process.env.MUSUBEE_APPIUM_URL, stop: async () => {} };
   }
-  const port = 4723 + Math.floor(Math.random() * 1000);
+  const port = await freePort();
   const url = `http://127.0.0.1:${port}`;
   const logs = [];
   const child = spawn(process.execPath, [appiumMain(), "--address", "127.0.0.1", "--port", String(port), "--log-level", "warn"], {
@@ -57,10 +77,12 @@ export async function startAppium() {
   for (const stream of [child.stdout, child.stderr]) {
     stream.on("data", (chunk) => logs.push(chunk.toString()));
   }
+  let exited = false;
+  child.once("exit", () => (exited = true));
   try {
     // The first start after "npm ci" builds Appium's driver cache, which
     // took more than a minute on a Windows laptop.
-    await waitForStatus(url, 180_000);
+    await waitForStatus(url, 180_000, () => exited);
   } catch (err) {
     child.kill();
     throw new Error(`${err.message}\n--- Appium output ---\n${logs.join("")}`);
@@ -69,6 +91,9 @@ export async function startAppium() {
     url,
     logs: () => logs.join(""),
     stop: async () => {
+      if (exited) {
+        return;
+      }
       child.kill();
       await new Promise((resolve) => child.once("exit", resolve));
     },
