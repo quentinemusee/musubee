@@ -66,14 +66,43 @@ class CoreKeyTest {
     fun lostKeystoreKeyFailsClosed() {
         val file = File(dir, "core-key")
         CoreKey(file, alias).load()
+        val sealed = file.readBytes()
         keystore().deleteEntry(alias)
         try {
             CoreKey(file, alias).load()
             fail("the key loaded without its Keystore key")
-        } catch (e: IllegalStateException) {
-            // Expected.
+        } catch (e: KeyLostException) {
+            // Expected: the key is lost for good (docs/ADR/0031).
         }
-        assertTrue("the key file was replaced", file.exists())
+        assertArrayEquals("the key file was replaced", sealed, file.readBytes())
+    }
+
+    @Test
+    fun keyThatTheKeystoreCannotDecryptIsLost() {
+        val file = File(dir, "core-key")
+        CoreKey(file, alias).load()
+        // Another Keystore key under the same alias, as after a restore of
+        // the app's files on a device that had its own.
+        keystore().deleteEntry(alias)
+        CoreKey(File(dir, "other"), alias).load()
+        try {
+            CoreKey(file, alias).load()
+            fail("the key loaded with another Keystore key")
+        } catch (e: KeyLostException) {
+            assertTrue(e.message.orEmpty(), e.message.orEmpty().contains("cannot decrypt"))
+        }
+    }
+
+    @Test
+    fun unknownKeyFileIsNotALostKey() {
+        val file = File(dir, "core-key").apply { writeBytes(byteArrayOf(9, 1, 2, 3)) }
+        try {
+            CoreKey(file, alias).load()
+            fail("an unknown key file loaded")
+        } catch (e: IllegalStateException) {
+            // A later format, or damage: never offer to start over for it.
+            assertFalse("an unknown file is a lost key", e is KeyLostException)
+        }
     }
 
     @Test
@@ -106,7 +135,8 @@ class CoreKeyTest {
         try {
             CoreLibrary.open(CoreService.coreConfig(dataDir, ByteArray(32))).close()
             fail("the core opened with another key")
-        } catch (e: IllegalStateException) {
+        } catch (e: KeyLostException) {
+            // The JNI layer throws it by name (core/ffi/jni_android.go).
             assertTrue(e.message.orEmpty(), e.message.orEmpty().contains("another key"))
         }
     }

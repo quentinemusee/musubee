@@ -40,18 +40,23 @@ class CoreService : Service() {
 
     private val binder = LocalBinder()
     private val opener = Executors.newSingleThreadExecutor()
-    private val core = CompletableFuture<CoreLibrary>()
+    // Replaced when the app starts over after losing the core's key.
+    @Volatile private var core = CompletableFuture<CoreLibrary>()
     private val listeners = CopyOnWriteArraySet<(ByteArray) -> Unit>()
     private var reader: Thread? = null
 
     override fun onCreate() {
         super.onCreate()
         startInForeground()
+        open(core)
+    }
+
+    private fun open(core: CompletableFuture<CoreLibrary>) {
         opener.execute {
             try {
                 val key = CoreKey.forApp(this).load()
                 val config = try {
-                    coreConfig(File(filesDir, "core"), key)
+                    coreConfig(dataDir(), key)
                 } finally {
                     key.fill(0)
                 }
@@ -83,8 +88,33 @@ class CoreService : Service() {
         super.onDestroy()
     }
 
-    /** Runs one JSON request once the core is open; blocks the calling thread. */
+    /**
+     * Runs one JSON request once the core is open; blocks the calling thread.
+     * Throws [KeyLostException] (in an ExecutionException) if the core did
+     * not start because its key is lost.
+     */
     fun call(request: ByteArray): ByteArray = core.get(OPEN_TIMEOUT_SECONDS, TimeUnit.SECONDS).call(request)
+
+    /**
+     * Starts over once the core's key is lost (docs/ADR/0031): sets the
+     * unreadable data and key aside, then opens a new, empty core. Refuses
+     * unless the core failed with [KeyLostException], so it never touches the
+     * data of a core that works or may still start.
+     */
+    @Synchronized
+    fun startOver() {
+        val failed = core
+        val lost = failed.isCompletedExceptionally &&
+            runCatching { failed.getNow(null) }.exceptionOrNull()?.cause is KeyLostException
+        check(lost) { "the core's key is not lost: nothing was set aside" }
+        val aside = StartOver.setAside(dataDir(), CoreKey.appFile(this))
+        Log.i(TAG, "Started over; the unreadable data was set aside as ${aside?.name}")
+        val next = CompletableFuture<CoreLibrary>()
+        core = next
+        open(next)
+    }
+
+    private fun dataDir() = File(filesDir, "core")
 
     /** Receives every JSON event of the core, on the event thread. */
     fun addListener(listener: (ByteArray) -> Unit) = listeners.add(listener)
