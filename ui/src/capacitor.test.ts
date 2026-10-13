@@ -8,10 +8,14 @@ import { describe, expect, test } from "vitest";
 import { pluginShell, type MusubeeCorePlugin } from "./capacitor";
 import type { CoreStatus } from "./shell";
 
-function scriptedPlugin(answer: (request: { id: number; command: string }) => Promise<object>) {
+function scriptedPlugin(
+  answer: (request: { id: number; command: string }) => Promise<object>,
+  startOver: () => Promise<void> = () => Promise.reject(new Error("not scripted")),
+) {
   let emit: ((event: object) => void) | undefined;
   const plugin: MusubeeCorePlugin = {
     call: ({ request }) => answer(request as { id: number; command: string }),
+    startOver,
     addListener: (_, listener) => {
       emit = listener;
       return Promise.resolve({ remove: () => Promise.resolve() });
@@ -51,5 +55,26 @@ describe("pluginShell", () => {
     const statuses: CoreStatus[] = [];
     shell.core.onStatus((status) => statuses.push(status));
     expect(statuses).toEqual([{ state: "failed", reason: "The core is not available: timeout" }]);
+  });
+
+  test("reports a lost key, and starts over on request", async () => {
+    // Capacitor rejects with an Error that carries the plugin's code.
+    const lost = Object.assign(new Error("The core's key is lost: the database was written with another key"), { code: "KEY_LOST" });
+    let startedOver = false;
+    const { plugin } = scriptedPlugin(
+      (request) => (startedOver ? Promise.resolve({ id: request.id, result: {} }) : Promise.reject(lost)),
+      () => {
+        startedOver = true;
+        return Promise.resolve();
+      },
+    );
+    const shell = pluginShell(plugin);
+    const statuses: CoreStatus[] = [];
+    shell.core.onStatus((status) => statuses.push(status));
+    await settle();
+    expect(statuses.at(-1)).toEqual({ state: "failed", reason: lost.message, keyLost: true });
+
+    await shell.core.startOver?.();
+    expect(statuses.slice(-2)).toEqual([{ state: "starting" }, { state: "ready" }]);
   });
 });

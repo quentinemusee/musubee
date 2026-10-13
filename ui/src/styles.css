@@ -517,6 +517,22 @@ ol {
   max-width: 480px;
 }
 
+.start-over {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+  max-width: 560px;
+}
+
+.start-over ul {
+  padding-left: calc(var(--space) * 3);
+  list-style: disc;
+}
+
+.start-over-button {
+  align-self: flex-start;
+}
+
 .networks {
   display: flex;
   flex-direction: column;

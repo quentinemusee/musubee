@@ -15,9 +15,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, ipcMain, protocol, safeStorage, session, type IpcMainInvokeEvent } from "electron";
 import { APP_ORIGIN, APP_SCHEME, APP_URL, serveAppFile } from "./app-protocol.js";
-import { CoreKeyError, loadCoreKey } from "./core-key.js";
+import { CoreKeyError, CoreKeyLostError, loadCoreKey } from "./core-key.js";
 import { CoreProcess, type CoreStatus } from "./core-process.js";
 import { RequestValidator } from "./ipc.js";
+import { setAside } from "./start-over.js";
 
 const appDir = join(dirname(fileURLToPath(import.meta.url)), "..");
 // Written by scripts/build.mjs. Packaging (E3.2) will move them to
@@ -119,6 +120,23 @@ function main(): void {
     }
     return { seq: statusSeq, status: core.status };
   });
+  // Starting over once the core's key is lost (docs/ADR/0031): the only
+  // request of the interface that touches the core's files, so it takes no
+  // argument and works only in that state. The data is renamed, never
+  // deleted.
+  ipcMain.handle("core:startOver", (event) => {
+    if (!trusted(event)) {
+      throw new Error("refused: not a Musubee window");
+    }
+    const status = core.status;
+    if (status.state !== "failed" || status.keyLost !== true) {
+      throw new Error("refused: the core's key is not lost");
+    }
+    const aside = setAside(coreDataDir);
+    console.info(`Started over; the unreadable data was set aside in ${aside ?? "nothing (there was none)"}`);
+    core.prepareRestart();
+    startCore(core, coreDataDir);
+  });
 
   app.on("web-contents-created", (_, contents) => {
     contents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -185,7 +203,7 @@ function startCore(core: CoreProcess, dataDir: string): void {
   } catch (error) {
     const reason = error instanceof CoreKeyError ? error.message : `the core's key: ${String(error)}`;
     console.error(`The core cannot start: ${reason}`);
-    core.fail(reason);
+    core.fail(reason, { keyLost: error instanceof CoreKeyLostError });
     return;
   }
   core.start(databaseKey === undefined ? {} : { databaseKey });

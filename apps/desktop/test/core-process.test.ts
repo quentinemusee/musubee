@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, inject, test } from "vitest";
 import { CoreProcess, type CoreProcessOptions, type CoreStatus } from "../src/core-process.ts";
+import { setAside } from "../src/start-over.ts";
 
 const running: CoreProcess[] = [];
 const dirs: string[] = [];
@@ -141,6 +142,37 @@ describe("CoreProcess", () => {
     core.fail("the core's key file is not valid");
     expect(statuses).toEqual([{ state: "failed", reason: "the core's key file is not valid" }]);
     expect(core.pid).toBeUndefined();
+  });
+
+  test("fails at once when the core's key is lost, and starts over once the data is set aside", async () => {
+    const first = newCore();
+    first.core.start({ databaseKey: Buffer.alloc(32, 1).toString("base64") });
+    await ready(first.core);
+    await first.core.stop();
+
+    // Another key on the same data: the core exits with status 3, which no
+    // restart can help (docs/ADR/0031).
+    const { core, statuses } = newCore({ dataDir: first.dataDir });
+    core.start({ databaseKey: Buffer.alloc(32, 2).toString("base64") });
+    await until(() => core.status.state === "failed", "the failed status");
+    expect(statuses).toEqual([{ state: "failed", reason: "the core exited (status 3): the core's key is lost", keyLost: true }]);
+
+    const aside = setAside(first.dataDir);
+    expect(aside).not.toBeNull();
+    dirs.push(aside!);
+    core.prepareRestart();
+    core.start({ databaseKey: Buffer.alloc(32, 3).toString("base64") });
+    await ready(core);
+    expect(statuses.slice(1)).toEqual([{ state: "starting" }, { state: "ready" }]);
+    expect(existsSync(join(aside!, "core.db"))).toBe(true);
+  });
+
+  test("prepareRestart() refuses while the core has not failed", async () => {
+    const { core } = newCore();
+    expect(() => core.prepareRestart()).toThrow("not stopped after a failure");
+    core.start();
+    await ready(core);
+    expect(() => core.prepareRestart()).toThrow("not stopped after a failure");
   });
 
   test("stop() closes the core cleanly", async () => {

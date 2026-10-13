@@ -11,8 +11,11 @@ export type CoreStatus =
   | { state: "ready" }
   /** The core stopped unexpectedly; the shell starts it again. */
   | { state: "restarting"; attempt: number }
-  /** The shell gave up starting the core. */
-  | { state: "failed"; reason: string };
+  /**
+   * The shell gave up starting the core. keyLost: the core's key is lost
+   * for good (docs/ADR/0031), and only startOver can give a working core.
+   */
+  | { state: "failed"; reason: string; keyLost?: true };
 
 export interface ShellCore {
   /** Sends one JSON request of the core API and resolves with the JSON response. */
@@ -21,6 +24,12 @@ export interface ShellCore {
   onEvent(listener: (event: string) => void): () => void;
   /** Calls listener with the current status, then with every change; returns a function that stops it. */
   onStatus(listener: (status: CoreStatus) => void): () => void;
+  /**
+   * Once the core's key is lost: sets the core's unreadable data aside
+   * (never deleted) and starts a new, empty core with a new key. Resolves
+   * once it is done; the status then goes through "starting" again.
+   */
+  startOver?(): Promise<void>;
 }
 
 export interface Shell {

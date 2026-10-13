@@ -12,13 +12,19 @@ import type { CoreStatus, Shell } from "./shell";
 export interface MusubeeCorePlugin {
   /** Resolves with the core's response, or rejects when the core is not available. */
   call(options: { request: object }): Promise<object>;
+  /** Sets the unreadable data aside and starts a new core; only once the key is lost. */
+  startOver(): Promise<void>;
   addListener(eventName: "event", listener: (event: object) => void): Promise<PluginListenerHandle>;
 }
+
+/** The code of the plugin's rejection when the core's key is lost (docs/ADR/0031). */
+export const KEY_LOST = "KEY_LOST";
 
 /**
  * Builds the shell over the plugin. The core starts with the app and lives
  * in its process: it is "starting" until it answers a first request, then
- * "ready" (or "failed"), and never restarts on its own.
+ * "ready" (or "failed"), and never restarts on its own, except when the
+ * user starts over after losing the core's key.
  */
 export function pluginShell(plugin: MusubeeCorePlugin): Shell {
   const events = new Set<(event: string) => void>();
@@ -44,10 +50,16 @@ export function pluginShell(plugin: MusubeeCorePlugin): Shell {
   const call = async (request: string) => JSON.stringify(await plugin.call({ request: JSON.parse(request) as object }));
 
   // The plugin waits for the core's service: a first answer means it is ready.
-  call(JSON.stringify({ id: 0, command: "core.hello" })).then(
-    () => setStatus({ state: "ready" }),
-    (error: unknown) => setStatus({ state: "failed", reason: error instanceof Error ? error.message : String(error) }),
-  );
+  const hello = () =>
+    call(JSON.stringify({ id: 0, command: "core.hello" })).then(
+      () => setStatus({ state: "ready" }),
+      (error: unknown) => {
+        const reason = error instanceof Error ? error.message : String(error);
+        const keyLost = (error as { code?: unknown } | null)?.code === KEY_LOST;
+        setStatus(keyLost ? { state: "failed", reason, keyLost: true } : { state: "failed", reason });
+      },
+    );
+  void hello();
 
   return {
     core: {
@@ -60,6 +72,11 @@ export function pluginShell(plugin: MusubeeCorePlugin): Shell {
         statuses.add(listener);
         listener(status);
         return () => statuses.delete(listener);
+      },
+      async startOver() {
+        await plugin.startOver();
+        setStatus({ state: "starting" });
+        await hello();
       },
     },
   };

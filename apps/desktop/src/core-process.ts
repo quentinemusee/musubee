@@ -10,7 +10,10 @@
 //   caller's back into the response.
 // - When the core stops unexpectedly, the requests waiting for it fail with
 //   the "closed" error, and it is started again after a growing delay,
-//   unless it failed too often in a short time.
+//   unless it failed too often in a short time. Exit status 3 means the
+//   core's key is lost (core/cmd/musubee-core, docs/ADR/0031): it fails at
+//   once, since no restart can help, until prepareRestart() after the app
+//   set the unreadable data aside.
 // - stop() ends its input, which makes it close cleanly, and kills it if it
 //   does not exit in time.
 // - The master key of its secrets at rest, when the app keeps it
@@ -27,7 +30,10 @@ export type CoreStatus =
   | { state: "starting" }
   | { state: "ready" }
   | { state: "restarting"; attempt: number }
-  | { state: "failed"; reason: string };
+  | { state: "failed"; reason: string; keyLost?: true };
+
+/** The exit status of the core when its key is lost (core/cmd/musubee-core). */
+export const EXIT_KEY_LOST = 3;
 
 export interface CoreProcessOptions {
   /** Path of the musubee-core executable. */
@@ -139,7 +145,7 @@ export class CoreProcess {
     });
     child.on("exit", (code, signal) => {
       if (this.#child === child) {
-        this.#onExit(child, `the core exited (${signal ?? `status ${code}`})`);
+        this.#onExit(child, `the core exited (${signal ?? `status ${code}`})`, code === EXIT_KEY_LOST);
       }
       exit();
     });
@@ -151,11 +157,29 @@ export class CoreProcess {
     this.#write(child, { id: PROBE_ID, command: "core.hello" });
   }
 
-  /** Reports that the core cannot start, without starting it (a key that does not open). */
-  fail(reason: string): void {
+  /**
+   * Reports that the core cannot start, without starting it (a key that
+   * does not open). keyLost: the key is lost for good (docs/ADR/0031).
+   */
+  fail(reason: string, options: { keyLost?: boolean } = {}): void {
     if (this.#child === null && !this.#stopping) {
-      this.#setStatus({ state: "failed", reason });
+      this.#setStatus(options.keyLost === true ? { state: "failed", reason, keyLost: true } : { state: "failed", reason });
     }
+  }
+
+  /**
+   * Forgets a failure, so that start() starts a new core, with a new key if
+   * given (docs/ADR/0031: after the app set the unreadable data aside).
+   * Only once the core has failed and while none runs.
+   */
+  prepareRestart(): void {
+    if (this.#child !== null || this.#stopping || this.#status.state !== "failed") {
+      throw new Error("the core is not stopped after a failure");
+    }
+    this.#crashes = [];
+    this.#attempt = 0;
+    this.#databaseKey = undefined;
+    this.#setStatus({ state: "starting" });
   }
 
   /**
@@ -228,7 +252,7 @@ export class CoreProcess {
     }
   }
 
-  #onExit(child: ChildProcessWithoutNullStreams, reason: string): void {
+  #onExit(child: ChildProcessWithoutNullStreams, reason: string, keyLost = false): void {
     this.#child = null;
     child.stdin.destroy();
     for (const pending of this.#pending.values()) {
@@ -236,6 +260,10 @@ export class CoreProcess {
     }
     this.#pending.clear();
     if (this.#stopping) {
+      return;
+    }
+    if (keyLost) {
+      this.#setStatus({ state: "failed", reason: `${reason}: the core's key is lost`, keyLost: true });
       return;
     }
     const now = performance.now();

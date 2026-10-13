@@ -19,6 +19,7 @@ export function App() {
   const loaded = useAppState((s) => s.loaded);
   const hasAccounts = useAppState((s) => s.accounts.length > 0);
   const view = useAppState((s) => (s.selected === undefined ? "inbox" : "thread"));
+  const keyLost = useAppState((s) => s.status.state === "failed" && s.status.keyLost === true);
   useBackToInbox(store);
   return (
     <div className="app">
@@ -27,7 +28,11 @@ export function App() {
         <StatusLine />
       </header>
       <ErrorBanner />
-      {adding !== null || (loaded && !hasAccounts) ? (
+      {keyLost ? (
+        <main className="app-main">
+          <StartOver />
+        </main>
+      ) : adding !== null || (loaded && !hasAccounts) ? (
         <main className="app-main">
           <AddAccount
             key={adding?.again?.account.account_id ?? ""}
@@ -64,7 +69,7 @@ function statusText(status: CoreStatus, loaded: boolean): string {
     case "restarting":
       return `Something went wrong; restarting (attempt ${status.attempt})…`;
     case "failed":
-      return `Musubee could not start: ${status.reason}`;
+      return status.keyLost === true ? "Musubee cannot open your data" : `Musubee could not start: ${status.reason}`;
   }
 }
 
@@ -75,6 +80,61 @@ function StatusLine() {
     <output className="status" aria-label="App status" data-state={status.state}>
       {statusText(status, loaded)}
     </output>
+  );
+}
+
+// The core's key is lost for good (docs/ADR/0031): its data cannot be read
+// again, by any restart. The screen says what this means in the user's
+// words, and starting over asks for a confirmation. Nothing is deleted: the
+// shell sets the unreadable data aside.
+function StartOver() {
+  const store = useStore();
+  const reason = useAppState((s) => (s.status.state === "failed" ? s.status.reason : ""));
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function startOver() {
+    setBusy(true);
+    await store.startOver();
+    setBusy(false);
+    setConfirming(false);
+  }
+
+  return (
+    <section className="start-over" aria-labelledby="start-over-title">
+      <h2 id="start-over-title">Musubee cannot open your data</h2>
+      <p>
+        The key that protects your accounts on this device is gone, so Musubee cannot read them any more. This happens when the
+        system&apos;s secure storage was reset, or when the app&apos;s data was copied from another device.
+      </p>
+      <p>You can start over with an empty Musubee:</p>
+      <ul>
+        <li>You add your accounts again, and log in to each one.</li>
+        <li>Conversations come back from the networks that keep them; what only this device kept is not shown again.</li>
+        <li>Nothing is deleted: the old data stays on this device, set aside in a folder next to the new one.</li>
+      </ul>
+      {!store.canStartOver ? (
+        <p className="hint">This version of the app cannot start over: update it.</p>
+      ) : confirming ? (
+        <fieldset className="account-actions">
+          <legend className="hint">Start over with an empty Musubee?</legend>
+          <button type="button" className="danger" disabled={busy} onClick={() => void startOver()}>
+            Start over
+          </button>
+          <button type="button" className="secondary" disabled={busy} onClick={() => setConfirming(false)}>
+            Cancel
+          </button>
+        </fieldset>
+      ) : (
+        <button type="button" className="start-over-button" onClick={() => setConfirming(true)}>
+          Start over…
+        </button>
+      )}
+      <details>
+        <summary>Details</summary>
+        <p className="hint">{reason}</p>
+      </details>
+    </section>
   );
 }
 
