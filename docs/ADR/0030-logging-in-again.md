@@ -60,4 +60,4 @@ bridgev2 deletes the old login there, with its portals: for a Matrix bridge that
 | The desktop app shows the ended session, logs in again from the account's button and keeps the conversations | **verified** (Windows, Electron) | `apps/desktop/e2e/app.spec.ts`, "an account whose session ended is logged in to again" |
 | Telegram's relogin through `StartWithOverride` goes straight to the code with the account's phone number | **assumed** from mautrix-telegram's code; not run (the CI's Telegram accounts are bots, whose sessions do not end) | `pkg/connector/loginphone.go` |
 | Signal: unlinking the device from the phone, then linking again from "Log in again", reuses the account | **unknown**: Signal's connector has no override; whether the new link gets the same login ID (the account's ACI) is expected but not run | |
-| The Android app's "Log in again" | **assumed**: the same interface; not run on a device | |
+| The Android app's "Log in again": the ended session, the flows of the account's network only, the username filled in, and the conversations kept | **verified** by hand on a Pixel 8 Pro (Android 17), 2026-10-13, with an `expired` echo account | |

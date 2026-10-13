@@ -40,3 +40,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0028](0028-signal-on-android-ci.md) | Signal on Android in CI: libsignal built per ABI with the app's NDK, the Signal tests run on an emulator | accepted | T2.11 |
 | [0029](0029-signal-in-the-android-app.md) | Signal in the Android app: an opt-in Gradle property, libsignal prepared per ABI | accepted | T2.12 |
 | [0030](0030-logging-in-again.md) | Logging in to an account again: login.start with an account, which never removes the account | accepted | T2.14 |
+| [0031](0031-starting-over-after-a-lost-key.md) | Starting over after a lost key: the shell sets the old data aside, never deletes it, and starts a new core | accepted | T2.15 |

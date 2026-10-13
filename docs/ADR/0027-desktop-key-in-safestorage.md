@@ -92,7 +92,7 @@ Electron's documentation recommends the asynchronous API (`encryptStringAsync`, 
 
 - On macOS, and on Linux with a password store, a copy of the data directory no longer holds a usable key. That closes ADR 0019's gap on the desktop, except on Linux without a password store, which keeps the plain file and its warning.
 - The core program alone can no longer open such a data directory. Tools and tests that run it directly use a directory of their own, or pass `-key-from-stdin`.
-- Losing access to the Keychain item or the keyring (a reset keyring, a data directory copied to another machine) loses the accounts, as a lost DPAPI or Keystore key does. Recovering from a lost key in the interface is E2.2.
+- Losing access to the Keychain item or the keyring (a reset keyring, a data directory copied to another machine) loses the accounts, as a lost DPAPI or Keystore key does. Recovering from a lost key in the interface is E2.2 (done in T2.15, ADR 0031).
 - A plain key file replaced by the move may remain in free disk blocks: the move does not erase it securely, which a file system cannot promise anyway.
 - Follow-ups: the asynchronous API when it can report a fallback; the interface could show that the key is not in a secure storage (the status, today only in the logs); the Keychain prompts of a signed app (E3.2).
 

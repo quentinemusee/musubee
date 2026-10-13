@@ -109,7 +109,7 @@ The Windows Credential Manager was the other option of the task. DPAPI is what i
 - **Losing the key loses the sessions**: a restored data directory without its key (another Windows account, a reinstalled Android app) fails to open with "the database was written with another key". The user has to remove the data and sign in again; an interface for that comes with account management (E2.2).
 - Message content, names and pictures stay in clear in the database; they rely on the OS disk encryption (BitLocker, FileVault, Android file-based encryption). Revisit option A when the threat model needs more, or if `ncruces/go-sqlite3` becomes usable on iOS.
 - A mautrix upgrade that changes bridgev2's `user_login` queries makes the core fail on login until `sealedArgument` follows; the tests catch it first.
-- Follow-up tasks: macOS and Linux keys through Electron `safeStorage`; iOS Keychain (E3.3); an interface to recover from a lost key (E2.2).
+- Follow-up tasks: macOS and Linux keys through Electron `safeStorage`; iOS Keychain (E3.3); an interface to recover from a lost key (E2.2; done in T2.15, ADR 0031).
 
 ## Sources
 
