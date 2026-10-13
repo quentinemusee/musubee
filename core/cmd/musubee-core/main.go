@@ -22,6 +22,11 @@
 // (https://my.telegram.org): environment variables rather than flags, so
 // that they do not show in the system's list of processes.
 //
+// It exits with status 1 when it cannot start, and with status 3
+// (exitKeyLost) when the key of its data directory is gone for good
+// (secrets.ErrKeyLost): restarting it cannot help, and the app offers to
+// start over instead (docs/ADR/0031). Status 2 is a usage error.
+//
 // It exits when its standard input ends: when the app closes it, and also
 // when the app dies, since the system then closes the app's end of the pipe.
 // An interrupt or termination signal closes the core cleanly too.
@@ -55,9 +60,15 @@ func main() {
 	}
 	if err := run(*dataDir, *logLevel, *keyFromStdin); err != nil {
 		fmt.Fprintln(os.Stderr, "musubee-core:", err)
+		if errors.Is(err, secrets.ErrKeyLost) {
+			os.Exit(exitKeyLost)
+		}
 		os.Exit(1)
 	}
 }
+
+// exitKeyLost is the exit status of a core whose key is lost.
+const exitKeyLost = 3
 
 func run(dataDir, logLevel string, keyFromStdin bool) error {
 	telegram, err := telegramConfig(os.Getenv)

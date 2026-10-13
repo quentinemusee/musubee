@@ -249,7 +249,8 @@ func TestKeyFromStdin(t *testing.T) {
 	cmd.Stdin = strings.NewReader(other + "\n")
 	out, err := cmd.CombinedOutput()
 	var exit *exec.ExitError
-	if !errors.As(err, &exit) || exit.ExitCode() != 1 || !strings.Contains(string(out), "another key") || strings.Contains(string(out), other) {
+	// Status 3: the key is lost, the app must not start the core again.
+	if !errors.As(err, &exit) || exit.ExitCode() != 3 || !strings.Contains(string(out), "another key") || strings.Contains(string(out), other) {
 		t.Errorf("start with another key: %v; output: %s", err, out)
 	}
 }
