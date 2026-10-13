@@ -356,3 +356,14 @@ Verified in T2.14 (Windows, Go 1.27.1 with MSYS2 UCRT64, Node 24.20, Electron 44
 log in again:       go test -tags=goolm -count=1 -run 'LoginAgain' -v ./core/embedded/
 again in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "session ended"
 ```
+
+Also verified on a Pixel 8 Pro (Android 17) by hand: "Log in again" in the Android app.
+
+Verified in T2.15 (Windows, Go 1.27.1 with MSYS2 UCRT64, Node 24.20, Electron 44.7.0, JDK 21; a Pixel 8 Pro with Android 17; see ADR 0031). The Android tests set the app's own data aside: run them on a test device or emulator:
+
+```
+lost keys (core):   go test -tags=goolm -count=1 -run 'LostKeys|Sealed|KeyFile|KeyFromStdin' -v ./core/secrets/ ./core/embedded/ ./core/cmd/musubee-core/
+start over (shells): cd apps/desktop && npx vitest run test/core-process.test.ts test/core-key.test.ts test/start-over.test.ts      (ui: npx vitest run src/capacitor.test.ts src/store.test.ts)
+start over in app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "lost key"
+android start over: ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=app.musubee.core.CoreKeyTest,app.musubee.core.StartOverTest"
+```
