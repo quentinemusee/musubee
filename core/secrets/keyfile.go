@@ -73,6 +73,12 @@ func LoadOrCreate(dir string) (Key, Protection, error) {
 	}
 	raw, err := unprotect(f.Protection, blob)
 	if err != nil {
+		// DPAPI refuses the key for good on another machine or user, and
+		// other platforms cannot read it. An unknown protection is not a
+		// lost key: a later version of the core may know it.
+		if f.Protection == ProtectionDPAPI {
+			err = keyLostError{err}
+		}
 		return Key{}, "", fmt.Errorf("unlocking the key: %w", err)
 	}
 	if len(raw) != KeySize {

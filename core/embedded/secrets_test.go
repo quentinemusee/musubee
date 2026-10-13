@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -113,8 +114,8 @@ func TestSessionsAreSealed(t *testing.T) {
 		if c, err := tryOpenWithKey(dir, other); err == nil {
 			_ = c.Close()
 			t.Errorf("the core opened with another key (%t)", other != "")
-		} else if !strings.Contains(err.Error(), secrets.ErrWrongKey.Error()) {
-			t.Errorf("another key: %v", err)
+		} else if !strings.Contains(err.Error(), secrets.ErrWrongKey.Error()) || !errors.Is(err, secrets.ErrKeyLost) {
+			t.Errorf("another key: %v, want ErrWrongKey matching ErrKeyLost", err)
 		}
 	}
 	for _, bad := range []string{"not base64", base64.StdEncoding.EncodeToString([]byte("short"))} {

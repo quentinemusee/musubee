@@ -7,7 +7,9 @@ package main
 // methods of the Kotlin object app.musubee.core.NativeCore (apps/mobile),
 // in the same library as the C functions, so the app ships one .so per ABI.
 // They mirror the C API of musubee.h; Kotlin byte arrays replace the C
-// buffers, and failures become IllegalStateException.
+// buffers, and failures become IllegalStateException, or its subclass
+// app.musubee.core.KeyLostException when the core's key is lost
+// (secrets.ErrKeyLost, docs/ADR/0031).
 
 /*
 #include <jni.h>
@@ -29,8 +31,13 @@ static jbyteArray musubee_jni_bytes(JNIEnv *env, const void *data, jsize len) {
 	return array;
 }
 
-static void musubee_jni_throw(JNIEnv *env, const char *message) {
-	jclass cls = (*env)->FindClass(env, "java/lang/IllegalStateException");
+static void musubee_jni_throw(JNIEnv *env, const char *class_name, const char *message) {
+	jclass cls = (*env)->FindClass(env, class_name);
+	if (cls == NULL) {
+		// FindClass left a NoClassDefFoundError pending: throw the base class.
+		(*env)->ExceptionClear(env);
+		cls = (*env)->FindClass(env, "java/lang/IllegalStateException");
+	}
 	if (cls != NULL) {
 		(*env)->ThrowNew(env, cls, message);
 	}
@@ -39,8 +46,11 @@ static void musubee_jni_throw(JNIEnv *env, const char *message) {
 import "C"
 
 import (
+	"errors"
 	"fmt"
 	"unsafe"
+
+	"github.com/quentinemusee/musubee/core/secrets"
 )
 
 // jniBytes copies a Java byte array; a null array reads as empty.
@@ -63,10 +73,21 @@ func javaBytes(env *C.JNIEnv, data []byte) C.jbyteArray {
 	return C.musubee_jni_bytes(env, unsafe.Pointer(&data[0]), C.jsize(len(data)))
 }
 
+const (
+	illegalState = "java/lang/IllegalStateException"
+	keyLost      = "app/musubee/core/KeyLostException"
+)
+
 func throw(env *C.JNIEnv, message string) {
+	throwClass(env, illegalState, message)
+}
+
+func throwClass(env *C.JNIEnv, class, message string) {
+	cClass := C.CString(class)
+	defer C.free(unsafe.Pointer(cClass))
 	cMessage := C.CString(message)
 	defer C.free(unsafe.Pointer(cMessage))
-	C.musubee_jni_throw(env, cMessage)
+	C.musubee_jni_throw(env, cClass, cMessage)
 }
 
 // As in ffi.go, a panic must never cross into the JVM: it would abort the
@@ -81,7 +102,10 @@ func Java_app_musubee_core_NativeCore_open(env *C.JNIEnv, _ C.jclass, config C.j
 		}
 	}()
 	h, err := openCore(jniBytes(env, config))
-	if err != nil {
+	if errors.Is(err, secrets.ErrKeyLost) {
+		throwClass(env, keyLost, err.Error())
+		return 0
+	} else if err != nil {
 		throw(env, err.Error())
 		return 0
 	}

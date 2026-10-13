@@ -142,3 +142,35 @@ func TestKeyFileOfTheApp(t *testing.T) {
 		t.Errorf("the key file changed: %q, %v", data, err)
 	}
 }
+
+// The errors of a key gone for good match ErrKeyLost; an invalid or unknown
+// key file does not, since a later version of the core may read it.
+func TestLostKeys(t *testing.T) {
+	if !errors.Is(ErrWrongKey, ErrKeyLost) {
+		t.Error("ErrWrongKey does not match ErrKeyLost")
+	}
+	write := func(t *testing.T, content string) string {
+		t.Helper()
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, KeyFileName), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return dir
+	}
+	// A DPAPI blob that this user cannot unlock, as on another machine; on
+	// other platforms, any DPAPI key file.
+	foreign := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{7}, 64))
+	_, _, err := LoadOrCreate(write(t, `{"version":1,"protection":"dpapi","key":"`+foreign+`"}`))
+	if !errors.Is(err, ErrKeyLost) {
+		t.Errorf("a key file that DPAPI refuses: %v, want ErrKeyLost", err)
+	}
+	for _, content := range []string{
+		`{}`,
+		`{"version":1,"protection":"from-the-future","key":"` + foreign + `"}`,
+		`{"version":1,"protection":"electron-safestorage","key":"djEwAAAA"}`,
+	} {
+		if _, _, err := LoadOrCreate(write(t, content)); err == nil || errors.Is(err, ErrKeyLost) {
+			t.Errorf("key file %s: %v, want an error other than ErrKeyLost", content, err)
+		}
+	}
+}

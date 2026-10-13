@@ -22,8 +22,22 @@ const (
 	purposeKeyCheck        = "key-check"
 )
 
+// ErrKeyLost matches, with errors.Is, the errors that mean that the master
+// key of a data directory is gone for good: the database was written with
+// another key, or the system's protection cannot unlock the key file (the
+// files were copied to another machine or user). Retrying cannot help; a
+// user interface can offer to start over with new data (docs/ADR/0031).
+var ErrKeyLost = errors.New("the core's key is lost")
+
+// keyLostError is an error that also matches ErrKeyLost.
+type keyLostError struct{ err error }
+
+func (e keyLostError) Error() string   { return e.err.Error() }
+func (e keyLostError) Unwrap() []error { return []error{e.err, ErrKeyLost} }
+
 // ErrWrongKey is returned when the database was written with another key.
-var ErrWrongKey = errors.New("the database was written with another key: its sessions cannot be read")
+// It matches ErrKeyLost.
+var ErrWrongKey error = keyLostError{errors.New("the database was written with another key: its sessions cannot be read")}
 
 // keyCheckText is sealed into the database on first use, so that a wrong
 // key is detected at start instead of when a session is read.
