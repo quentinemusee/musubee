@@ -16,7 +16,9 @@
 //   without a secure storage, moves into the secure storage as soon as one
 //   is available: the same key, so the sealed secrets still open.
 // - A key file of the secure storage that does not open stops the core: a
-//   new key would make every sealed secret unreadable.
+//   new key would make every sealed secret unreadable. When the secure
+//   storage cannot decrypt it, the key is lost (CoreKeyLostError,
+//   docs/ADR/0031) and the user may start over.
 //
 // This module does not import Electron, so that it runs under plain Node in
 // the tests.
@@ -49,6 +51,13 @@ export type CoreKey =
 /** A key the app cannot give, and that the core must not replace. */
 export class CoreKeyError extends Error {}
 
+/**
+ * The secure storage cannot decrypt the key: it is lost, and only starting
+ * over gives a working core (docs/ADR/0031). An unavailable secure storage
+ * is not a lost key: it may come back.
+ */
+export class CoreKeyLostError extends CoreKeyError {}
+
 interface KeyFile {
   version: number;
   protection: string;
@@ -76,7 +85,7 @@ export function loadCoreKey(dataDir: string, storage: KeyStorage, platform: Node
     try {
       key = storage.decryptString(Buffer.from(file.key, "base64"));
     } catch {
-      throw new CoreKeyError("the system's secure storage could not decrypt the core's key");
+      throw new CoreKeyLostError("the system's secure storage could not decrypt the core's key");
     }
     if (!isKey(key)) {
       throw new CoreKeyError("the core's key file is not valid");

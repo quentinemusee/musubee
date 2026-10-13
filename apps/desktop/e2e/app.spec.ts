@@ -7,7 +7,8 @@
 //
 //   npm run build && npm run test:e2e
 
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,13 +42,13 @@ function newDataDir(): string {
   return dir;
 }
 
-async function launch(dataDir: string, env: Record<string, string> = {}): Promise<Running> {
+async function launch(dataDir: string, env: Record<string, string> = {}, status: RegExp = /Ready|Loading/): Promise<Running> {
   const app = await electron.launch({
     args: [appDir],
     env: { ...process.env, ...env, MUSUBEE_USER_DATA_DIR: dataDir, MUSUBEE_E2E: "1" },
   });
   const page = await app.firstWindow();
-  await expect(page.getByRole("status", { name: "App status" })).toHaveText(/Ready|Loading/);
+  await expect(page.getByRole("status", { name: "App status" })).toHaveText(status);
   return { app, page };
 }
 
@@ -167,7 +168,7 @@ test("the interface is isolated, and the main process checks what it sends", asy
       core: Object.keys(window.musubee?.core ?? {}).toSorted(),
     };
   });
-  expect(globals).toEqual({ require: "undefined", process: "undefined", module: "undefined", shell: ["core"], core: ["call", "onEvent", "onStatus"] });
+  expect(globals).toEqual({ require: "undefined", process: "undefined", module: "undefined", shell: ["core"], core: ["call", "onEvent", "onStatus", "startOver"] });
 
   // Requests the schema refuses get the core API's own errors.
   const codes = await page.evaluate(async () => {
@@ -581,6 +582,54 @@ test("a plain key file moves into the system's secure storage, and the account s
   expect(moved.protection).toBe("electron-safestorage");
   expect(await decryptKey(app, moved.key)).toBe(plain.key);
   expect(readFileSync(join(dataDir, "core", "core.key"), "utf8")).not.toContain(plain.key);
+  await app.close();
+});
+
+test("a lost key offers to start over, which sets the old data aside and gives an empty app", async () => {
+  const dataDir = newDataDir();
+  let { app, page } = await launch(dataDir);
+  await addEchoAccount(page, "lost");
+  await expect(page.getByText("Connected")).toBeVisible();
+  // Starting over is refused while the key opens.
+  await expect(page.evaluate(() => window.musubee!.core.startOver!())).rejects.toThrow("the core's key is not lost");
+  await app.close();
+
+  // As if the system's secure storage was reset: DPAPI or safeStorage
+  // cannot decrypt the key file any more. The byte flipped is in the
+  // second-to-last block, so that safeStorage's CBC padding always breaks;
+  // a plain key file gets another key, which does not open the database.
+  const path = join(dataDir, "core", "core.key");
+  const file = coreKeyFile(dataDir);
+  if (file.protection === "none") {
+    file.key = randomBytes(32).toString("base64");
+  } else {
+    const sealed = Buffer.from(file.key, "base64");
+    sealed[sealed.length - 17]! ^= 0xff;
+    file.key = sealed.toString("base64");
+  }
+  const broken = JSON.stringify(file);
+  writeFileSync(path, broken);
+
+  ({ app, page } = await launch(dataDir, {}, /cannot open your data/));
+  await expect(page.getByRole("heading", { name: "Musubee cannot open your data" })).toBeVisible();
+  expect(await corePid(app)).toBeUndefined();
+  await page.getByRole("button", { name: "Start over…" }).click();
+  await page.getByRole("button", { name: "Start over", exact: true }).click();
+
+  // An empty app, which adds an account as on the first start.
+  await expect(page.getByRole("status", { name: "App status" })).toHaveText("Ready");
+  await expect(page.getByRole("heading", { name: "Add an account" })).toBeVisible();
+  const aside = readdirSync(dataDir).filter((name) => name.startsWith("core-unreadable-"));
+  expect(aside).toHaveLength(1);
+  expect(existsSync(join(dataDir, aside[0]!, "core.db"))).toBe(true);
+  expect(readFileSync(join(dataDir, aside[0]!, "core.key"), "utf8")).toBe(broken);
+  await addEchoAccount(page, "again");
+  await expect(page.getByText("Connected")).toBeVisible();
+  await app.close();
+
+  // The new key opens the new data.
+  ({ app, page } = await launch(dataDir));
+  await expect(page.getByText("Connected")).toBeVisible();
   await app.close();
 });
 

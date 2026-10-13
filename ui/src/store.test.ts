@@ -179,6 +179,38 @@ describe("Store", () => {
     expect(store.getState().persons.map((p) => p.person_id)).toEqual(["h2"]);
   });
 
+  test("starts over: forgets what it showed, and reads the new core once it is ready", async () => {
+    let conversations = [conversation("c1", "Adam")];
+    const shell = scriptedShell({ ...coreState(), "conversations.list": () => ({ conversations }) });
+    const store = new Store(shell.core);
+    expect(store.canStartOver).toBe(false);
+    expect(await store.startOver()).toBe(false);
+
+    let startedOver = 0;
+    shell.core.startOver = () => {
+      startedOver++;
+      conversations = [];
+      shell.status({ state: "starting" });
+      shell.status({ state: "ready" });
+      return Promise.resolve();
+    };
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    expect(store.getState().conversations).toHaveLength(1);
+    shell.status({ state: "failed", reason: "lost", keyLost: true });
+
+    expect(store.canStartOver).toBe(true);
+    expect(await store.startOver()).toBe(true);
+    await settle();
+    expect(startedOver).toBe(1);
+    expect(store.getState()).toMatchObject({ status: { state: "ready" }, loaded: true, conversations: [] });
+
+    shell.core.startOver = () => Promise.reject(new Error("refused: the core's key is not lost"));
+    expect(await store.startOver()).toBe(false);
+    expect(store.getState().error).toBe("Could not start over: refused: the core's key is not lost");
+  });
+
   test("logs out, and forgets a logged-out account", async () => {
     const alice = { account_id: "a1", network_id: "echo", name: "alice", state: "connected" };
     let accounts = [alice];

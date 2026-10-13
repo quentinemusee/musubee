@@ -8,7 +8,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync }
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test } from "vitest";
-import { CoreKeyError, KEY_FILE_NAME, loadCoreKey, SAFE_STORAGE_PROTECTION, type KeyStorage } from "../src/core-key.ts";
+import { CoreKeyError, CoreKeyLostError, KEY_FILE_NAME, loadCoreKey, SAFE_STORAGE_PROTECTION, type KeyStorage } from "../src/core-key.ts";
 
 const dirs: string[] = [];
 
@@ -131,6 +131,9 @@ test("a key of the secure storage that does not open stops the core, and stays",
       error = e;
     }
     expect(error).toBeInstanceOf(CoreKeyError);
+    // Only a key that the secure storage cannot decrypt is lost
+    // (docs/ADR/0031): an unavailable secure storage may come back.
+    expect(error instanceof CoreKeyLostError, (error as Error).message).toBe(other.isEncryptionAvailable() && other.getSelectedStorageBackend?.() !== "basic_text");
     expect((error as Error).message).not.toContain(created.source === "safe-storage" ? created.key : "");
     expect(readFileSync(join(dataDir, KEY_FILE_NAME), "utf8")).toBe(content);
   }
@@ -148,6 +151,7 @@ test("an invalid key file stops the core, and stays", () => {
     const dataDir = newDataDir();
     writeKeyFile(dataDir, content);
     expect(() => loadCoreKey(dataDir, fakeStorage(), "linux"), content).toThrow(CoreKeyError);
+    expect(() => loadCoreKey(dataDir, fakeStorage(), "linux"), content).not.toThrow(CoreKeyLostError);
     expect(readFileSync(join(dataDir, KEY_FILE_NAME), "utf8")).toBe(content);
   }
 });

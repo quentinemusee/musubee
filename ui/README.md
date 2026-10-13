@@ -8,7 +8,7 @@ A single interface codebase for every platform, built with Vite and displayed by
 
 | Path | Role |
 |---|---|
-| `src/shell.ts` | `window.musubee`, what a shell (Electron, later Capacitor) gives the interface: `core.call`, `core.onEvent`, `core.onStatus` |
+| `src/shell.ts` | `window.musubee`, what a shell (Electron, later Capacitor) gives the interface: `core.call`, `core.onEvent`, `core.onStatus`, and `core.startOver` once the core's key is lost (ADR 0031) |
 | `src/store.ts` | `Store`: the interface's state, read from the core and kept up to date by its events; reloads everything after a (re)start of the core or `resync.required`; reads older messages page by page (`loadOlder`) |
 | `src/app/` | The React components: status line, accounts, conversation list, thread with its composer, the add-account flow; `MessageList` is the only user of the list library (virtua) |
 | `src/styles.css` | Design tokens (CSS custom properties), light and dark |

@@ -49,5 +49,8 @@ contextBridge.exposeInMainWorld("musubee", {
         ipcRenderer.removeListener("core:status", handler);
       };
     },
+    startOver(): Promise<void> {
+      return ipcRenderer.invoke("core:startOver") as Promise<void>;
+    },
   },
 });

@@ -335,6 +335,33 @@ export class Store {
     await this.reload();
   }
 
+  /** Whether the shell can start over once the core's key is lost. */
+  get canStartOver(): boolean {
+    return this.#core.startOver !== undefined;
+  }
+
+  /**
+   * Starts over once the core's key is lost (docs/ADR/0031): the shell sets
+   * the unreadable data aside and starts a new, empty core. Whatever the
+   * interface still shows of the old data is forgotten first. Returns
+   * whether the shell did it.
+   */
+  async startOver(): Promise<boolean> {
+    if (this.#core.startOver === undefined) {
+      return false;
+    }
+    this.#generation++;
+    this.#replay = undefined;
+    this.#replace({ ...initialState, status: this.#state.status });
+    try {
+      await this.#core.startOver();
+      return true;
+    } catch (error) {
+      this.#set({ error: `Could not start over: ${describe(error)}` });
+      return false;
+    }
+  }
+
   /**
    * Merges `otherId` into the thread of `currentId` (mergePlan). The core's
    * events update the persons and conversations; the person it answers with

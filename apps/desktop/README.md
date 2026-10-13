@@ -15,7 +15,7 @@ Why Electron and not Wails or Tauri: [`docs/ADR/0001-stack.md`](../../docs/ADR/0
 | `src/ipc.ts` | `RequestValidator`: checks every request of the interface against the core API schema (Ajv) before it reaches the core |
 | `src/app-protocol.ts` | Serves the built interface on `app://musubee/` with the content security policy |
 | `src/core-key.ts` | The core's master key on macOS and Linux, kept with Electron `safeStorage` and given to the core on its input (ADR 0027) |
-| `src/preload.cts` | The preload: exposes `window.musubee.core` (`call`, `onEvent`, `onStatus`), nothing else |
+| `src/preload.cts` | The preload: exposes `window.musubee.core` (`call`, `onEvent`, `onStatus`, `startOver`), nothing else |
 | `scripts/build.mjs` | Builds the core, the interface and the main process into `resources/` and `dist/` |
 | `test/` | Unit tests (Vitest); the supervisor's tests run the real core, built by `test/global-setup.ts` |
 | `e2e/` | End-to-end tests (Playwright for Electron) |
