@@ -15,6 +15,7 @@ import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -25,6 +26,10 @@ import java.util.concurrent.TimeUnit
  * (`{id, result}` or `{id, error}`), and the "event" listener receives every
  * event of the core. The commands are those of core/embedded until the
  * UI contract of T1.4.
+ *
+ * When the core cannot start because its key is lost, `call` rejects with
+ * the code [KEY_LOST], and `startOver()` sets the unreadable data aside and
+ * starts a new, empty core (docs/ADR/0031).
  */
 @CapacitorPlugin(name = "MusubeeCore")
 class MusubeeCorePlugin : Plugin() {
@@ -68,7 +73,24 @@ class MusubeeCorePlugin : Plugin() {
                 val response = core.call(request.toString().toByteArray(Charsets.UTF_8))
                 call.resolve(JSObject(String(response, Charsets.UTF_8)))
             } catch (e: Exception) {
-                call.reject("The core is not available: ${e.message}", e)
+                val cause = if (e is ExecutionException) e.cause ?: e else e
+                if (cause is KeyLostException) {
+                    call.reject("The core's key is lost: ${cause.message}", KEY_LOST, cause)
+                } else {
+                    call.reject("The core is not available: ${cause.message}", e)
+                }
+            }
+        }
+    }
+
+    @PluginMethod
+    fun startOver(call: PluginCall) {
+        calls.execute {
+            try {
+                service.get(BIND_TIMEOUT_SECONDS, TimeUnit.SECONDS).startOver()
+                call.resolve()
+            } catch (e: Exception) {
+                call.reject("Could not start over: ${e.message}", e)
             }
         }
     }
@@ -84,5 +106,8 @@ class MusubeeCorePlugin : Plugin() {
 
     companion object {
         private const val BIND_TIMEOUT_SECONDS = 30L
+
+        /** The rejection code of `call` when the core's key is lost. */
+        const val KEY_LOST = "KEY_LOST"
     }
 }

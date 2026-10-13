@@ -11,6 +11,7 @@ import java.io.File
 import java.io.IOException
 import java.security.KeyStore
 import java.security.SecureRandom
+import javax.crypto.AEADBadTagException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -30,10 +31,11 @@ import javax.crypto.spec.GCMParameterSpec
  */
 class CoreKey(private val file: File, private val alias: String) {
     /**
-     * Returns the master key, creating it on first use. Throws if the file
-     * exists but its Keystore key is gone (the app's files were copied to
-     * another device, or the Keystore was cleared): the sessions cannot be
-     * read again, and a new key would not open the database either.
+     * Returns the master key, creating it on first use. Throws
+     * [KeyLostException] if the file exists but its Keystore key is gone or
+     * cannot decrypt it (the app's files were copied to another device, or
+     * the Keystore was cleared): the sessions cannot be read again, and a new
+     * key would not open the database either (docs/ADR/0031).
      */
     @Synchronized
     fun load(): ByteArray {
@@ -58,7 +60,9 @@ class CoreKey(private val file: File, private val alias: String) {
 
     private fun wrappingKey(create: Boolean): SecretKey {
         (keystore().getKey(alias, null) as SecretKey?)?.let { return it }
-        check(create) { "the Keystore key of the core's master key is gone" }
+        if (!create) {
+            throw KeyLostException("the Keystore key of the core's master key is gone")
+        }
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE)
         generator.init(
             KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
@@ -88,7 +92,11 @@ class CoreKey(private val file: File, private val alias: String) {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, wrappingKey(create = false), GCMParameterSpec(TAG_BITS, iv))
         cipher.updateAAD(AAD)
-        val key = cipher.doFinal(sealed, 2 + ivSize, sealed.size - 2 - ivSize)
+        val key = try {
+            cipher.doFinal(sealed, 2 + ivSize, sealed.size - 2 - ivSize)
+        } catch (e: AEADBadTagException) {
+            throw KeyLostException("the Keystore key cannot decrypt the core's master key", e)
+        }
         check(key.size == KEY_SIZE) { "the core's key file holds a key of the wrong size" }
         return key
     }
@@ -102,6 +110,9 @@ class CoreKey(private val file: File, private val alias: String) {
         private val AAD = "app.musubee.core master key v1".toByteArray(Charsets.UTF_8)
 
         /** The app's key: outside the core's data directory, never backed up. */
-        fun forApp(context: Context) = CoreKey(File(context.noBackupFilesDir, "core-key"), "app.musubee.core.key-wrap")
+        fun forApp(context: Context) = CoreKey(appFile(context), "app.musubee.core.key-wrap")
+
+        /** The file of the app's key. */
+        fun appFile(context: Context) = File(context.noBackupFilesDir, "core-key")
     }
 }
