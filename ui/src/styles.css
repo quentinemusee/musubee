@@ -536,18 +536,72 @@ ol {
 .networks {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--space) * 2);
+  gap: calc(var(--space) * 3);
 }
 
-.networks li {
+.networks .network {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: var(--space);
-  align-items: center;
 }
 
-.networks h3 {
-  width: 100%;
+.networks h3,
+.networks p,
+.welcome h2,
+.welcome p {
+  margin: 0;
+}
+
+.welcome {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+}
+
+.welcome h2 {
+  font-size: 20px;
+}
+
+/* A way to log in (FlowButton): its name, and below it what it asks. */
+.flows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+}
+
+button.flow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 10px 14px;
+  text-align: left;
+}
+
+button.flow:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+
+.flow-name {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.flow-description {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.advanced-flows summary {
+  color: var(--color-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.advanced-flows .flows {
+  margin-top: var(--space);
 }
 
 .step-form,

@@ -7,7 +7,7 @@
 // network only (login.start's account_id).
 
 import { useEffect, useState, type FormEvent } from "react";
-import type { Account, LoginField, LoginStep } from "../core-api/types.gen";
+import type { Account, LoginField, LoginFlow, LoginStep, Network } from "../core-api/types.gen";
 import { QrCode } from "./QrCode";
 import { useAppState, useStore } from "./state";
 
@@ -16,9 +16,11 @@ interface Props {
   canCancel: boolean;
   /** The account to log in to again, with its label. */
   again?: { account: Account; label: string };
+  /** Says what Musubee is first: the user has no account yet. */
+  welcome?: boolean;
 }
 
-export function AddAccount({ onDone, canCancel, again }: Props) {
+export function AddAccount({ onDone, canCancel, again, welcome = false }: Props) {
   const store = useStore();
   const allNetworks = useAppState((s) => s.networks);
   const networks = again === undefined ? allNetworks : allNetworks.filter((n) => n.network_id === again.account.network_id);
@@ -84,6 +86,7 @@ export function AddAccount({ onDone, canCancel, again }: Props) {
 
   return (
     <section className="add-account" aria-labelledby="add-account-title">
+      {welcome && step === null ? <Welcome /> : null}
       <h2 id="add-account-title">{again === undefined ? "Add an account" : `Log in again to ${again.label}`}</h2>
       {again !== undefined && step === null ? (
         <p className="hint">Its conversations stay on this device while you log in.</p>
@@ -95,30 +98,40 @@ export function AddAccount({ onDone, canCancel, again }: Props) {
       ) : null}
       {step === null ? (
         <ul className="networks">
-          {networks.map((network) => (
-            <li key={network.network_id}>
-              <h3>{network.name}</h3>
-              {network.login_flows.map((flow) => (
-                <button
-                  key={flow.flow_id}
-                  type="button"
-                  disabled={busy}
-                  title={flow.description}
-                  onClick={() =>
-                    void run(() =>
-                      store.client.call("login.start", {
-                        network_id: network.network_id,
-                        flow_id: flow.flow_id,
-                        ...(again === undefined ? {} : { account_id: again.account.account_id }),
-                      }),
-                    )
-                  }
-                >
-                  {`${network.name}: ${flow.name}`}
-                </button>
-              ))}
-            </li>
-          ))}
+          {networks.map((network) => {
+            const flows = network.login_flows.filter((flow) => flow.advanced !== true);
+            const advanced = network.login_flows.filter((flow) => flow.advanced === true);
+            const flowButton = (flow: LoginFlow) => (
+              <FlowButton
+                key={flow.flow_id}
+                network={network}
+                flow={flow}
+                disabled={busy}
+                onClick={() =>
+                  void run(() =>
+                    store.client.call("login.start", {
+                      network_id: network.network_id,
+                      flow_id: flow.flow_id,
+                      ...(again === undefined ? {} : { account_id: again.account.account_id }),
+                    }),
+                  )
+                }
+              />
+            );
+            return (
+              <li key={network.network_id} className="network">
+                <h3>{network.name}</h3>
+                {network.description ? <p className="hint">{network.description}</p> : null}
+                <div className="flows">{flows.map(flowButton)}</div>
+                {advanced.length > 0 ? (
+                  <details className="advanced-flows">
+                    <summary>Other ways to log in</summary>
+                    <div className="flows">{advanced.map(flowButton)}</div>
+                  </details>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
       ) : step.type === "user_input" ? (
         <StepForm
@@ -144,6 +157,46 @@ export function AddAccount({ onDone, canCancel, again }: Props) {
         </button>
       ) : null}
     </section>
+  );
+}
+
+// The first screen of an app without accounts: what Musubee does, and where
+// the messages go, in words that need no knowledge of Matrix or bridges.
+// "No Musubee server" holds while every network runs on the device
+// (CLAUDE.md, on-device mode); a hosted bridge must change it (docs/ADR/0032).
+function Welcome() {
+  return (
+    <div className="welcome">
+      <h2>Welcome to Musubee</h2>
+      <p>Add the accounts you already have on other messaging apps, and talk to everyone from one place.</p>
+      <p className="hint">
+        Musubee connects from this device straight to each network: your messages do not go through a Musubee server.
+      </p>
+    </div>
+  );
+}
+
+// A way to log in: its name, then what it asks of the user. Screen readers
+// hear the network's name first ("Telegram: With your phone number"), as the
+// button stands among those of other networks.
+function FlowButton({ network, flow, disabled, onClick }: { network: Network; flow: LoginFlow; disabled: boolean; onClick: () => void }) {
+  const descriptionId = `flow-${network.network_id}-${flow.flow_id}`;
+  return (
+    <button
+      type="button"
+      className="flow"
+      disabled={disabled}
+      aria-label={`${network.name}: ${flow.name}`}
+      {...(flow.description ? { "aria-describedby": descriptionId } : {})}
+      onClick={onClick}
+    >
+      <span className="flow-name">{flow.name}</span>
+      {flow.description ? (
+        <span id={descriptionId} className="flow-description">
+          {flow.description}
+        </span>
+      ) : null}
+    </button>
   );
 }
 
