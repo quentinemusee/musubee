@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.5"
+const APIVersion = "1.6"
 
 // Command names.
 const (
@@ -186,15 +186,25 @@ type Network struct {
 	NetworkID string `json:"network_id"`
 	// Display name of the network.
 	Name string `json:"name"`
+	// What adding an account of this network brings, in a short sentence for
+	// people who know nothing of Matrix or bridges. Omitted when the core has
+	// none. Since API 1.6.
+	Description string `json:"description,omitempty"`
 	// Ways to add an account, in order of preference.
 	LoginFlows []LoginFlow `json:"login_flows"`
 }
 
 // LoginFlow is $defs/LoginFlow of the schema.
 type LoginFlow struct {
-	FlowID      string `json:"flow_id"`
-	Name        string `json:"name"`
+	FlowID string `json:"flow_id"`
+	// The way to log in, worded to follow "Network:" ("With your phone number").
+	Name string `json:"name"`
+	// What the flow asks of the user, in a short sentence.
 	Description string `json:"description"`
+	// A flow that most people do not need (for developers, for example): user
+	// interfaces may show it apart from the others. Omitted when false. Since API
+	// 1.6.
+	Advanced bool `json:"advanced,omitempty"`
 }
 
 // NetworksListResult is $defs/NetworksListResult of the schema.

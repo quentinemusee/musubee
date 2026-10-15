@@ -32,8 +32,8 @@ const (
 // sign-on (OIDC) is for a later task.
 func (c *Connector) GetLoginFlows() []bridgev2.LoginFlow {
 	return []bridgev2.LoginFlow{{
-		Name:        "Password",
-		Description: "Sign in with your server, username and password.",
+		Name:        "With your password",
+		Description: "Your server's address, your username and your password.",
 		ID:          FlowPassword,
 	}}
 }
