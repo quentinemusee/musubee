@@ -367,3 +367,10 @@ start over (shells): cd apps/desktop && npx vitest run test/core-process.test.ts
 start over in app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "lost key"
 android start over: ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=app.musubee.core.CoreKeyTest,app.musubee.core.StartOverTest"
 ```
+
+Verified in T2.16 (Windows, Go 1.27.1, Node 24.20, Electron 44.7.0; see ADR 0032):
+
+```
+login wording:      go test -tags=goolm -count=1 -run 'Wording|PlainWords|NetworksList' -v ./core/embedded/
+welcome in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "first launch"
+```
