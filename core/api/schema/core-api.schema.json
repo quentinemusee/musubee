@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.5",
+  "x-musubee-api-version": "1.6",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -362,6 +362,10 @@
           "description": "Display name of the network.",
           "type": "string"
         },
+        "description": {
+          "description": "What adding an account of this network brings, in a short sentence for people who know nothing of Matrix or bridges. Omitted when the core has none. Since API 1.6.",
+          "type": "string"
+        },
         "login_flows": {
           "description": "Ways to add an account, in order of preference.",
           "type": "array",
@@ -375,8 +379,18 @@
       "type": "object",
       "properties": {
         "flow_id": { "type": "string" },
-        "name": { "type": "string" },
-        "description": { "type": "string" }
+        "name": {
+          "description": "The way to log in, worded to follow \"Network:\" (\"With your phone number\").",
+          "type": "string"
+        },
+        "description": {
+          "description": "What the flow asks of the user, in a short sentence.",
+          "type": "string"
+        },
+        "advanced": {
+          "description": "A flow that most people do not need (for developers, for example): user interfaces may show it apart from the others. Omitted when false. Since API 1.6.",
+          "type": "boolean"
+        }
       },
       "required": ["flow_id", "name", "description"],
       "additionalProperties": false

@@ -384,7 +384,7 @@ func TestNetworksList(t *testing.T) {
 	if len(networks) != 2 || networks[0].NetworkID != "echo" || networks[0].Name != "Echo" || len(networks[0].LoginFlows) != 3 {
 		t.Fatalf("networks = %+v", networks)
 	}
-	if m := networks[1]; m.NetworkID != "matrix" || m.Name != "Matrix" || len(m.LoginFlows) != 1 || m.LoginFlows[0].FlowID != "password" {
+	if m := networks[1]; m.NetworkID != "matrix" || m.Name != "Matrix" || m.Description == "" || len(m.LoginFlows) != 1 || m.LoginFlows[0].FlowID != "password" || m.LoginFlows[0].Advanced {
 		t.Fatalf("matrix network = %+v", m)
 	}
 	// The password step asks for the server, the username and the password.

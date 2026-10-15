@@ -43,7 +43,7 @@ func (c *Core) networksList(context.Context, api.Empty) (api.NetworksListResult,
 		for _, flow := range flows {
 			n.LoginFlows = append(n.LoginFlows, api.LoginFlow{FlowID: flow.ID, Name: flow.Name, Description: flow.Description})
 		}
-		result.Networks = append(result.Networks, n)
+		result.Networks = append(result.Networks, wordings[network].network(n))
 	}
 	return result, nil
 }

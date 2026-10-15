@@ -17,6 +17,12 @@
         { "flow_id": "username", "name": "Username", "description": "Log in with any username" }
       ] }
     ] } },
+    { "target": "command:networks.list:result", "value": { "networks": [
+      { "network_id": "telegram", "name": "Telegram", "description": "Your Telegram chats, groups and channels.", "login_flows": [
+        { "flow_id": "phone", "name": "With your phone number", "description": "Telegram sends you a code." },
+        { "flow_id": "bot", "name": "As a bot", "description": "For developers.", "advanced": true }
+      ] }
+    ] } },
     { "target": "command:networks.list:result", "value": { "networks": [] } },
 
     { "target": "command:accounts.list:params", "value": {} },

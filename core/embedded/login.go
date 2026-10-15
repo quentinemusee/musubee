@@ -231,14 +231,14 @@ func (c *Core) advance(id string, lp *loginProcess, step *bridgev2.LoginStep) (a
 				Options:      f.Options,
 			})
 		}
-		return out, nil
+		return wordings[lp.network].step(out), nil
 	case step.Type == bridgev2.LoginStepTypeDisplayAndWait && step.DisplayAndWaitParams != nil:
 		// ImageURL is a Matrix content URI: user interfaces draw the QR
 		// code from data instead.
 		params := step.DisplayAndWaitParams
 		out.Type = api.LoginStepTypeDisplayAndWait
 		out.Display = &api.LoginDisplay{Type: api.LoginDisplayType(params.Type), Data: params.Data, CanCancel: params.CanCancel}
-		return out, nil
+		return wordings[lp.network].step(out), nil
 	case step.Type == bridgev2.LoginStepTypeComplete && step.CompleteParams != nil:
 		c.endLogin(id)
 		out.Type = api.LoginStepTypeComplete
