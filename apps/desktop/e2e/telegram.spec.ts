@@ -90,7 +90,8 @@ test("add a Telegram account, receive a message, answer it, log out", async () =
 
     // 1. Add the account with the bot flow.
     await expect(page.getByRole("heading", { name: "Add an account" })).toBeVisible();
-    await page.getByRole("button", { name: "Telegram: Bot token" }).click();
+    await page.getByText("Other ways to log in").click();
+    await page.getByRole("button", { name: "Telegram: As a bot" }).click();
     const tokenField = page.getByLabel("Bot token");
     await expect(tokenField).toHaveAttribute("type", "password");
     await tokenField.fill(env.bridgeToken);

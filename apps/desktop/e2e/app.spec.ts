@@ -144,6 +144,30 @@ test("a QR code login shows a code that a phone can scan, then adds the account"
   await app.close();
 });
 
+test("a first launch says what Musubee is and what each network brings, and keeps rare ways to log in apart", async () => {
+  // Fake application credentials: the app offers Telegram, which nothing
+  // contacts before a login starts.
+  const { app, page } = await launch(newDataDir(), { MUSUBEE_TG_API_ID: "1", MUSUBEE_TG_API_HASH: "0123456789abcdef0123456789abcdef" });
+  await expect(page.getByRole("heading", { name: "Welcome to Musubee" })).toBeVisible();
+  await expect(page.getByText("your messages do not go through a Musubee server")).toBeVisible();
+  const telegram = page.getByRole("listitem").filter({ has: page.getByRole("heading", { name: "Telegram" }) });
+  await expect(telegram.getByText("Your Telegram chats, groups and channels.")).toBeVisible();
+  await expect(telegram.getByRole("button", { name: "Telegram: With your phone number" })).toHaveAccessibleDescription(
+    "Telegram sends you a code to type here.",
+  );
+  const bot = telegram.getByRole("button", { name: "Telegram: As a bot" });
+  await expect(bot).toBeHidden();
+  await telegram.getByText("Other ways to log in").click();
+  await expect(bot).toBeVisible();
+
+  // With an account, adding another one goes straight to the networks.
+  await loginEcho(page, "first");
+  await page.getByRole("button", { name: "Add an account" }).click();
+  await expect(page.getByRole("heading", { name: "Add an account" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome to Musubee" })).toBeHidden();
+  await app.close();
+});
+
 test("the interface is isolated, and the main process checks what it sends", async () => {
   const { app, page } = await launch(newDataDir());
 
