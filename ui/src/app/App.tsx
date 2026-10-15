@@ -38,6 +38,7 @@ export function App() {
             key={adding?.again?.account.account_id ?? ""}
             onDone={() => setAdding(null)}
             canCancel={hasAccounts}
+            welcome={!hasAccounts && adding?.again === undefined}
             {...(adding?.again === undefined ? {} : { again: adding.again })}
           />
         </main>
