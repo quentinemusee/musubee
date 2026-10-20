@@ -4,9 +4,10 @@
 // Musubee's Android app end to end: installs the APK, adds an echo account
 // through the interface (ui/, copied into the app), opens a conversation of
 // the unified inbox, sends a message, waits for its echo, then goes back to
-// the inbox with Android's back action. This crosses every layer: the
-// interface in the web view, the Capacitor plugin, the foreground service,
-// the JNI binding and the Go core.
+// the inbox with Android's back action; then a message that arrives in the
+// background shows a notification, which opens its conversation. This
+// crosses every layer: the interface in the web view, the Capacitor plugin,
+// the foreground service, the JNI binding and the Go core.
 //
 // The interface needs a recent system web view (docs/ADR/0021): on an older
 // one, the app shows a page asking to update it, and that page is all this
@@ -172,5 +173,50 @@ test(
     if (await byLabel(exactly("Back to conversations"), BUTTON).isExisting()) {
       throw new Error("the thread is still shown after Back");
     }
+  },
+);
+
+// Notifications (docs/ADR/0033): a message that arrives while the app is in
+// the background shows one, and tapping it opens its conversation. Delayed
+// Echo answers 2 s after a message: the test sends, returns to the inbox and
+// leaves the app within that time, and tries again when a slow device let
+// the echo arrive on screen (no notification then, by design).
+test(
+  "a message that arrives in the background is notified, and the notification opens its conversation",
+  { skip: tooOld && `WebView ${webView} is older than ${MIN_WEBVIEW}` },
+  async () => {
+    const ATTEMPTS = 5;
+    for (let attempt = 1; ; attempt++) {
+      await (await waitFor(exactly("Delayed Echo"), "Delayed Echo in the inbox", { kind: BUTTON })).click();
+      const composer = driver.$("//android.widget.EditText");
+      await composer.waitForExist({ timeout: 30_000 });
+      const text = `notify me ${attempt}`;
+      await typeInto(composer, text);
+      await (await waitFor(exactly("Send"), "the Send button", { kind: BUTTON })).click();
+      await driver.back();
+      await driver.execute("mobile: pressKey", { keycode: 3 }); // Home.
+
+      await driver.openNotifications();
+      const notification = driver.$(`//*[contains(@text, "${text}")]`);
+      const shown = await notification.waitForExist({ timeout: 15_000 }).then(
+        () => true,
+        () => false,
+      );
+      if (shown) {
+        await notification.click();
+        break;
+      }
+      if (attempt === ATTEMPTS) {
+        await describeScreen();
+        throw new Error(`no notification in ${ATTEMPTS} attempts`);
+      }
+      console.log(`attempt ${attempt}: no notification, the echo probably arrived on screen`);
+      await driver.back(); // Closes the shade.
+      await driver.activateApp(APP);
+    }
+
+    // The app opens on the conversation, from the inbox where it was left.
+    await waitFor(exactly("Back to conversations"), "the thread", { kind: BUTTON });
+    await waitFor((attr) => `starts-with(${attr}, "Delayed Echo: notify me")`, "the echo in the thread");
   },
 );
