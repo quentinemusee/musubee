@@ -3,21 +3,29 @@
 
 package app.musubee.core
 
+import android.Manifest
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.os.Build
 import android.os.IBinder
 import androidx.core.content.ContextCompat
 import com.getcapacitor.JSObject
+import com.getcapacitor.PermissionState
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
+import com.getcapacitor.annotation.Permission
+import com.getcapacitor.annotation.PermissionCallback
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+
+/** The plugin's alias of Android's permission to post notifications. */
+private const val NOTIFICATIONS = "notifications"
 
 /**
  * Gives the web UI access to the core running in [CoreService].
@@ -30,8 +38,16 @@ import java.util.concurrent.TimeUnit
  * When the core cannot start because its key is lost, `call` rejects with
  * the code [KEY_LOST], and `startOver()` sets the unreadable data aside and
  * starts a new, empty core (docs/ADR/0031).
+ *
+ * Notifications of new messages (docs/ADR/0033): `askToNotify()` asks the
+ * user for Android's permission to post them, and the "openConversation"
+ * listener receives `{conversation_id}` when the user taps one; the event is
+ * kept until a listener takes it, since a tap can start the app.
  */
-@CapacitorPlugin(name = "MusubeeCore")
+@CapacitorPlugin(
+    name = "MusubeeCore",
+    permissions = [Permission(alias = NOTIFICATIONS, strings = [Manifest.permission.POST_NOTIFICATIONS])],
+)
 class MusubeeCorePlugin : Plugin() {
     private val service = CompletableFuture<CoreService>()
     private val calls = Executors.newCachedThreadPool()
@@ -93,6 +109,27 @@ class MusubeeCorePlugin : Plugin() {
                 call.reject("Could not start over: ${e.message}", e)
             }
         }
+    }
+
+    /** Resolves with `{granted}` once the user answered, or at once if they already did. */
+    @PluginMethod
+    fun askToNotify(call: PluginCall) {
+        // Below Android 13, posting needs no permission.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || getPermissionState(NOTIFICATIONS) == PermissionState.GRANTED) {
+            call.resolve(JSObject().put("granted", true))
+            return
+        }
+        requestPermissionForAlias(NOTIFICATIONS, call, "notificationsAnswered")
+    }
+
+    @PermissionCallback
+    private fun notificationsAnswered(call: PluginCall) {
+        call.resolve(JSObject().put("granted", getPermissionState(NOTIFICATIONS) == PermissionState.GRANTED))
+    }
+
+    /** Tells the interface to show a conversation: the user tapped its notification. */
+    fun openConversation(conversationId: String) {
+        notifyListeners("openConversation", JSObject().put("conversation_id", conversationId), true)
     }
 
     override fun handleOnDestroy() {

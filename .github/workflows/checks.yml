@@ -700,7 +700,7 @@ jobs:
           working-directory: apps/mobile/e2e
           script: |
             MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android || { adb logcat -d -b crash; adb logcat -d -t 300; exit 1; }
-            cd ../android && ANDROID_SERIAL=emulator-5554 ./gradlew --no-daemon -Pmusubee.abis=x86_64 $SIGNAL_GRADLE :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.musubeeSignalRequire=1 || { adb logcat -d -b crash; adb logcat -d -s Go:* DEBUG:* AndroidRuntime:* libc:* TestRunner:* MusubeeCore:* MusubeeSignalTest:*; exit 1; }
+            cd ../android && ANDROID_SERIAL=emulator-5554 ./gradlew --no-daemon -Pmusubee.abis=x86_64 $SIGNAL_GRADLE :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.musubeeSignalRequire=1 || { adb logcat -d -b crash; adb logcat -d -s Go:* DEBUG:* AndroidRuntime:* libc:* TestRunner:* MusubeeCore:* MusubeeNotifications:* MusubeeSignalTest:*; exit 1; }
             MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android:app || { adb logcat -d -b crash; adb logcat -d -t 300; exit 1; }
 
   ios:
