@@ -299,18 +299,102 @@ func (c *client) HandleMatrixMessage(_ context.Context, msg *bridgev2.MatrixMess
 	if contact.ID == ContactDelayed {
 		delay = c.connector.Config.EchoDelay
 	}
-	content := *msg.Content
-	content.RelatesTo = nil
-	if err := c.scheduleEcho(msg.Portal.ID, contact, &content, delay); err != nil {
+	sent := newMessageID()
+	answer := func() []bridgev2.RemoteEvent { return c.answer(msg.Portal.ID, contact, sent, msg.Content) }
+	if err := c.schedule(delay, answer); err != nil {
 		return nil, err
 	}
 	return &bridgev2.MatrixMessageResponse{
 		DB: &database.Message{
-			ID:        newMessageID(),
+			ID:        sent,
 			SenderID:  c.selfID(),
 			Timestamp: time.Now(),
 		},
 	}, nil
+}
+
+// The commands that make a contact act on messages (see the package's
+// documentation).
+const (
+	CommandReact  = "/react"
+	CommandEdit   = "/edit"
+	CommandDelete = "/delete"
+	CommandReply  = "/reply"
+)
+
+// EditedSuffix ends the text of an echo that CommandEdit edited.
+const EditedSuffix = " (edited)"
+
+// command splits a message's text into a command and the rest, or returns
+// no command.
+func command(body string) (string, string) {
+	for _, cmd := range []string{CommandReact, CommandEdit, CommandDelete, CommandReply} {
+		if rest, ok := strings.CutPrefix(body, cmd); ok && (rest == "" || rest[0] == ' ') {
+			return cmd, strings.TrimSpace(rest)
+		}
+	}
+	return "", body
+}
+
+// answer returns what the contact does after the user sent a message: an
+// echo, or what its command asks for.
+func (c *client) answer(portal networkid.PortalID, contact Contact, sent networkid.MessageID, received *event.MessageEventContent) []bridgev2.RemoteEvent {
+	meta := func(eventType bridgev2.RemoteEventType) simplevent.EventMeta {
+		return simplevent.EventMeta{
+			Type:      eventType,
+			PortalKey: c.portalKey(portal),
+			Sender:    bridgev2.EventSender{Sender: contact.ID},
+			Timestamp: time.Now(),
+		}
+	}
+	cmd, text := command(received.Body)
+	if cmd == CommandReact {
+		if text == "" {
+			text = "👍"
+		}
+		return []bridgev2.RemoteEvent{&simplevent.Reaction{
+			EventMeta:     meta(bridgev2.RemoteEventReaction),
+			TargetMessage: sent,
+			EmojiID:       networkid.EmojiID(text),
+			Emoji:         text,
+		}}
+	}
+	content := *received
+	content.RelatesTo = nil
+	if cmd != "" {
+		content.Body, content.Format, content.FormattedBody = text, "", ""
+	}
+	echo := &simplevent.Message[*event.MessageEventContent]{
+		EventMeta:          meta(bridgev2.RemoteEventMessage),
+		ID:                 newMessageID(),
+		Data:               &content,
+		ConvertMessageFunc: convertEcho,
+	}
+	switch cmd {
+	case CommandReply:
+		echo.ConvertMessageFunc = func(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI, content *event.MessageEventContent) (*bridgev2.ConvertedMessage, error) {
+			converted, err := convertEcho(ctx, portal, intent, content)
+			if err == nil {
+				converted.ReplyTo = &networkid.MessageOptionalPartID{MessageID: sent}
+			}
+			return converted, err
+		}
+	case CommandEdit:
+		edited := content
+		edited.Body += EditedSuffix
+		return []bridgev2.RemoteEvent{echo, &simplevent.Message[*event.MessageEventContent]{
+			EventMeta:       meta(bridgev2.RemoteEventEdit),
+			TargetMessage:   echo.ID,
+			Data:            &edited,
+			ConvertEditFunc: convertEdit,
+		}}
+	case CommandDelete:
+		return []bridgev2.RemoteEvent{echo, &simplevent.MessageRemove{
+			EventMeta:     meta(bridgev2.RemoteEventMessageRemove),
+			TargetMessage: echo.ID,
+		}}
+	}
+	return []bridgev2.RemoteEvent{echo}
 }
 
 func newMessageID() networkid.MessageID {
@@ -326,7 +410,9 @@ var errDisconnected = bridgev2.WrapErrorInStatus(errors.New("the echo network cl
 	WithErrorAsMessage().
 	WithSendNotice(false)
 
-func (c *client) scheduleEcho(portal networkid.PortalID, contact Contact, content *event.MessageEventContent, delay time.Duration) error {
+// schedule queues remote events, in order, after a delay; they are made
+// then, so that they are dated then.
+func (c *client) schedule(delay time.Duration, events func() []bridgev2.RemoteEvent) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if !c.connected {
@@ -345,17 +431,9 @@ func (c *client) scheduleEcho(portal networkid.PortalID, contact Contact, conten
 				return
 			}
 		}
-		c.login.QueueRemoteEvent(&simplevent.Message[*event.MessageEventContent]{
-			EventMeta: simplevent.EventMeta{
-				Type:      bridgev2.RemoteEventMessage,
-				PortalKey: c.portalKey(portal),
-				Sender:    bridgev2.EventSender{Sender: contact.ID},
-				Timestamp: time.Now(),
-			},
-			ID:                 newMessageID(),
-			Data:               content,
-			ConvertMessageFunc: convertEcho,
-		})
+		for _, evt := range events() {
+			c.login.QueueRemoteEvent(evt)
+		}
 	}()
 	return nil
 }
@@ -363,6 +441,16 @@ func (c *client) scheduleEcho(portal networkid.PortalID, contact Contact, conten
 func convertEcho(_ context.Context, _ *bridgev2.Portal, _ bridgev2.MatrixAPI, content *event.MessageEventContent) (*bridgev2.ConvertedMessage, error) {
 	return &bridgev2.ConvertedMessage{
 		Parts: []*bridgev2.ConvertedMessagePart{{
+			Type:    event.EventMessage,
+			Content: content,
+		}},
+	}, nil
+}
+
+func convertEdit(_ context.Context, _ *bridgev2.Portal, _ bridgev2.MatrixAPI, existing []*database.Message, content *event.MessageEventContent) (*bridgev2.ConvertedEdit, error) {
+	return &bridgev2.ConvertedEdit{
+		ModifiedParts: []*bridgev2.ConvertedEditPart{{
+			Part:    existing[0],
 			Type:    event.EventMessage,
 			Content: content,
 		}},

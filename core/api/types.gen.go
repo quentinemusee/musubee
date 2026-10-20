@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.6"
+const APIVersion = "1.7"
 
 // Command names.
 const (
@@ -87,9 +87,14 @@ const (
 	// last message (sent after its message.added event, since API 1.4) or its
 	// read state (since API 1.4).
 	EventConversationUpdated = "conversation.updated"
-	// A message was stored: received, or sent from this device.
+	// A message was stored: received, or sent from this device. Since API 1.7,
+	// edits, reactions and deletions are not messages: they come as
+	// message.updated events of the message they change.
 	EventMessageAdded = "message.added"
-	// A stored message changed, for example its delivery status.
+	// A stored message changed: its delivery status, or since API 1.7 its text
+	// (an edit), its reactions, or its deletion. The message is sent again in
+	// full. When it is its conversation's last message, a conversation.updated
+	// event follows.
 	EventMessageUpdated = "message.updated"
 	// A person was created, renamed, or their conversations changed. The
 	// conversations whose person changed are sent again in conversation.updated
@@ -440,6 +445,46 @@ type Message struct {
 	Status MessageStatus `json:"status"`
 	// For failed messages: why, for the user, when the network said.
 	Error string `json:"error,omitempty"`
+	// The sender changed the message after sending it: kind and text are those of
+	// its latest version. Omitted when false. Since API 1.7.
+	Edited bool `json:"edited,omitempty"`
+	// The message was deleted, by its sender or by the network: its kind is text
+	// and its text is empty, and it has no reactions nor reply_to. Omitted when
+	// false. Since API 1.7.
+	Deleted bool `json:"deleted,omitempty"`
+	// The reactions to the message, one per key, in the order of each key's first
+	// reaction. Omitted when there are none. Since API 1.7.
+	Reactions []MessageReaction `json:"reactions,omitempty"`
+	// The message this one answers, if it answers one. Since API 1.7.
+	ReplyTo *MessageReply `json:"reply_to,omitempty"`
+}
+
+// MessageReaction: People who reacted to a message with the same key. Since
+// API 1.7.
+type MessageReaction struct {
+	// What they reacted with: usually an emoji, sometimes a short text.
+	Key string `json:"key"`
+	// How many people reacted with it, each counted once.
+	Count int64 `json:"count"`
+	// The user is one of them. Omitted when false.
+	FromMe bool `json:"from_me,omitempty"`
+}
+
+// MessageReply: The message that another one answers, to quote it above the
+// answer. Since API 1.7.
+type MessageReply struct {
+	// Opaque: user interfaces must not parse it. The message may not be on this
+	// device (older than its history): then only message_id is given.
+	MessageID string `json:"message_id"`
+	// Sent by the user. Omitted when false.
+	FromMe bool `json:"from_me,omitempty"`
+	// Display name of its sender. Omitted when empty.
+	SenderName string `json:"sender_name,omitempty"`
+	// Its text, as edited; for unsupported kinds, a fallback description. Omitted
+	// when empty.
+	Text string `json:"text,omitempty"`
+	// It was deleted. Omitted when false.
+	Deleted bool `json:"deleted,omitempty"`
 }
 
 // MessageKind: text: a normal message. notice: an automated message. emote: an
