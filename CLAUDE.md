@@ -381,3 +381,14 @@ Verified in T2.17 (Windows, Node 24.20, JDK 21; a Pixel 8 Pro with Android 17; s
 notification rules: ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=app.musubee.core.MessageNotificationsTest,app.musubee.core.NotificationTest"
 ui notifications:   cd ui && npx vitest run src/notifications.test.ts src/capacitor.test.ts
 ```
+
+Verified in T2.18 (Windows, Go 1.27.1 with MSYS2 UCRT64, Node 24.20, Electron 44.7.0, JDK 21; an API 30 emulator; the Synapse journey on CI only; see ADR 0034). The echo network answers `/react [emoji]`, `/edit text`, `/delete text` and `/reply text`:
+
+```
+relations:          go test -tags=goolm -count=1 -run 'Relations|Redaction|Upgrade' -v ./core/localmatrix/     (-tags=goolm,musubee_cgo_sqlite: the Android driver)
+message changes:    go test -tags=goolm -count=1 -run 'MessageChanges' -v ./core/embedded/
+ui changes:         cd ui && npx vitest run src/message.test.ts src/store.test.ts src/inbox.test.ts
+changes in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "reactions, edits"
+```
+
+The notification commands of T2.17 also cover edits and deletions; the Matrix journey of T2.2 covers a Matrix account's.
