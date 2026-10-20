@@ -63,6 +63,8 @@ class MessageNotifier(private val context: Context) {
 
     private fun post(post: MessageNotifications.Action.Post) {
         if (!manager.areNotificationsEnabled()) return
+        // A change of a notification that the user dismissed stays dismissed.
+        if (post.silent && manager.activeNotifications.none { it.tag == post.conversationId && it.id == NOTIFICATION_ID }) return
         val me = Person.Builder().setName("You").build()
         val style = NotificationCompat.MessagingStyle(me)
             .setConversationTitle(post.title)
@@ -96,6 +98,7 @@ class MessageNotifier(private val context: Context) {
             .setPublicVersion(public)
             .setContentIntent(pending)
             .setAutoCancel(true)
+            .setOnlyAlertOnce(post.silent)
             .setWhen(post.lines.last().timestampMs)
             .build()
         try {
