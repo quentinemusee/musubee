@@ -1,4 +1,4 @@
--- v0 -> v3 (compatible with v1+): Latest revision
+-- v0 -> v4 (compatible with v1+): Latest revision
 -- SPDX-FileCopyrightText: 2026 Quentin Raimbaud
 -- SPDX-License-Identifier: AGPL-3.0-or-later
 --
@@ -25,11 +25,19 @@ CREATE TABLE local_event (
     event_type   TEXT    NOT NULL,
     state_key    TEXT,
     content      TEXT    NOT NULL,
-    timestamp    BIGINT  NOT NULL
+    timestamp    BIGINT  NOT NULL,
+    -- The event's relation to another (v4): rel_type and event_id of its
+    -- m.relates_to, as an edit (m.replace) or a reaction (m.annotation) has.
+    rel_type     TEXT,
+    relates_to   TEXT,
+    -- The redaction that erased the event's content (v4).
+    redacted_by  TEXT
 );
 CREATE INDEX local_event_room_idx ON local_event (room_id, stream_order);
 -- The latest message of each room, for the conversation list (v2).
 CREATE INDEX local_event_type_idx ON local_event (room_id, event_type, stream_order);
+-- The edits and reactions of a message (v4).
+CREATE INDEX local_event_relation_idx ON local_event (relates_to, rel_type);
 
 -- Current state of every room (latest state event per type and state key).
 CREATE TABLE local_state (
