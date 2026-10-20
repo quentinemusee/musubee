@@ -5,6 +5,7 @@ package matrix
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -124,6 +125,8 @@ func newClient(c *Connector, login *bridgev2.UserLogin, meta *LoginMetadata) (*c
 	syncer.OnEvent(cli.StateStoreSyncHandler)
 	syncer.OnSync(cl.onSync)
 	syncer.OnEventType(event.EventMessage, cl.onMessage)
+	syncer.OnEventType(event.EventReaction, cl.onReaction)
+	syncer.OnEventType(event.EventRedaction, cl.onRedaction)
 	syncer.OnEventType(event.StateMember, cl.onMember)
 	syncer.OnEventType(event.AccountDataDirectChats, cl.onDirectChats)
 	return cl, nil
@@ -515,20 +518,164 @@ func (c *client) onDirectChats(ctx context.Context, evt *event.Event) {
 	}
 }
 
-// onMessage queues a message of a joined room, received as is or decrypted.
-func (c *client) onMessage(ctx context.Context, evt *event.Event) {
+// inTimeline tells whether an event is part of a joined room's timeline,
+// received as is or decrypted.
+func inTimeline(evt *event.Event) bool {
 	source := evt.Mautrix.EventSource
-	if source&event.SourceLeave != 0 || source&(event.SourceTimeline|event.SourceDecrypted) == 0 {
+	return source&event.SourceLeave == 0 && source&(event.SourceTimeline|event.SourceDecrypted) != 0
+}
+
+// onMessage queues a message of a joined room, or an edit of one.
+func (c *client) onMessage(ctx context.Context, evt *event.Event) {
+	if !inTimeline(evt) {
 		return
 	}
 	content := evt.Content.AsMessage()
-	// Edits are for a later task: shown as new messages, they would repeat
-	// the text.
-	if content.RelatesTo != nil && content.RelatesTo.Type == event.RelReplace {
+	if target := content.RelatesTo.GetReplaceID(); target != "" {
+		c.queueEdit(ctx, evt, target, content.NewContent)
 		return
 	}
 	converted, replyTo := incoming(content)
 	c.queueMessage(ctx, evt, converted, replyTo)
+}
+
+func (c *client) meta(ctx context.Context, evt *event.Event, eventType bridgev2.RemoteEventType) simplevent.EventMeta {
+	c.senderGhost(ctx, evt.RoomID, evt.Sender)
+	return simplevent.EventMeta{
+		Type:      eventType,
+		PortalKey: c.portalKey(evt.RoomID),
+		Sender:    bridgev2.EventSender{Sender: networkid.UserID(evt.Sender), IsFromMe: evt.Sender == c.self},
+		Timestamp: time.UnixMilli(evt.Timestamp),
+	}
+}
+
+// queueEdit queues the edit of a message. bridgev2 ignores it when the
+// message is not bridged, and the core shows it only when its sender is the
+// message's.
+func (c *client) queueEdit(ctx context.Context, evt *event.Event, target id.EventID, edited *event.MessageEventContent) {
+	if edited == nil {
+		return
+	}
+	converted, _ := incoming(edited)
+	c.login.QueueRemoteEvent(&simplevent.Message[*event.MessageEventContent]{
+		EventMeta:     c.meta(ctx, evt, bridgev2.RemoteEventEdit),
+		ID:            networkid.MessageID(evt.ID),
+		TargetMessage: networkid.MessageID(target),
+		Data:          converted,
+		ConvertEditFunc: func(_ context.Context, _ *bridgev2.Portal, _ bridgev2.MatrixAPI, existing []*database.Message, content *event.MessageEventContent) (*bridgev2.ConvertedEdit, error) {
+			return &bridgev2.ConvertedEdit{ModifiedParts: []*bridgev2.ConvertedEditPart{{
+				Part: existing[0], Type: event.EventMessage, Content: content,
+			}}}, nil
+		},
+	})
+}
+
+// onReaction queues a reaction to a message. Its emoji ID is its event ID,
+// which a redaction names: onRedaction finds it by that.
+func (c *client) onReaction(ctx context.Context, evt *event.Event) {
+	if !inTimeline(evt) {
+		return
+	}
+	rel := evt.Content.AsReaction().RelatesTo
+	if rel.Type != event.RelAnnotation || rel.EventID == "" || rel.Key == "" {
+		return
+	}
+	c.login.QueueRemoteEvent(&simplevent.Reaction{
+		EventMeta:     c.meta(ctx, evt, bridgev2.RemoteEventReaction),
+		TargetMessage: networkid.MessageID(rel.EventID),
+		EmojiID:       networkid.EmojiID(evt.ID),
+		Emoji:         rel.Key,
+	})
+}
+
+// onRedaction queues the removal of the message or reaction that an event
+// redacts. Redactions are not encrypted.
+func (c *client) onRedaction(ctx context.Context, evt *event.Event) {
+	if !inTimeline(evt) {
+		return
+	}
+	redacts := evt.Redacts
+	if redacts == "" {
+		redacts = evt.Content.AsRedaction().Redacts
+	}
+	if redacts == "" {
+		return
+	}
+	c.login.QueueRemoteEvent(&redaction{
+		EventMeta: c.meta(ctx, evt, bridgev2.RemoteEventUnknown),
+		client:    c,
+		redacts:   redacts,
+	})
+}
+
+// redaction removes a message or a reaction. Which one it is, bridgev2's
+// database says, once the events before it are stored: the portal asks for
+// the type in its event loop, in order, so a reaction taken back right
+// after it came is found.
+type redaction struct {
+	simplevent.EventMeta
+	client   *client
+	redacts  id.EventID
+	resolved bool
+	target   networkid.MessageID
+}
+
+var (
+	_ bridgev2.RemoteMessageRemove  = (*redaction)(nil)
+	_ bridgev2.RemoteReactionRemove = (*redaction)(nil)
+)
+
+func (r *redaction) resolve() {
+	if r.resolved {
+		return
+	}
+	r.resolved = true
+	br := r.client.connector.br
+	ctx := r.client.login.Log.WithContext(br.BackgroundCtx)
+	msg, err := br.DB.Message.GetFirstPartByID(ctx, r.client.login.ID, networkid.MessageID(r.redacts))
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to look for a redacted message")
+		return
+	}
+	if msg != nil {
+		r.Type, r.target = bridgev2.RemoteEventMessageRemove, msg.ID
+		return
+	}
+	// A reaction: bridgev2 finds it by its message, sender and emoji ID,
+	// and only the emoji ID is known here.
+	var sender networkid.UserID
+	err = br.DB.QueryRow(ctx,
+		`SELECT message_id, sender_id FROM reaction WHERE bridge_id=$1 AND room_receiver=$2 AND emoji_id=$3`,
+		br.ID, r.client.login.ID, r.redacts).Scan(&r.target, &sender)
+	if errors.Is(err, sql.ErrNoRows) {
+		return
+	} else if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to look for a redacted reaction")
+		return
+	}
+	r.Type = bridgev2.RemoteEventReactionRemove
+	// The reaction's sender, who may not be the redaction's.
+	r.Sender = bridgev2.EventSender{Sender: sender, IsFromMe: id.UserID(sender) == r.client.self}
+}
+
+// GetType is RemoteEventUnknown when nothing bridged is redacted.
+func (r *redaction) GetType() bridgev2.RemoteEventType {
+	r.resolve()
+	return r.Type
+}
+
+func (r *redaction) GetSender() bridgev2.EventSender {
+	r.resolve()
+	return r.Sender
+}
+
+func (r *redaction) GetTargetMessage() networkid.MessageID {
+	r.resolve()
+	return r.target
+}
+
+func (r *redaction) GetRemovedEmojiID() networkid.EmojiID {
+	return networkid.EmojiID(r.redacts)
 }
 
 // onDecryptError replaces a message that could not be decrypted with a
