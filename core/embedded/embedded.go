@@ -308,7 +308,11 @@ func (c *Core) translate(update localmatrix.Update) ([]*api.Event, error) {
 	ctx := c.ctx
 	switch {
 	case update.Event != nil && update.Event.Type == event.EventMessage:
-		msg, err := c.message(ctx, update.Event)
+		evt := update.Event
+		if original := evt.Content.AsMessage().RelatesTo.GetReplaceID(); original != "" {
+			return c.messageChanged(ctx, evt.RoomID, original, false)
+		}
+		msg, err := c.messageOf(ctx, evt)
 		if err != nil {
 			return nil, err
 		}
@@ -327,6 +331,11 @@ func (c *Core) translate(update localmatrix.Update) ([]*api.Event, error) {
 			return nil, err
 		}
 		return []*api.Event{{Type: api.EventConversationUpdated, Data: api.ConversationEvent{Conversation: *conv}}}, nil
+	case update.Event != nil && update.Event.Type == event.EventReaction:
+		target := update.Event.Content.AsReaction().RelatesTo.EventID
+		return c.messageChanged(ctx, update.Event.RoomID, target, false)
+	case update.Event != nil && update.Event.Type == event.EventRedaction:
+		return c.redacted(ctx, update.Event)
 	case update.Event != nil && update.Event.Type == event.StateRoomName:
 		c.announceConversation(update.Event.RoomID)
 		return nil, nil
@@ -335,7 +344,7 @@ func (c *Core) translate(update localmatrix.Update) ([]*api.Event, error) {
 		if err != nil {
 			return nil, err
 		}
-		msg, err := c.message(ctx, evt)
+		msg, err := c.messageOf(ctx, evt)
 		if err != nil {
 			return nil, err
 		}
@@ -352,6 +361,65 @@ func (c *Core) translate(update localmatrix.Update) ([]*api.Event, error) {
 			return nil, err
 		}
 		return []*api.Event{{Type: api.EventAccountUpdated, Data: api.AccountEvent{Account: account}}}, nil
+	}
+	return nil, nil
+}
+
+// messageChanged returns the events of a message that an edit, a reaction
+// or a redaction changed: message.updated, then conversation.updated when
+// the message is the conversation's last one, or always when the change
+// may change the unread count. Nothing when the message is not stored, or
+// is not a message.
+func (c *Core) messageChanged(ctx context.Context, roomID id.RoomID, eventID id.EventID, unreadMayChange bool) ([]*api.Event, error) {
+	evt, err := c.host.Matrix.Event(ctx, roomID, eventID)
+	if errors.Is(err, localmatrix.ErrNotFound) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	if evt.Type != event.EventMessage || evt.Content.AsMessage().RelatesTo.GetReplaceID() != "" {
+		return nil, nil
+	}
+	msg, err := c.messageOf(ctx, evt)
+	if err != nil {
+		return nil, err
+	}
+	events := []*api.Event{{Type: api.EventMessageUpdated, Data: api.MessageEvent{Message: msg}}}
+	conv, err := c.conversationOf(ctx, roomID, nil)
+	if err != nil || conv == nil {
+		return events, err
+	}
+	if unreadMayChange || (conv.LastMessage != nil && conv.LastMessage.MessageID == msg.MessageID) {
+		events = append(events, &api.Event{Type: api.EventConversationUpdated, Data: api.ConversationEvent{Conversation: *conv}})
+	}
+	return events, nil
+}
+
+// redacted returns the events of a redaction: the message it deleted, or
+// whose edit or reaction it deleted, changed. The redacted event keeps its
+// relation (localmatrix.Server.Event).
+func (c *Core) redacted(ctx context.Context, redaction *event.Event) ([]*api.Event, error) {
+	target := redaction.Redacts
+	if target == "" {
+		target = redaction.Content.AsRedaction().Redacts
+	}
+	if target == "" {
+		return nil, nil
+	}
+	evt, err := c.host.Matrix.Event(ctx, redaction.RoomID, target)
+	if errors.Is(err, localmatrix.ErrNotFound) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	switch evt.Type {
+	case event.EventReaction:
+		return c.messageChanged(ctx, evt.RoomID, evt.Content.AsReaction().RelatesTo.EventID, false)
+	case event.EventMessage:
+		if original := evt.Content.AsMessage().RelatesTo.GetReplaceID(); original != "" {
+			return c.messageChanged(ctx, evt.RoomID, original, false)
+		}
+		return c.messageChanged(ctx, evt.RoomID, target, true)
 	}
 	return nil, nil
 }
