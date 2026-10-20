@@ -143,3 +143,13 @@ func TestCryptoAccountID(t *testing.T) {
 		t.Errorf("cryptoAccountID = %q, %q", a, b)
 	}
 }
+
+func TestSentHere(t *testing.T) {
+	const self id.UserID = "@alice:example.org"
+	echo := &event.Event{Sender: self, Unsigned: event.Unsigned{TransactionID: "$local"}}
+	otherDevice := &event.Event{Sender: self}
+	bob := &event.Event{Sender: "@bob:example.org", Unsigned: event.Unsigned{TransactionID: "x"}}
+	if !sentHere(self, echo) || sentHere(self, otherDevice) || sentHere(self, bob) {
+		t.Errorf("sentHere: echo %v, other device %v, bob %v", sentHere(self, echo), sentHere(self, otherDevice), sentHere(self, bob))
+	}
+}
