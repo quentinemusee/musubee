@@ -368,7 +368,7 @@ start over in app:  cd apps/desktop && npm run build && npx playwright test app.
 android start over: ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=app.musubee.core.CoreKeyTest,app.musubee.core.StartOverTest"
 ```
 
-Verified in T2.16 (Windows, Go 1.27.1, Node 24.20, Electron 44.7.0; see ADR 0032):
+Verified in T2.16 (Windows, Go 1.27.1, Node 24.20, Electron 44.7.0; the Android app by hand on a Pixel 8 Pro with Android 17; see ADR 0032):
 
 ```
 login wording:      go test -tags=goolm -count=1 -run 'Wording|PlainWords|NetworksList' -v ./core/embedded/

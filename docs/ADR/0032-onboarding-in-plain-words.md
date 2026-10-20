@@ -75,6 +75,7 @@ The QR code steps name the menus of the phone apps. They differ between platform
 | A step absent from the table keeps the connector's words, and the connector's shared steps are not changed in place | **verified** (Windows) | `TestWordingOfAStep` |
 | The table names only flows that the Telegram connector offers; Signal's step ID is mautrix-signal's | **verified** (Windows, with libsignal) | `TestWordingFollowsTheConnectors`, `signal_test.go` `TestSignalIsOffered` |
 | The desktop app welcomes a user without accounts, shows the descriptions, keeps the bot flow under "Other ways to log in", and does not welcome again once an account exists | **verified** (Windows) | `apps/desktop/e2e/app.spec.ts`, "a first launch says what Musubee is…" |
-| Android's accessibility tree exposes the flow buttons as "Network: Flow" | **assumed** from ADR 0029 (WebView exposes `aria-label`); checked by CI's Appium journey ("Echo: Username") | |
+| Android's accessibility tree exposes the flow buttons as "Network: Flow" | **verified** on a Pixel 8 Pro (Android 17), 2026-10-20, and by CI's Appium journey ("Echo: Username") | UI dump of the app: buttons "Echo: Username", "Telegram: With your phone number", "Telegram: As a bot" |
+| The Android app welcomes a user without accounts, shows the descriptions, opens "Other ways to log in", logs in on echo, and no longer welcomes once an account exists | **verified** by hand on a Pixel 8 Pro (Android 17), 2026-10-20 | |
 | The menu names of Telegram's and Signal's phone apps | **assumed** from the sources above; not checked on a phone | |
 | Telegram's password reset is in Settings, Privacy and Security, Two-Step Verification | **assumed** (the app's menu names as known in 2026); not checked on a phone | |
