@@ -18,7 +18,10 @@ apps/mobile/
       core/CoreLibrary.kt         Kotlin side of the JNI binding (core/ffi/jni_android.go)
       core/CoreService.kt         foreground service (type specialUse) that owns the core
       core/CoreKey.kt             the core's master key, wrapped by the Android Keystore (ADR 0019)
-      core/MusubeeCorePlugin.kt   Capacitor plugin "MusubeeCore": call({request}), "event" listener
+      core/MusubeeCorePlugin.kt   Capacitor plugin "MusubeeCore": call({request}), "event" listener,
+                                  askToNotify(), "openConversation" listener (ADR 0033)
+      core/MessageNotifications.kt  which new messages get a notification (rules, no Android type)
+      core/MessageNotifier.kt     shows them: "Messages" channel, one notification per conversation
     app/src/androidTest/          instrumented tests (core, service, measurements, soak)
     measure-core.sh               measurement runs of ADR 0011
   e2e/       Appium + WebdriverIO end-to-end tests (ADR 0007)
@@ -53,7 +56,7 @@ npm run sync
 ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-`ANDROID_SERIAL` makes Gradle use that device only: never run the tests on a personal phone. The app end-to-end test then installs the debug APK and drives the interface: it adds an echo account, opens a conversation of the inbox, sends a message, waits for its echo and goes back to the inbox (from `apps/mobile/e2e`):
+`ANDROID_SERIAL` makes Gradle use that device only: never run the tests on a personal phone. The app end-to-end test then installs the debug APK and drives the interface: it adds an echo account, opens a conversation of the inbox, sends a message, waits for its echo and goes back to the inbox, then taps the notification of a message that arrived in the background (from `apps/mobile/e2e`):
 
 ```
 MUSUBEE_ANDROID_UDID=emulator-5554 npm run test:android:app
@@ -112,7 +115,8 @@ ANDROID_SERIAL=emulator-5554 ./gradlew -Pmusubee.abis=x86_64 -Pmusubee.signal=st
 
 ### Rules for this app
 
-- Never log message content: no `console` output in the interface (Capacitor forwards it to logcat), no message text in `Log` calls.
+- Never log message content: no `console` output in the interface (Capacitor forwards it to logcat), no message text in `Log` calls, and no org.json exception message (it quotes the JSON).
+- Notifications of messages are private on the lock screen: their public version says "New message" only (ADR 0033).
 - The service starts from the activity: Android only allows starting a foreground service from the foreground.
 - App data is excluded from backups (`allowBackup=false`, `data_extraction_rules.xml`).
 - The core's master key (ADR 0019) lives in `noBackupFilesDir/core-key`, wrapped by the Android Keystore key `app.musubee.core.key-wrap`; `CoreService` gives it to the core as `database_key`. Never log the core's configuration: it holds the key. Uninstalling the app removes both the key and the database; losing only the Keystore key makes the core refuse to open ("written with another key").
