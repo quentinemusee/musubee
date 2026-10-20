@@ -456,13 +456,16 @@ func changes(t *testing.T, ctx context.Context, events coretest.Events, bob *pee
 		return bob.sendEvent(t, ctx, room, event.EventEncrypted, sealed)
 	}
 	// A reaction taken back at once, before the core may have stored it;
-	// the core handles events in order, so the next reaction comes alone.
+	// the core handles events in order, so it is gone before the next
+	// reaction comes.
 	if _, err := bob.cli.RedactEvent(ctx, room, react("❤️", false)); err != nil {
 		t.Fatal(err)
 	}
 	reaction := react("👍", true)
+	// bridgev2 gives the network's reaction keys the emoji variation
+	// selector (U+FE0F).
 	changed("the reaction", func(m api.Message) bool {
-		return slices.Equal(m.Reactions, []api.MessageReaction{{Key: "👍", Count: 1}})
+		return slices.Equal(m.Reactions, []api.MessageReaction{{Key: "👍️", Count: 1}})
 	})
 	if _, err := bob.cli.RedactEvent(ctx, room, reaction); err != nil {
 		t.Fatal(err)
