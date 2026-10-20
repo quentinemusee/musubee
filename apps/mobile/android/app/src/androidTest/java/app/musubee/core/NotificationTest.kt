@@ -62,13 +62,12 @@ class NotificationTest {
             val text = "notify me ${System.nanoTime()}"
             request("messages.send", JSONObject().put("conversation_id", conversationId).put("text", text))
 
-            val shown = waitFor("the notification") {
-                manager.activeNotifications.firstOrNull { it.tag == conversationId }
+            // The one that shows this echo: an earlier test's echo in the same
+            // conversation may still be shown until the read above cancels it.
+            val shown = waitFor("the notification of the echo") {
+                manager.activeNotifications.firstOrNull { it.tag == conversationId && lastLine(it.notification).contains(text) }
             }
             assertEquals(MessageNotifier.CHANNEL_ID, shown.notification.channelId)
-            val style = NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(shown.notification)
-            assertNotNull(style)
-            assertTrue("the notification shows the echo", style!!.messages.last().text.toString().contains(text))
             // The lock screen gets a version without the message.
             assertEquals(Notification.VISIBILITY_PRIVATE, shown.notification.visibility)
             val public = shown.notification.publicVersion
@@ -83,6 +82,12 @@ class NotificationTest {
             service.removeListener(listener)
             context.stopService(intent)
         }
+    }
+
+    /** The last line of a MessagingStyle notification, or "" without one. */
+    private fun lastLine(notification: Notification): String {
+        val style = NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(notification)
+        return style?.messages?.lastOrNull()?.text?.toString() ?: ""
     }
 
     private fun <T : Any> waitFor(what: String, check: () -> T?): T {
