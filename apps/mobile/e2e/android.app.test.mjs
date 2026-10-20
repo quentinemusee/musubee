@@ -215,8 +215,11 @@ test(
       await driver.activateApp(APP);
     }
 
-    // The app opens on the conversation, from the inbox where it was left.
+    // The app opens on the conversation, from the inbox where it was left:
+    // the thread, under its title. Not by the echo's text: it came in the
+    // background, so the thread's status did not announce it, and WebView
+    // 124 does not expose the text of the message rows.
     await waitFor(exactly("Back to conversations"), "the thread", { kind: BUTTON });
-    await waitFor((attr) => `starts-with(${attr}, "Delayed Echo: notify me")`, "the echo in the thread");
+    await waitFor(exactly("Delayed Echo"), "the thread of Delayed Echo", { kind: "android.widget.TextView" });
   },
 );
