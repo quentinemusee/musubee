@@ -48,6 +48,10 @@ class CoreService : Service() {
     override fun onCreate() {
         super.onCreate()
         startInForeground()
+        // Notifications of new messages read the same events as the
+        // interface (docs/ADR/0033).
+        val notifier = MessageNotifier(this)
+        addListener(notifier::onEvent)
         open(core)
     }
 
