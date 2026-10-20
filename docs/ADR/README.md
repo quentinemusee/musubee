@@ -42,3 +42,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0030](0030-logging-in-again.md) | Logging in to an account again: login.start with an account, which never removes the account | accepted | T2.14 |
 | [0031](0031-starting-over-after-a-lost-key.md) | Starting over after a lost key: the shell sets the old data aside, never deletes it, and starts a new core | accepted | T2.15 |
 | [0032](0032-onboarding-in-plain-words.md) | Onboarding in plain words: the core words its networks' logins, the interface welcomes the user | accepted | T2.16 |
+| [0033](0033-message-notifications-on-android.md) | Message notifications on Android: the service decides from the core's events, without push | accepted | T2.17 |
