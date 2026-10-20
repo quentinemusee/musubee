@@ -374,3 +374,10 @@ Verified in T2.16 (Windows, Go 1.27.1, Node 24.20, Electron 44.7.0; the Android 
 login wording:      go test -tags=goolm -count=1 -run 'Wording|PlainWords|NetworksList' -v ./core/embedded/
 welcome in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "first launch"
 ```
+
+Verified in T2.17 (Windows, Node 24.20, JDK 21; a Pixel 8 Pro with Android 17; see ADR 0033). Gradle uninstalls the app after the instrumented tests, with its data:
+
+```
+notification rules: ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=app.musubee.core.MessageNotificationsTest,app.musubee.core.NotificationTest"
+ui notifications:   cd ui && npx vitest run src/notifications.test.ts src/capacitor.test.ts
+```
