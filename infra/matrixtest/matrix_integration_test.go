@@ -147,8 +147,10 @@ func TestMatrixAccount(t *testing.T) {
 	}
 	bob.waitJoined(t, ctx, room, aliceID)
 
-	// 4. bob -> core, then core -> bob, encrypted.
+	// 4. bob -> core, then core -> bob, encrypted; then bob changes a
+	// message (T2.18).
 	exchange(t, ctx, c, events, bob, room, conv.ConversationID, "before the restart")
+	changedTexts := changes(t, ctx, events, bob, room)
 
 	// 5. A direct conversation can belong to a person.
 	var person api.PersonResult
@@ -217,7 +219,7 @@ func TestMatrixAccount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i, secret := range append(texts, alicePassword) {
+	for i, secret := range append(append(texts, changedTexts...), alicePassword) {
 		if strings.Contains(string(logData), secret) {
 			t.Errorf("core.log contains secret #%d (a message or the password)", i)
 		}
@@ -375,19 +377,83 @@ func (p *peer) waitJoined(t *testing.T, ctx context.Context, room id.RoomID, use
 }
 
 // send sends a message, and checks that it went encrypted.
-func (p *peer) send(t *testing.T, ctx context.Context, room id.RoomID, text string) {
+func (p *peer) send(t *testing.T, ctx context.Context, room id.RoomID, text string) id.EventID {
 	t.Helper()
-	resp, err := p.cli.SendText(ctx, room, text)
+	return p.sendEvent(t, ctx, room, event.EventMessage, &event.MessageEventContent{MsgType: event.MsgText, Body: text})
+}
+
+// sendEvent sends an event, which must go encrypted.
+func (p *peer) sendEvent(t *testing.T, ctx context.Context, room id.RoomID, eventType event.Type, content any) id.EventID {
+	t.Helper()
+	resp, err := p.cli.SendMessageEvent(ctx, room, eventType, content)
 	if err != nil {
-		t.Fatalf("bob sending: %v", err)
+		t.Fatalf("bob sending %s: %v", eventType.Type, err)
 	}
 	evt, err := p.cli.GetEvent(ctx, room, resp.EventID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if evt.Type != event.EventEncrypted {
-		t.Fatalf("bob's message went as %s, want encrypted", evt.Type.Type)
+		t.Fatalf("bob's %s went as %s, want encrypted", eventType.Type, evt.Type.Type)
 	}
+	return resp.EventID
+}
+
+// changes has bob edit a message, react to it, take the reaction back, then
+// delete the message; the core shows each change on the same message. It
+// returns the texts, which the log must not hold.
+func changes(t *testing.T, ctx context.Context, events coretest.Events, bob *peer, room id.RoomID) []string {
+	t.Helper()
+	original := "to change " + coretest.RandomHex(t)
+	sent := bob.send(t, ctx, room, original)
+	e := events.Wait(t, ctx, "the message to change", time.Minute, func(e coretest.Event) bool {
+		var data api.MessageEvent
+		return e.Type == api.EventMessageAdded && e.Decode(t, &data) && data.Message.Text == original
+	})
+	var added api.MessageEvent
+	e.Decode(t, &added)
+	changed := func(what string, match func(api.Message) bool) {
+		t.Helper()
+		events.Wait(t, ctx, what, time.Minute, func(e coretest.Event) bool {
+			var data api.MessageEvent
+			if e.Type == api.EventMessageAdded && e.Decode(t, &data) && strings.HasPrefix(data.Message.Text, "* ") {
+				t.Errorf("an edit came as a new message")
+			}
+			return e.Type == api.EventMessageUpdated && e.Decode(t, &data) &&
+				data.Message.MessageID == added.Message.MessageID && match(data.Message)
+		})
+	}
+
+	edited := "changed " + coretest.RandomHex(t)
+	edit := &event.MessageEventContent{MsgType: event.MsgText, Body: edited}
+	edit.SetEdit(sent)
+	bob.sendEvent(t, ctx, room, event.EventMessage, edit)
+	changed("the edit", func(m api.Message) bool { return m.Edited && m.Text == edited })
+
+	react := func(key string) id.EventID {
+		return bob.sendEvent(t, ctx, room, event.EventReaction, &event.ReactionEventContent{
+			RelatesTo: event.RelatesTo{Type: event.RelAnnotation, EventID: sent, Key: key},
+		})
+	}
+	// A reaction taken back at once, before the core may have stored it;
+	// the core handles events in order, so the next reaction comes alone.
+	if _, err := bob.cli.RedactEvent(ctx, room, react("❤️")); err != nil {
+		t.Fatal(err)
+	}
+	reaction := react("👍")
+	changed("the reaction", func(m api.Message) bool {
+		return slices.Equal(m.Reactions, []api.MessageReaction{{Key: "👍", Count: 1}})
+	})
+	if _, err := bob.cli.RedactEvent(ctx, room, reaction); err != nil {
+		t.Fatal(err)
+	}
+	changed("the reaction taken back", func(m api.Message) bool { return len(m.Reactions) == 0 && m.Edited })
+
+	if _, err := bob.cli.RedactEvent(ctx, room, sent); err != nil {
+		t.Fatal(err)
+	}
+	changed("the deletion", func(m api.Message) bool { return m.Deleted && m.Text == "" })
+	return []string{original, edited}
 }
 
 func (p *peer) waitDecrypted(t *testing.T, ctx context.Context, room id.RoomID, text string) {
