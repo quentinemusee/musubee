@@ -220,6 +220,11 @@ test(
     // background, so the thread's status did not announce it, and WebView
     // 124 does not expose the text of the message rows.
     await waitFor(exactly("Back to conversations"), "the thread", { kind: BUTTON });
-    await waitFor(exactly("Delayed Echo"), "the thread of Delayed Echo", { kind: "android.widget.TextView" });
+    // Its title, and on WebView 155 the echo's sender too: the first one.
+    const title = driver.$('(//android.widget.TextView[@text="Delayed Echo" or @content-desc="Delayed Echo"])[1]');
+    await title.waitForExist({ timeout: 30_000 }).catch(async (error) => {
+      await describeScreen();
+      throw error;
+    });
   },
 );
