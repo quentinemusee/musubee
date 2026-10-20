@@ -15,6 +15,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
 import app.musubee.MainActivity
 import app.musubee.R
+import org.json.JSONException
 import org.json.JSONObject
 
 /**
@@ -45,7 +46,13 @@ class MessageNotifier(private val context: Context) {
 
     /** Handles one event of the core. */
     fun onEvent(event: ByteArray) {
-        val actions = rules.onEvent(JSONObject(String(event, Charsets.UTF_8)))
+        val actions = try {
+            rules.onEvent(JSONObject(String(event, Charsets.UTF_8)))
+        } catch (e: JSONException) {
+            // org.json's messages quote the JSON, which can hold a message.
+            Log.w(TAG, "An event of the core could not be read")
+            return
+        }
         for (action in actions) {
             when (action) {
                 is MessageNotifications.Action.Post -> post(action)
@@ -108,6 +115,10 @@ class MessageNotifier(private val context: Context) {
             if (preferences.contains(key)) return preferences.getLong(key, now)
             preferences.edit().putLong(key, now).apply()
             return now
+        }
+
+        override fun forget(accountId: String) {
+            preferences.edit().remove("since.$accountId").apply()
         }
     }
 

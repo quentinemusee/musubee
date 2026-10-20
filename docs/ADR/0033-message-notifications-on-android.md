@@ -41,13 +41,14 @@ The rule chosen (in `MessageNotifications`): a message is announced when **all**
 4. it is less than **24 hours** old: after days offline, the inbox says enough;
 5. the app's activity is not on screen (`onResume` to `onPause`): the inbox shows it already.
 
-One notification per conversation (tag: the conversation ID), in `MessagingStyle` with its last 5 lines. It goes away when its conversation is read again, wherever that happens. Messages without text (a kind this version cannot show) say "New message".
+One notification per conversation (tag: the conversation ID), in `MessagingStyle` with its last 5 lines. It goes away when its conversation is read again, wherever that happens, or when its account is logged out; a logged-out account also loses its watermark, so that logging in to it again does not announce the history in between. Messages without text (a kind this version cannot show) say "New message".
 
 ## Decision
 
 **Option A**, with the rule above.
 
 - `core/MessageNotifications.kt`: the rules; `core/MessageNotifier.kt`: the "Messages" channel (high importance, separate from the low-importance "core" channel of the service's own notification), the notifications, and the watermarks in `SharedPreferences`.
+- **Logs**: an event that cannot be read is reported without org.json's message, which quotes the JSON and so could quote a message.
 - **Privacy on the lock screen**: the notifications are `VISIBILITY_PRIVATE`, with a public version that says "Musubee / New message", no sender and no text. The user's system settings can hide more, never show more. Nothing logs a message's content (`CLAUDE.md` §6.8).
 - **Opening**: a tap starts `MainActivity` with the conversation's ID; the plugin passes it to the interface as an `openConversation` event that Capacitor keeps until a listener takes it (a tap can start the app), and the interface opens the conversation as a tap in the inbox does. A recreated activity, or one opened from the recent apps, does not open it again.
 - **Permission**: the plugin's `askToNotify()` asks for `POST_NOTIFICATIONS` (Android 13 and later; earlier versions need nothing). The interface calls it once per launch, the first time it sees an account: a notification means nothing before. A refusal is the user's answer; Android itself stops showing the question after it was refused twice.
@@ -65,7 +66,7 @@ One notification per conversation (tag: the conversation ID), in `MessagingStyle
 
 | Claim | Status | Evidence |
 |---|---|---|
-| The rules: a new message is announced once its conversation is unread; history before the watermark, messages older than a day, own messages and messages while the app is on screen are not; the last 5 lines are kept; reading removes the notification; "New message" without text | **verified** on a Pixel 8 Pro (Android 17), 2026-10-20 | `MessageNotificationsTest` (7 tests) |
+| The rules: a new message is announced once its conversation is unread; history before the watermark, messages older than a day, own messages and messages while the app is on screen are not; the last 5 lines are kept; reading or logging out removes the notification, and logging out forgets the watermark; "New message" without text | **verified** on a Pixel 8 Pro (Android 17), 2026-10-20 | `MessageNotificationsTest` (8 tests) |
 | Through the real service and core: an echo shows a notification in the "Messages" channel with its text, private on the lock screen with a public version without the text, and `conversations.markRead` removes it | **verified** on a Pixel 8 Pro (Android 17), 2026-10-20 | `NotificationTest` |
 | The mobile shell passes the user's answer on, and opens tapped notifications, the one that started the app included; the interface asks once, after the first account | **verified** (Windows, Vitest) | `ui/src/capacitor.test.ts`, `ui/src/notifications.test.ts` |
 | The system's permission question appears after the first account, and a tap on a notification opens its conversation in the app | **unknown**: the phone was locked with a code during the session; to check by hand | |
