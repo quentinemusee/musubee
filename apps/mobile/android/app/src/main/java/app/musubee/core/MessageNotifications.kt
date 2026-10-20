@@ -24,6 +24,12 @@ import org.json.JSONObject
  * A conversation that is read again (unread count 0 and not marked unread)
  * loses its notification, wherever it was read. An account that is logged
  * out loses its notifications and its mark: a new login starts afresh.
+ *
+ * A message that changes after it was announced (`message.updated`, API
+ * 1.7, docs/ADR/0034) changes its line: an edit shows the new text, and a
+ * deletion removes the line, so that a deleted text does not stay on the
+ * screen; the notification goes once no line is left. These updates are
+ * silent.
  */
 class MessageNotifications(
     private val watermarks: Watermarks,
@@ -39,8 +45,8 @@ class MessageNotifications(
         fun forget(accountId: String)
     }
 
-    /** One line of a notification: who wrote, and what. */
-    data class Line(val sender: String, val text: String, val timestampMs: Long)
+    /** One line of a notification: which message, who wrote it, and what. */
+    data class Line(val messageId: String, val sender: String, val text: String, val timestampMs: Long)
 
     sealed interface Action {
         val conversationId: String
@@ -51,13 +57,15 @@ class MessageNotifications(
             val title: String,
             val group: Boolean,
             val lines: List<Line>,
+            /** An update of a shown notification: no sound, and not shown again if dismissed. */
+            val silent: Boolean = false,
         ) : Action
 
         /** Removes the conversation's notification. */
         data class Cancel(override val conversationId: String) : Action
     }
 
-    private class Shown(val accountId: String, val lines: List<Line>)
+    private class Shown(val accountId: String, val title: String, val group: Boolean, val lines: List<Line>)
 
     // Messages waiting for their conversation's next update, and what is
     // shown, by conversation. Only the event thread touches them.
@@ -73,6 +81,7 @@ class MessageNotifications(
                 data.optJSONObject("message")?.let(::waitForConversation)
                 emptyList()
             }
+            "message.updated" -> data.optJSONObject("message")?.let(::onMessageChanged).orEmpty()
             "conversation.updated" -> data.optJSONObject("conversation")?.let(::onConversation).orEmpty()
             else -> emptyList()
         }
@@ -97,6 +106,7 @@ class MessageNotifications(
         if (conversationId.isEmpty()) return
         waiting.getOrPut(conversationId) { mutableListOf() }.add(
             Line(
+                messageId = message.optString("message_id"),
                 sender = message.optString("sender_name"),
                 text = summary(message),
                 timestampMs = message.optLong("timestamp_ms"),
@@ -118,15 +128,41 @@ class MessageNotifications(
         val news = arrived.filter { it.timestampMs >= since }
         if (news.isEmpty() || visible()) return emptyList()
         val lines = (shown[conversationId]?.lines.orEmpty() + news).takeLast(MAX_LINES)
-        shown[conversationId] = Shown(accountId, lines)
-        return listOf(
-            Action.Post(
-                conversationId = conversationId,
-                title = conversation.optString("name"),
-                group = conversation.optString("kind") == "group",
-                lines = lines,
-            ),
-        )
+        val updated = Shown(accountId, conversation.optString("name"), conversation.optString("kind") == "group", lines)
+        shown[conversationId] = updated
+        return listOf(post(conversationId, updated, silent = false))
+    }
+
+    private fun post(conversationId: String, shown: Shown, silent: Boolean) =
+        Action.Post(conversationId, shown.title, shown.group, shown.lines, silent)
+
+    private fun onMessageChanged(message: JSONObject): List<Action> {
+        val conversationId = message.optString("conversation_id")
+        val messageId = message.optString("message_id")
+        if (conversationId.isEmpty() || messageId.isEmpty()) return emptyList()
+        val deleted = message.optBoolean("deleted")
+        val change = { lines: List<Line> ->
+            if (deleted) {
+                lines.filter { it.messageId != messageId }
+            } else {
+                lines.map { if (it.messageId == messageId) it.copy(text = summary(message)) else it }
+            }
+        }
+        waiting[conversationId]?.let { lines ->
+            val changed = change(lines)
+            lines.clear()
+            lines.addAll(changed)
+        }
+        val before = shown[conversationId] ?: return emptyList()
+        val lines = change(before.lines)
+        if (lines == before.lines) return emptyList()
+        if (lines.isEmpty()) {
+            shown.remove(conversationId)
+            return listOf(Action.Cancel(conversationId))
+        }
+        val updated = Shown(before.accountId, before.title, before.group, lines)
+        shown[conversationId] = updated
+        return listOf(post(conversationId, updated, silent = true))
     }
 
     companion object {
