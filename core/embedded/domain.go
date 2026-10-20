@@ -219,7 +219,7 @@ func (c *Core) conversation(ctx context.Context, activity *localmatrix.RoomActiv
 		ActivityMS:     activity.At,
 	}
 	if activity.LastMessage != nil {
-		msg, err := c.message(ctx, activity.LastMessage)
+		msg, err := c.messageOf(ctx, activity.LastMessage)
 		if err != nil {
 			return nil, err
 		}
@@ -307,14 +307,8 @@ func (c *Core) messagesList(ctx context.Context, p api.MessagesListParams) (api.
 		result.Before = cursor(events[limit-1].Unsigned.BeeperHSOrder)
 	}
 	slices.Reverse(events)
-	for _, evt := range events {
-		msg, err := c.message(ctx, evt)
-		if err != nil {
-			return result, err
-		}
-		result.Messages = append(result.Messages, msg)
-	}
-	return result, nil
+	result.Messages, err = c.messages(ctx, roomID, events)
+	return result, err
 }
 
 func (c *Core) messagesSend(ctx context.Context, p api.MessagesSendParams) (api.MessagesSendResult, error) {
@@ -333,7 +327,7 @@ func (c *Core) messagesSend(ctx context.Context, p api.MessagesSendParams) (api.
 	if err != nil {
 		return api.MessagesSendResult{}, err
 	}
-	msg, err := c.message(ctx, evt)
+	msg, err := c.messageOf(ctx, evt)
 	return api.MessagesSendResult{Message: msg}, err
 }
 
@@ -343,27 +337,88 @@ var messageKinds = map[event.MessageType]api.MessageKind{
 	event.MsgEmote:  api.MessageKindEmote,
 }
 
-// message converts a stored m.room.message event.
-func (c *Core) message(ctx context.Context, evt *event.Event) (api.Message, error) {
-	content := evt.Content.AsMessage()
-	kind, ok := messageKinds[content.MsgType]
-	if !ok {
-		kind = api.MessageKindUnsupported
+// messages converts stored m.room.message events of a room (not edits),
+// with what their edits, reactions and redactions changed.
+func (c *Core) messages(ctx context.Context, roomID id.RoomID, events []*event.Event) ([]api.Message, error) {
+	relations, err := c.host.Matrix.Relations(ctx, roomID, events)
+	if err != nil {
+		return nil, err
 	}
+	messages := make([]api.Message, 0, len(events))
+	for _, evt := range events {
+		msg, err := c.message(ctx, evt, relations[evt.ID])
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, msg)
+	}
+	return messages, nil
+}
+
+// messageOf converts one stored m.room.message event (not an edit).
+func (c *Core) messageOf(ctx context.Context, evt *event.Event) (api.Message, error) {
+	messages, err := c.messages(ctx, evt.RoomID, []*event.Event{evt})
+	if err != nil {
+		return api.Message{}, err
+	}
+	return messages[0], nil
+}
+
+// latestContent returns a message's content as its latest edit left it,
+// and whether it was edited.
+func latestContent(evt *event.Event, rel *localmatrix.Relations) (*event.MessageEventContent, bool) {
+	if rel != nil && rel.Edit != nil {
+		if edited := rel.Edit.Content.AsMessage().NewContent; edited != nil {
+			return edited, true
+		}
+	}
+	return evt.Content.AsMessage(), false
+}
+
+func messageKind(content *event.MessageEventContent) api.MessageKind {
+	if kind, ok := messageKinds[content.MsgType]; ok {
+		return kind
+	}
+	return api.MessageKindUnsupported
+}
+
+func (c *Core) senderName(ctx context.Context, evt *event.Event) (string, error) {
+	member, err := c.host.Matrix.State(ctx, evt.RoomID, event.StateMember, string(evt.Sender))
+	if err != nil || member == nil {
+		return "", err
+	}
+	return member.Content.AsMember().Displayname, nil
+}
+
+// message converts a stored m.room.message event (not an edit), given its
+// relations (nil without any).
+func (c *Core) message(ctx context.Context, evt *event.Event, rel *localmatrix.Relations) (api.Message, error) {
 	msg := api.Message{
 		MessageID:      messageID(evt.RoomID, evt.ID),
 		ConversationID: conversationID(evt.RoomID),
 		FromMe:         evt.Sender == c.host.Matrix.UserID(),
 		TimestampMS:    evt.Timestamp,
-		Kind:           kind,
-		Text:           content.Body,
+		Kind:           api.MessageKindText,
 		Status:         api.MessageStatusReceived,
 	}
-	member, err := c.host.Matrix.State(ctx, evt.RoomID, event.StateMember, string(evt.Sender))
-	if err != nil {
+	var err error
+	if msg.SenderName, err = c.senderName(ctx, evt); err != nil {
 		return msg, err
-	} else if member != nil {
-		msg.SenderName = member.Content.AsMember().Displayname
+	}
+	if evt.Unsigned.RedactedBecause != nil {
+		msg.Deleted = true
+	} else {
+		content, edited := latestContent(evt, rel)
+		msg.Kind, msg.Text, msg.Edited = messageKind(content), content.Body, edited
+		if rel != nil {
+			msg.Reactions = c.reactions(rel.Reactions)
+		}
+		// The reply is the original's: an edit's new content has none.
+		if replyTo := evt.Content.AsMessage().RelatesTo.GetNonFallbackReplyTo(); replyTo != "" {
+			if msg.ReplyTo, err = c.reply(ctx, evt.RoomID, replyTo); err != nil {
+				return msg, err
+			}
+		}
 	}
 	if !msg.FromMe {
 		return msg, nil
@@ -383,6 +438,45 @@ func (c *Core) message(ctx context.Context, evt *event.Event) (api.Message, erro
 		msg.Error = st.Message
 	}
 	return msg, nil
+}
+
+func (c *Core) reactions(reactions []localmatrix.Reaction) []api.MessageReaction {
+	var out []api.MessageReaction
+	for _, r := range reactions {
+		out = append(out, api.MessageReaction{
+			Key:    r.Key,
+			Count:  int64(len(r.Senders)),
+			FromMe: slices.Contains(r.Senders, c.host.Matrix.UserID()),
+		})
+	}
+	return out
+}
+
+// reply describes the message that another answers, which may not be
+// stored.
+func (c *Core) reply(ctx context.Context, roomID id.RoomID, eventID id.EventID) (*api.MessageReply, error) {
+	reply := &api.MessageReply{MessageID: messageID(roomID, eventID)}
+	evt, err := c.host.Matrix.Event(ctx, roomID, eventID)
+	if errors.Is(err, localmatrix.ErrNotFound) {
+		return reply, nil
+	} else if err != nil {
+		return nil, err
+	}
+	reply.FromMe = evt.Sender == c.host.Matrix.UserID()
+	if reply.SenderName, err = c.senderName(ctx, evt); err != nil {
+		return nil, err
+	}
+	if evt.Unsigned.RedactedBecause != nil {
+		reply.Deleted = true
+		return reply, nil
+	}
+	relations, err := c.host.Matrix.Relations(ctx, roomID, []*event.Event{evt})
+	if err != nil {
+		return nil, err
+	}
+	content, _ := latestContent(evt, relations[eventID])
+	reply.Text = content.Body
+	return reply, nil
 }
 
 // stats reports the Go runtime's memory after a garbage collection, for the

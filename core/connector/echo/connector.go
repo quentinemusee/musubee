@@ -29,6 +29,17 @@
 //     but from the next start of the core on, its session is refused, as when
 //     a network ends a session: the user must log in again.
 //
+// A message that starts with a command makes the contact who answers act on
+// messages instead of echoing them as they are, as people do on real
+// networks:
+//
+//   - CommandReact ("/react 🎉", 👍 without a key) reacts to the message;
+//   - CommandEdit ("/edit text") echoes the text, then edits the echo to
+//     "text (edited)";
+//   - CommandDelete ("/delete text") echoes the text, then deletes the echo;
+//   - CommandReply ("/reply text") echoes the text as an answer to the
+//     message.
+//
 // It replaces Beeper's dummybridge, which has no license (docs/ADR/0004).
 package echo
 

@@ -100,6 +100,49 @@ test("open the app, send a message and get its echo, then find it again after a 
   await app.close();
 });
 
+test("a network's reactions, edits, deletions and replies change the messages they are about", async () => {
+  const dataDir = newDataDir();
+  let { app, page } = await launch(dataDir);
+  await addEchoAccount(page, "changes");
+  let log = page.getByRole("log");
+  const mine = (text: string) => log.locator('.message[data-from-me="true"]', { hasText: text });
+  const theirs = (text: string) => log.locator('.message[data-from-me="false"]', { hasText: text });
+  // The echo network's commands make Instant Echo act on messages.
+  const send = async (text: string) => {
+    await page.getByLabel("Message").fill(text);
+    await page.getByRole("button", { name: "Send" }).click();
+    await expect(mine(text)).toContainText("Sent");
+  };
+
+  await send("/react 🎉");
+  await expect(mine("/react 🎉").getByRole("listitem", { name: "🎉: 1 person" })).toBeVisible();
+
+  await send("/edit first try");
+  await expect(theirs("first try (edited)")).toContainText("Edited");
+  // The edit changed the echo: no second message for it.
+  await expect(theirs("first try")).toHaveCount(1);
+
+  await send("/delete a secret");
+  await expect(log.locator('.message[data-deleted="true"]')).toHaveText(/Message deleted/);
+  await expect(theirs("a secret")).toHaveCount(0);
+
+  await send("/reply an answer");
+  const quote = theirs("an answer").locator("blockquote");
+  await expect(quote).toContainText("You");
+  await expect(quote).toContainText("/reply an answer");
+
+  // Read again from the core after a restart: the same changes.
+  await app.close();
+  ({ app, page } = await launch(dataDir));
+  await page.getByRole("button", { name: "Instant Echo" }).click();
+  log = page.getByRole("log");
+  await expect(mine("/react 🎉").getByRole("listitem", { name: "🎉: 1 person" })).toBeVisible();
+  await expect(theirs("first try (edited)")).toContainText("Edited");
+  await expect(log.locator('.message[data-deleted="true"]')).toHaveCount(1);
+  await expect(theirs("an answer").locator("blockquote")).toContainText("/reply an answer");
+  await app.close();
+});
+
 test("log out of an account: it goes away with its conversations", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "leaving");

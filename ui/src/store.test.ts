@@ -515,6 +515,36 @@ describe("Store's events", () => {
   });
 });
 
+describe("Store's changed messages", () => {
+  test("quotes an edited or deleted message anew in its answers", async () => {
+    const shell = scriptedShell({
+      ...coreState([conversation("c1", "Adam", 3)]),
+      "messages.list": () => ({
+        messages: [
+          message("m1", 1, { sender_name: "Adam" }),
+          message("m2", 2, { reply_to: { message_id: "m1", sender_name: "Adam", text: "m1" } }),
+          message("m3", 3),
+        ],
+      }),
+    });
+    const store = await started(shell);
+    await store.select("c1");
+    const replies = () => store.getState().messages["c1"]!.map((m) => m.reply_to);
+
+    shell.emit("message.updated", { message: message("m1", 1, { sender_name: "Adam", text: "m1, edited", edited: true }) });
+    expect(replies()).toEqual([undefined, { message_id: "m1", sender_name: "Adam", text: "m1, edited" }, undefined]);
+    expect(store.getState().messages["c1"]![0]!.edited).toBe(true);
+
+    shell.emit("message.updated", { message: message("m1", 1, { sender_name: "Adam", text: "", deleted: true }) });
+    expect(replies()[1]).toEqual({ message_id: "m1", sender_name: "Adam", deleted: true });
+
+    // A change to a message that nothing answers leaves the others as they are.
+    const before = store.getState().messages["c1"]![1];
+    shell.emit("message.updated", { message: message("m3", 3, { reactions: [{ key: "👍", count: 1 }] }) });
+    expect(store.getState().messages["c1"]![1]).toBe(before);
+  });
+});
+
 // A core that keeps the persons and answers persons.* like the real one
 // (docs/ADR/0017): a conversation belongs to one person, linking moves it.
 function personsCore(conversations: Conversation[], initial: Person[] = []) {

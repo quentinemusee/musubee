@@ -36,12 +36,24 @@ class MessageNotificationsTest {
     private fun account(state: String = "connected") =
         rules.onEvent(event("account.updated", "account", JSONObject().put("account_id", "a1").put("state", state)))
 
-    private fun message(text: String, timestamp: Long, fromMe: Boolean = false) = rules.onEvent(
+    private fun message(text: String, timestamp: Long, fromMe: Boolean = false, id: String = text) = rules.onEvent(
         event(
             "message.added",
             "message",
-            JSONObject().put("conversation_id", "c1").put("from_me", fromMe).put("sender_name", "Bob")
-                .put("timestamp_ms", timestamp).put("kind", "text").put("text", text),
+            JSONObject().put("conversation_id", "c1").put("message_id", id).put("from_me", fromMe)
+                .put("sender_name", "Bob").put("timestamp_ms", timestamp).put("kind", "text").put("text", text),
+        ),
+    )
+
+    /** A message.updated event: [text] edited, or deleted when null. */
+    private fun changed(id: String, text: String?) = rules.onEvent(
+        event(
+            "message.updated",
+            "message",
+            JSONObject().put("conversation_id", "c1").put("message_id", id).put("sender_name", "Bob")
+                .put("timestamp_ms", now).put("kind", "text").apply {
+                    if (text == null) put("deleted", true).put("text", "") else put("edited", true).put("text", text)
+                },
         ),
     )
 
@@ -57,7 +69,8 @@ class MessageNotificationsTest {
     private fun texts(actions: List<MessageNotifications.Action>) =
         actions.map { action ->
             when (action) {
-                is MessageNotifications.Action.Post -> "post:" + action.lines.joinToString("|") { it.text }
+                is MessageNotifications.Action.Post ->
+                    (if (action.silent) "update:" else "post:") + action.lines.joinToString("|") { it.text }
                 is MessageNotifications.Action.Cancel -> "cancel"
             }
         }
@@ -145,5 +158,44 @@ class MessageNotificationsTest {
         account()
         message("", now + 1)
         assertEquals(listOf("post:New message"), texts(conversation(1)))
+    }
+
+    @Test
+    fun anEditChangesItsLineSilently() {
+        account()
+        message("helo", now + 1, id = "m1")
+        message("bye", now + 2, id = "m2")
+        conversation(2)
+        assertEquals(listOf("update:hello|bye"), texts(changed("m1", "hello")))
+        // A message that the notification does not show changes nothing.
+        assertEquals(emptyList<String>(), texts(changed("m0", "other")))
+        message("again", now + 3, id = "m3")
+        assertEquals(listOf("post:hello|bye|again"), texts(conversation(3)))
+    }
+
+    @Test
+    fun aDeletionRemovesItsLineThenTheNotification() {
+        account()
+        message("secret", now + 1, id = "m1")
+        message("hi", now + 2, id = "m2")
+        conversation(2)
+        assertEquals(listOf("update:hi"), texts(changed("m1", null)))
+        assertEquals(listOf("cancel"), texts(changed("m2", null)))
+        // Nothing left to cancel when the conversation follows.
+        assertEquals(emptyList<String>(), texts(conversation(0)))
+    }
+
+    @Test
+    fun aMessageChangedBeforeItsConversationIsAnnouncedAsItIsNow() {
+        account()
+        message("secret", now + 1, id = "m1")
+        message("typo", now + 2, id = "m2")
+        changed("m1", null)
+        changed("m2", "fixed")
+        assertEquals(listOf("post:fixed"), texts(conversation(1)))
+        // Deleted before anything was shown: nothing is announced.
+        message("gone", now + 3, id = "m3")
+        changed("m3", null)
+        assertEquals(emptyList<String>(), texts(conversation(1)))
     }
 }

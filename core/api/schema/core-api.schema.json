@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.6",
+  "x-musubee-api-version": "1.7",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -285,11 +285,11 @@
           "$ref": "#/$defs/ConversationEvent"
         },
         "message.added": {
-          "description": "A message was stored: received, or sent from this device.",
+          "description": "A message was stored: received, or sent from this device. Since API 1.7, edits, reactions and deletions are not messages: they come as message.updated events of the message they change.",
           "$ref": "#/$defs/MessageEvent"
         },
         "message.updated": {
-          "description": "A stored message changed, for example its delivery status.",
+          "description": "A stored message changed: its delivery status, or since API 1.7 its text (an edit), its reactions, or its deletion. The message is sent again in full. When it is its conversation's last message, a conversation.updated event follows.",
           "$ref": "#/$defs/MessageEvent"
         },
         "person.updated": {
@@ -722,9 +722,75 @@
         "error": {
           "description": "For failed messages: why, for the user, when the network said.",
           "type": "string"
+        },
+        "edited": {
+          "description": "The sender changed the message after sending it: kind and text are those of its latest version. Omitted when false. Since API 1.7.",
+          "type": "boolean"
+        },
+        "deleted": {
+          "description": "The message was deleted, by its sender or by the network: its kind is text and its text is empty, and it has no reactions nor reply_to. Omitted when false. Since API 1.7.",
+          "type": "boolean"
+        },
+        "reactions": {
+          "description": "The reactions to the message, one per key, in the order of each key's first reaction. Omitted when there are none. Since API 1.7.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/MessageReaction" }
+        },
+        "reply_to": {
+          "description": "The message this one answers, if it answers one. Since API 1.7.",
+          "$ref": "#/$defs/MessageReply"
         }
       },
       "required": ["message_id", "conversation_id", "from_me", "sender_name", "timestamp_ms", "kind", "text", "status"],
+      "additionalProperties": false
+    },
+    "MessageReaction": {
+      "description": "People who reacted to a message with the same key. Since API 1.7.",
+      "type": "object",
+      "properties": {
+        "key": {
+          "description": "What they reacted with: usually an emoji, sometimes a short text.",
+          "type": "string"
+        },
+        "count": {
+          "description": "How many people reacted with it, each counted once.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "from_me": {
+          "description": "The user is one of them. Omitted when false.",
+          "type": "boolean"
+        }
+      },
+      "required": ["key", "count"],
+      "additionalProperties": false
+    },
+    "MessageReply": {
+      "description": "The message that another one answers, to quote it above the answer. Since API 1.7.",
+      "type": "object",
+      "properties": {
+        "message_id": {
+          "description": "Opaque: user interfaces must not parse it. The message may not be on this device (older than its history): then only message_id is given.",
+          "type": "string"
+        },
+        "from_me": {
+          "description": "Sent by the user. Omitted when false.",
+          "type": "boolean"
+        },
+        "sender_name": {
+          "description": "Display name of its sender. Omitted when empty.",
+          "type": "string"
+        },
+        "text": {
+          "description": "Its text, as edited; for unsupported kinds, a fallback description. Omitted when empty.",
+          "type": "string"
+        },
+        "deleted": {
+          "description": "It was deleted. Omitted when false.",
+          "type": "boolean"
+        }
+      },
+      "required": ["message_id"],
       "additionalProperties": false
     },
     "MessageKind": {

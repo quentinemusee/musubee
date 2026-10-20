@@ -90,6 +90,7 @@ describe("preview", () => {
     expect(preview(entry("direct", { from_me: true }))).toBe("You: Hi");
     expect(preview(entry("group", { sender_name: "Bob" }))).toBe("Bob: Hi");
     expect(preview(entry("group", { from_me: true, sender_name: "Me" }))).toBe("You: Hi");
+    expect(preview(entry("group", { sender_name: "Bob", text: "", deleted: true }))).toBe("Bob: Message deleted");
   });
 });
 

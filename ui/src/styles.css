@@ -12,6 +12,7 @@
   --color-accent-text: #ffffff;
   --color-mine: #e7e6fb;
   --color-theirs: #ffffff;
+  --color-quote: rgb(0 0 0 / 5%);
   --color-error: #a3262f;
   --color-error-bg: #fde8ea;
   --radius: 10px;
@@ -31,6 +32,7 @@
     --color-accent-text: #15151a;
     --color-mine: #2d2b55;
     --color-theirs: #24242c;
+    --color-quote: rgb(255 255 255 / 6%);
     --color-error: #ff8a93;
     --color-error-bg: #3a1b20;
   }
@@ -486,9 +488,59 @@ ol {
 }
 
 .text[data-kind="notice"],
-.text[data-kind="unsupported"] {
+.text[data-kind="unsupported"],
+.text[data-kind="deleted"] {
   font-style: italic;
   color: var(--color-muted);
+}
+
+/* The answered message, quoted above an answer. */
+.reply {
+  display: flex;
+  flex-direction: column;
+  margin: 2px 0 4px;
+  padding: 2px 8px;
+  border-left: 3px solid var(--color-accent);
+  border-radius: 4px;
+  background: var(--color-quote);
+  font-size: 13px;
+}
+
+.reply-sender {
+  font-weight: 600;
+}
+
+/* One line of the quoted text. */
+.reply-text {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.reply[data-deleted="true"] .reply-text {
+  font-style: italic;
+  color: var(--color-muted);
+}
+
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reaction {
+  padding: 0 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  font-size: 13px;
+}
+
+.reaction[data-from-me="true"] {
+  border-color: var(--color-accent);
 }
 
 .meta {
