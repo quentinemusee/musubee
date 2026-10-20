@@ -32,8 +32,21 @@ export interface ShellCore {
   startOver?(): Promise<void>;
 }
 
+/**
+ * Notifications of new messages, where the shell posts them (the Android
+ * app, docs/ADR/0033). The shell decides which messages to announce; the
+ * interface asks for the permission and opens what the user taps.
+ */
+export interface ShellNotifications {
+  /** Asks the user to allow notifications, once they have an account; resolves with their answer. */
+  ask(): Promise<boolean>;
+  /** Calls listener with the conversation of each notification the user taps; returns a function that stops it. */
+  onOpen(listener: (conversationId: string) => void): () => void;
+}
+
 export interface Shell {
   core: ShellCore;
+  notifications?: ShellNotifications;
 }
 
 declare global {

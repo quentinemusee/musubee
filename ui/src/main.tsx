@@ -4,7 +4,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app/App";
+import { openConversation } from "./app/navigation";
 import { StoreContext } from "./app/state";
+import { followNotifications } from "./notifications";
 import type { Shell } from "./shell";
 import { Store } from "./store";
 import "./styles.css";
@@ -35,6 +37,9 @@ void findShell().then((shell) => {
   const store = new Store(shell.core);
   // Started once for the page's whole life, outside React.
   store.start();
+  if (shell.notifications !== undefined) {
+    followNotifications(store, shell.notifications, (conversationId) => openConversation(store, conversationId));
+  }
   root.render(
     <StrictMode>
       <StoreContext value={store}>

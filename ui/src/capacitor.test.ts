@@ -12,16 +12,24 @@ function scriptedPlugin(
   answer: (request: { id: number; command: string }) => Promise<object>,
   startOver: () => Promise<void> = () => Promise.reject(new Error("not scripted")),
 ) {
-  let emit: ((event: object) => void) | undefined;
+  const listeners = new Map<string, (event: never) => void>();
+  let granted = false;
   const plugin: MusubeeCorePlugin = {
     call: ({ request }) => answer(request as { id: number; command: string }),
     startOver,
-    addListener: (_, listener) => {
-      emit = listener;
+    askToNotify: () => Promise.resolve({ granted }),
+    addListener: (eventName: string, listener: (event: never) => void) => {
+      listeners.set(eventName, listener);
       return Promise.resolve({ remove: () => Promise.resolve() });
     },
   };
-  return { plugin, emit: (event: object) => emit?.(event) };
+  const send = (eventName: string, event: object) => (listeners.get(eventName) as ((event: object) => void) | undefined)?.(event);
+  return {
+    plugin,
+    emit: (event: object) => send("event", event),
+    tap: (conversationId: string) => send("openConversation", { conversation_id: conversationId }),
+    grant: () => (granted = true),
+  };
 }
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -76,5 +84,21 @@ describe("pluginShell", () => {
 
     await shell.core.startOver?.();
     expect(statuses.slice(-2)).toEqual([{ state: "starting" }, { state: "ready" }]);
+  });
+
+  test("opens tapped notifications, the one that started the app included, and passes the user's answer on", async () => {
+    const { plugin, tap, grant } = scriptedPlugin((request) => Promise.resolve({ id: request.id, result: {} }));
+    const shell = pluginShell(plugin);
+    tap("c1"); // Before the interface listens: the tap that started the app.
+    const opened: string[] = [];
+    const stop = shell.notifications!.onOpen((id) => opened.push(id));
+    tap("c2");
+    stop();
+    tap("c3");
+    expect(opened).toEqual(["c1", "c2"]);
+
+    expect(await shell.notifications!.ask()).toBe(false);
+    grant();
+    expect(await shell.notifications!.ask()).toBe(true);
   });
 });

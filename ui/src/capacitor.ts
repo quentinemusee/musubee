@@ -6,7 +6,7 @@
 // gives the interface the same window.musubee as the desktop's preload.
 
 import { registerPlugin, type PluginListenerHandle } from "@capacitor/core";
-import type { CoreStatus, Shell } from "./shell";
+import type { CoreStatus, Shell, ShellNotifications } from "./shell";
 
 /** The plugin of apps/mobile/android (MusubeeCorePlugin.kt). */
 export interface MusubeeCorePlugin {
@@ -14,7 +14,11 @@ export interface MusubeeCorePlugin {
   call(options: { request: object }): Promise<object>;
   /** Sets the unreadable data aside and starts a new core; only once the key is lost. */
   startOver(): Promise<void>;
+  /** Asks for Android's permission to post notifications (docs/ADR/0033). */
+  askToNotify(): Promise<{ granted: boolean }>;
   addListener(eventName: "event", listener: (event: object) => void): Promise<PluginListenerHandle>;
+  /** A notification was tapped; kept by the plugin until a listener takes it. */
+  addListener(eventName: "openConversation", listener: (event: { conversation_id: string }) => void): Promise<PluginListenerHandle>;
 }
 
 /** The code of the plugin's rejection when the core's key is lost (docs/ADR/0031). */
@@ -61,6 +65,28 @@ export function pluginShell(plugin: MusubeeCorePlugin): Shell {
     );
   void hello();
 
+  const opens = new Set<(conversationId: string) => void>();
+  // Taps that came before any listener, such as the one that started the app.
+  const unopened: string[] = [];
+  void plugin.addListener("openConversation", ({ conversation_id }) => {
+    if (opens.size === 0) {
+      unopened.push(conversation_id);
+    }
+    for (const listener of opens) {
+      listener(conversation_id);
+    }
+  });
+  const notifications: ShellNotifications = {
+    ask: async () => (await plugin.askToNotify()).granted,
+    onOpen(listener) {
+      opens.add(listener);
+      for (const conversationId of unopened.splice(0)) {
+        listener(conversationId);
+      }
+      return () => opens.delete(listener);
+    },
+  };
+
   return {
     core: {
       call,
@@ -79,6 +105,7 @@ export function pluginShell(plugin: MusubeeCorePlugin): Shell {
         await hello();
       },
     },
+    notifications,
   };
 }
 
