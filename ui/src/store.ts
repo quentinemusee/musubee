@@ -10,6 +10,7 @@
 import { CoreClient, parseEvent } from "./core-api/client";
 import type { Account, Conversation, Event, Message, Network, Person } from "./core-api/types.gen";
 import { mergePlan } from "./merge";
+import { replyTo } from "./message";
 import type { CoreStatus, ShellCore } from "./shell";
 
 export interface State {
@@ -489,6 +490,7 @@ export class Store {
         break;
       case "message.updated":
         this.#upsertMessage(event.data.message);
+        this.#refreshReplies(event.data.message);
         this.#lastMessage(event.data.message, false);
         break;
       default:
@@ -530,6 +532,22 @@ export class Store {
       return;
     }
     this.#setMessages(id, mergeMessages(this.#state.messages[id] ?? [], [message]));
+  }
+
+  /**
+   * Quotes a changed message (edited, deleted: API 1.7) as it now is in the
+   * messages that answer it: the core only sends the changed one again.
+   */
+  #refreshReplies(message: Message): void {
+    const messages = this.#state.messages[message.conversation_id];
+    if (messages === undefined || !messages.some((m) => m.reply_to?.message_id === message.message_id)) {
+      return;
+    }
+    const quote = replyTo(message);
+    this.#setMessages(
+      message.conversation_id,
+      messages.map((m) => (m.reply_to?.message_id === message.message_id ? { ...m, reply_to: quote } : m)),
+    );
   }
 
   #setMessages(conversationId: string, messages: readonly Message[]): void {
