@@ -281,7 +281,7 @@ function inboxRows(page: Page) {
 async function loginEcho(page: Page, username: string): Promise<void> {
   await expect(page.getByRole("heading", { name: "Add an account" })).toBeVisible();
   await page.getByRole("button", { name: "Echo: Username" }).click();
-  await page.getByLabel("Username").fill(username);
+  await page.getByLabel("Username", { exact: true }).fill(username);
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("heading", { name: "Add an account" })).toBeHidden();
 }
@@ -515,7 +515,7 @@ test("an account whose session ended is logged in to again, and keeps its conver
   await expect(page.getByRole("heading", { name: "Log in again to Echo: expired" })).toBeVisible();
   // Only the flows of the account's network, and the username filled in.
   await page.getByRole("button", { name: "Echo: Username" }).click();
-  await expect(page.getByLabel("Username")).toHaveValue("expired");
+  await expect(page.getByLabel("Username", { exact: true })).toHaveValue("expired");
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page.getByText("Connected")).toBeVisible();
