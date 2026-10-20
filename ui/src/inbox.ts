@@ -5,6 +5,7 @@
 // merged per person.
 
 import type { Conversation, Message, Person } from "./core-api/types.gen";
+import { DELETED_TEXT } from "./message";
 
 /** One row of the inbox: a person, with all their conversations, or a conversation linked to no one. */
 export interface InboxEntry {
@@ -89,7 +90,7 @@ export function preview(entry: InboxEntry): string {
   } else if (conversation?.kind === "group" && message.sender_name !== "") {
     sender = `${message.sender_name}: `;
   }
-  return sender + message.text;
+  return sender + (message.deleted ? DELETED_TEXT : message.text);
 }
 
 /**
