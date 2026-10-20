@@ -430,17 +430,31 @@ func changes(t *testing.T, ctx context.Context, events coretest.Events, bob *pee
 	bob.sendEvent(t, ctx, room, event.EventMessage, edit)
 	changed("the edit", func(m api.Message) bool { return m.Edited && m.Text == edited })
 
-	react := func(key string) id.EventID {
-		return bob.sendEvent(t, ctx, room, event.EventReaction, &event.ReactionEventContent{
+	// mautrix-go sends reactions in clear, Element encrypts them: the core
+	// takes both.
+	react := func(key string, encrypted bool) id.EventID {
+		content := &event.ReactionEventContent{
 			RelatesTo: event.RelatesTo{Type: event.RelAnnotation, EventID: sent, Key: key},
-		})
+		}
+		if !encrypted {
+			resp, err := bob.cli.SendMessageEvent(ctx, room, event.EventReaction, content)
+			if err != nil {
+				t.Fatalf("bob reacting: %v", err)
+			}
+			return resp.EventID
+		}
+		sealed, err := bob.cli.Crypto.Encrypt(ctx, room, event.EventReaction, content)
+		if err != nil {
+			t.Fatalf("bob encrypting a reaction: %v", err)
+		}
+		return bob.sendEvent(t, ctx, room, event.EventEncrypted, sealed)
 	}
 	// A reaction taken back at once, before the core may have stored it;
 	// the core handles events in order, so the next reaction comes alone.
-	if _, err := bob.cli.RedactEvent(ctx, room, react("❤️")); err != nil {
+	if _, err := bob.cli.RedactEvent(ctx, room, react("❤️", false)); err != nil {
 		t.Fatal(err)
 	}
-	reaction := react("👍")
+	reaction := react("👍", true)
 	changed("the reaction", func(m api.Message) bool {
 		return slices.Equal(m.Reactions, []api.MessageReaction{{Key: "👍", Count: 1}})
 	})
