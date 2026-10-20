@@ -679,7 +679,7 @@ func TestUpgradeFromV2(t *testing.T) {
 	}
 	roomID := createDM(t, server, newConnector(t, server, "echo"), "alice")
 	// Back to version 2, as the core of T2.5 left it.
-	if _, err = db.Exec(t.Context(), `DROP TABLE local_read_marker; UPDATE local_version SET version=2`); err != nil {
+	if _, err = db.Exec(t.Context(), `DROP TABLE local_read_marker; `+dropRelations+`UPDATE local_version SET version=2`); err != nil {
 		t.Fatal(err)
 	}
 	_ = db.Close()

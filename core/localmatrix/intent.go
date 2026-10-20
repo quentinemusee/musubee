@@ -149,7 +149,7 @@ func (in *Intent) SendMessage(ctx context.Context, roomID id.RoomID, eventType e
 			return err
 		}
 		if eventType == event.EventRedaction {
-			return in.server.store.redact(ctx, roomID, redactedEventID(evt))
+			return in.server.store.redact(ctx, roomID, evt.ID, redactedEventID(evt))
 		}
 		return nil
 	})

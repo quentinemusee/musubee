@@ -11,6 +11,8 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"slices"
+	"strings"
 	"time"
 
 	"go.mau.fi/util/dbutil"
@@ -68,8 +70,8 @@ type Room struct {
 // conversation list does.
 type RoomActivity struct {
 	Room *Room
-	// LastMessage is the room's last stored message event (m.room.message),
-	// or nil if it has none.
+	// LastMessage is the room's last stored message event (m.room.message,
+	// not an edit), or nil if it has none.
 	LastMessage *event.Event
 	// At is when LastMessage was sent, or when the room was created, in
 	// milliseconds since the Unix epoch.
@@ -102,6 +104,27 @@ type ReadState struct {
 // MaxUnread bounds ReadState.Unread, so that counting stays cheap in rooms
 // with a long unread history.
 const MaxUnread = 1000
+
+// Relations is what the other events of a room say about a message.
+type Relations struct {
+	// Edit is the latest edit of the message by its own sender (an
+	// m.room.message whose m.relates_to is an m.replace of it, with the new
+	// content in m.new_content), or nil. Edits by others do not count, as
+	// in Matrix.
+	Edit *event.Event
+	// Reactions are the message's reactions (m.reaction events), one per
+	// key, in the order of each key's first reaction.
+	Reactions []Reaction
+}
+
+// Reaction is a key that people reacted with to a message, usually an
+// emoji.
+type Reaction struct {
+	Key string
+	// Senders are the users who reacted with it, each once, in the order
+	// they did.
+	Senders []id.UserID
+}
 
 // MessageStatus is the delivery status of a message sent by the user.
 type MessageStatus struct {
@@ -166,6 +189,11 @@ func (s *store) listRooms(ctx context.Context) ([]*Room, error) {
 	return rooms, rows.Err()
 }
 
+// messageFilter keeps the messages of a room shown as such: m.room.message
+// events that are not edits of another (those change the message they
+// edit).
+const messageFilter = `event_type='m.room.message' AND state_key IS NULL AND rel_type IS NOT 'm.replace'`
+
 // activityQuery ranks the rooms by the time of their latest message (the
 // last one stored), or their creation time without messages. $1 and $2 are
 // the cursor (0 and "" for the start), $3 the limit (-1: no limit).
@@ -173,7 +201,8 @@ const activityQuery = `
 WITH latest AS (
 	SELECT r.room_id, r.bridge_id, r.creator, r.is_direct, r.created_at,
 		(SELECT MAX(e.stream_order) FROM local_event e
-		 WHERE e.room_id=r.room_id AND e.event_type='m.room.message' AND e.state_key IS NULL) AS last_order
+		 WHERE e.room_id=r.room_id AND e.event_type='m.room.message' AND e.state_key IS NULL
+		   AND e.rel_type IS NOT 'm.replace') AS last_order
 	FROM local_room r
 ), ranked AS (
 	SELECT l.*, COALESCE(e.timestamp, l.created_at) AS activity
@@ -232,7 +261,7 @@ func (s *store) roomActivity(ctx context.Context, roomID id.RoomID) (*RoomActivi
 	}
 	ra := RoomActivity{Room: room, At: room.CreatedAt.UnixMilli()}
 	err = s.db.QueryRow(ctx,
-		`SELECT COALESCE(MAX(stream_order), 0) FROM local_event WHERE room_id=$1 AND event_type='m.room.message' AND state_key IS NULL`,
+		`SELECT COALESCE(MAX(stream_order), 0) FROM local_event WHERE room_id=$1 AND `+messageFilter,
 		roomID).Scan(&ra.lastOrder)
 	if err != nil {
 		return nil, err
@@ -258,6 +287,28 @@ func (s *store) fillLastMessage(ctx context.Context, ra *RoomActivity) error {
 	return nil
 }
 
+// relation is the part of an event's content that says what it relates to.
+type relation struct {
+	RelatesTo *struct {
+		Type    event.RelationType `json:"rel_type"`
+		EventID id.EventID         `json:"event_id"`
+	} `json:"m.relates_to"`
+}
+
+// relationOf returns the type and target of an event's relation (m.replace
+// for an edit, m.annotation for a reaction), or NULLs without one. A reply
+// (m.in_reply_to) has no relation type: it is a message of its own.
+func relationOf(evt *event.Event, content []byte) (relType, target sql.NullString) {
+	var rel relation
+	if evt.StateKey != nil || json.Unmarshal(content, &rel) != nil || rel.RelatesTo == nil ||
+		rel.RelatesTo.Type == "" || rel.RelatesTo.EventID == "" {
+		return relType, target
+	}
+	relType = sql.NullString{String: string(rel.RelatesTo.Type), Valid: true}
+	target = sql.NullString{String: string(rel.RelatesTo.EventID), Valid: true}
+	return relType, target
+}
+
 // insertEvent stores an event and, for state events, makes it the current
 // state. It fills evt.Unsigned.BeeperHSOrder.
 func (s *store) insertEvent(ctx context.Context, evt *event.Event) error {
@@ -265,11 +316,12 @@ func (s *store) insertEvent(ctx context.Context, evt *event.Event) error {
 	if err != nil {
 		return fmt.Errorf("encoding event content: %w", err)
 	}
+	relType, target := relationOf(evt, content)
 	return s.db.DoTxn(ctx, nil, func(ctx context.Context) error {
 		res, err := s.db.Exec(ctx,
-			`INSERT INTO local_event (event_id, room_id, sender, event_type, state_key, content, timestamp)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-			evt.ID, evt.RoomID, evt.Sender, evt.Type.Type, evt.StateKey, string(content), evt.Timestamp)
+			`INSERT INTO local_event (event_id, room_id, sender, event_type, state_key, content, timestamp, rel_type, relates_to)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			evt.ID, evt.RoomID, evt.Sender, evt.Type.Type, evt.StateKey, string(content), evt.Timestamp, relType, target)
 		if err != nil {
 			return err
 		}
@@ -288,22 +340,34 @@ func (s *store) insertEvent(ctx context.Context, evt *event.Event) error {
 }
 
 // redact erases the content of an event, as a homeserver does when an event
-// is redacted, so that deleted messages do not stay on the device.
-func (s *store) redact(ctx context.Context, roomID id.RoomID, eventID id.EventID) error {
+// is redacted, so that deleted messages do not stay on the device: of a
+// message, its edits too, which repeat its text. Only the relation stays
+// (as Matrix's MSC3389 proposes), to tell what a redacted edit or reaction
+// was about.
+func (s *store) redact(ctx context.Context, roomID id.RoomID, redaction, eventID id.EventID) error {
 	if eventID == "" {
 		return nil
 	}
-	_, err := s.db.Exec(ctx, `UPDATE local_event SET content='{}' WHERE room_id=$1 AND event_id=$2`, roomID, eventID)
+	_, err := s.db.Exec(ctx,
+		`UPDATE local_event
+		 SET content=CASE WHEN rel_type IS NULL THEN '{}'
+		                  ELSE json_object('m.relates_to', json_object('rel_type', rel_type, 'event_id', relates_to)) END,
+		     redacted_by=$3
+		 WHERE room_id=$1 AND state_key IS NULL
+		   AND (event_id=$2 OR (relates_to=$2 AND rel_type='m.replace'))`,
+		roomID, eventID, redaction)
 	return err
 }
 
-const eventColumns = `stream_order, event_id, room_id, sender, event_type, state_key, content, timestamp`
+const eventColumns = `stream_order, event_id, room_id, sender, event_type, state_key, content, timestamp, redacted_by`
 
+// scanEvent reads an event. A redacted one has its content erased and
+// Unsigned.RedactedBecause set to a redaction that only has its ID.
 func scanEvent(row dbutil.Scannable) (*event.Event, error) {
 	var evt event.Event
 	var eventType, content string
-	var stateKey sql.NullString
-	err := row.Scan(&evt.Unsigned.BeeperHSOrder, &evt.ID, &evt.RoomID, &evt.Sender, &eventType, &stateKey, &content, &evt.Timestamp)
+	var stateKey, redactedBy sql.NullString
+	err := row.Scan(&evt.Unsigned.BeeperHSOrder, &evt.ID, &evt.RoomID, &evt.Sender, &eventType, &stateKey, &content, &evt.Timestamp, &redactedBy)
 	if err != nil {
 		return nil, err
 	}
@@ -311,6 +375,9 @@ func scanEvent(row dbutil.Scannable) (*event.Event, error) {
 	if stateKey.Valid {
 		evt.StateKey = &stateKey.String
 		evt.Type.Class = event.StateEventType
+	}
+	if redactedBy.Valid {
+		evt.Unsigned.RedactedBecause = &event.Event{ID: id.EventID(redactedBy.String), Type: event.EventRedaction}
 	}
 	if err = json.Unmarshal([]byte(content), &evt.Content); err != nil {
 		return nil, fmt.Errorf("decoding content of %s: %w", evt.ID, err)
@@ -351,15 +418,15 @@ func (s *store) timeline(ctx context.Context, roomID id.RoomID, after int64, lim
 	return events, rows.Err()
 }
 
-// messagesBefore returns the message events (m.room.message) of a room
-// stored before the given stream order, or the latest ones when before is 0,
-// newest first.
+// messagesBefore returns the message events (m.room.message, without the
+// edits) of a room stored before the given stream order, or the latest ones
+// when before is 0, newest first.
 func (s *store) messagesBefore(ctx context.Context, roomID id.RoomID, before int64, limit int) ([]*event.Event, error) {
 	rows, err := s.db.Query(ctx,
 		`SELECT `+eventColumns+` FROM local_event
-		 WHERE room_id=$1 AND event_type=$2 AND state_key IS NULL AND ($3=0 OR stream_order<$3)
-		 ORDER BY stream_order DESC LIMIT $4`,
-		roomID, event.EventMessage.Type, before, limit)
+		 WHERE room_id=$1 AND `+messageFilter+` AND ($2=0 OR stream_order<$2)
+		 ORDER BY stream_order DESC LIMIT $3`,
+		roomID, before, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -373,6 +440,77 @@ func (s *store) messagesBefore(ctx context.Context, roomID id.RoomID, before int
 		events = append(events, evt)
 	}
 	return events, rows.Err()
+}
+
+// relations returns the relations of messages of a room, by their event
+// ID, leaving out what was redacted. A message without any has no entry.
+func (s *store) relations(ctx context.Context, roomID id.RoomID, messages []*event.Event) (map[id.EventID]*Relations, error) {
+	if len(messages) == 0 {
+		return nil, nil
+	}
+	senders := make(map[id.EventID]id.UserID, len(messages))
+	args := make([]any, 0, len(messages)+1)
+	args = append(args, roomID)
+	placeholders := make([]string, 0, len(messages))
+	for _, msg := range messages {
+		if _, seen := senders[msg.ID]; seen {
+			continue
+		}
+		senders[msg.ID] = msg.Sender
+		args = append(args, msg.ID)
+		placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)))
+	}
+	rows, err := s.db.Query(ctx,
+		`SELECT `+eventColumns+` FROM local_event
+		 WHERE room_id=$1 AND relates_to IN (`+strings.Join(placeholders, ",")+`)
+		   AND rel_type IN ('m.replace', 'm.annotation') AND redacted_by IS NULL
+		 ORDER BY stream_order`,
+		args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[id.EventID]*Relations)
+	of := func(target id.EventID) *Relations {
+		rel := result[target]
+		if rel == nil {
+			rel = &Relations{}
+			result[target] = rel
+		}
+		return rel
+	}
+	for rows.Next() {
+		evt, err := scanEvent(rows)
+		if err != nil {
+			return nil, err
+		}
+		switch evt.Type {
+		case event.EventMessage:
+			content := evt.Content.AsMessage()
+			target := content.RelatesTo.GetReplaceID()
+			if target != "" && evt.Sender == senders[target] && content.NewContent != nil {
+				of(target).Edit = evt
+			}
+		case event.EventReaction:
+			annotation := evt.Content.AsReaction().RelatesTo
+			if annotation.Type == event.RelAnnotation && annotation.Key != "" {
+				of(annotation.EventID).addReaction(annotation.Key, evt.Sender)
+			}
+		}
+	}
+	return result, rows.Err()
+}
+
+func (rel *Relations) addReaction(key string, sender id.UserID) {
+	for i := range rel.Reactions {
+		if rel.Reactions[i].Key == key {
+			if !slices.Contains(rel.Reactions[i].Senders, sender) {
+				rel.Reactions[i].Senders = append(rel.Reactions[i].Senders, sender)
+			}
+			return
+		}
+	}
+	rel.Reactions = append(rel.Reactions, Reaction{Key: key, Senders: []id.UserID{sender}})
 }
 
 func (s *store) getState(ctx context.Context, roomID id.RoomID, eventType event.Type, stateKey string) (*event.Event, error) {
@@ -549,11 +687,11 @@ func (s *store) advanceReadMarker(ctx context.Context, roomID id.RoomID, order i
 // unreadQuery counts, up to a limit ($3), the messages of others stored
 // up to a stream order ($4) after the user's read position, which is the
 // read marker or the user's own last message, whichever is later: writing
-// in a room implies reading it.
+// in a room implies reading it. Deleted messages do not count.
 const unreadQuery = `
 SELECT COUNT(*) FROM (
 	SELECT 1 FROM local_event
-	WHERE room_id=$1 AND event_type='m.room.message' AND state_key IS NULL AND sender<>$2
+	WHERE room_id=$1 AND ` + messageFilter + ` AND redacted_by IS NULL AND sender<>$2
 	  AND stream_order <= $4
 	  AND stream_order > MAX(
 		COALESCE((SELECT stream_order FROM local_read_marker WHERE room_id=$1), 0),

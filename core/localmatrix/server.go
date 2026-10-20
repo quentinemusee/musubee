@@ -401,13 +401,23 @@ func (s *Server) Timeline(ctx context.Context, roomID id.RoomID, after int64, li
 
 // MessagesBefore returns up to limit message events (m.room.message) of a
 // room stored before the given stream order, or the latest ones when before
-// is 0, newest first. The stream order of each event is in
-// Unsigned.BeeperHSOrder, to page further back.
+// is 0, newest first. Edits are not among them: Relations tells what they
+// change. The stream order of each event is in Unsigned.BeeperHSOrder, to
+// page further back.
 func (s *Server) MessagesBefore(ctx context.Context, roomID id.RoomID, before int64, limit int) ([]*event.Event, error) {
 	return s.store.messagesBefore(ctx, roomID, before, limit)
 }
 
-// Event returns one event of a room, or an error wrapping ErrNotFound.
+// Relations returns the latest edit and the reactions of messages of a room,
+// by event ID; a message without either has no entry. Redacted edits and
+// reactions do not count.
+func (s *Server) Relations(ctx context.Context, roomID id.RoomID, messages []*event.Event) (map[id.EventID]*Relations, error) {
+	return s.store.relations(ctx, roomID, messages)
+}
+
+// Event returns one event of a room, or an error wrapping ErrNotFound. A
+// redacted event has an empty content, except for its m.relates_to, and
+// Unsigned.RedactedBecause set (to an event with only its ID and type).
 func (s *Server) Event(ctx context.Context, roomID id.RoomID, eventID id.EventID) (*event.Event, error) {
 	return s.store.getEvent(ctx, roomID, eventID)
 }
