@@ -233,8 +233,9 @@ func startLogin(t *testing.T, c *embedded.Core) api.LoginStep {
 	return step
 }
 
-// reportLog prints the warnings, the errors and the account state changes
-// of the core's log when the test failed, to diagnose it on CI. These lines
+// reportLog prints the warnings, the errors, the account state changes and
+// the remote events that bridgev2 handled, from the core's log when the test
+// failed, to diagnose it on CI. These lines
 // carry no message text: the core never logs it, which step 8 checks.
 func reportLog(t *testing.T, dataDir string) {
 	if !t.Failed() {
@@ -247,7 +248,7 @@ func reportLog(t *testing.T, dataDir string) {
 	}
 	for line := range strings.Lines(string(data)) {
 		if strings.Contains(line, `"level":"warn"`) || strings.Contains(line, `"level":"error"`) ||
-			strings.Contains(line, `"state_event"`) {
+			strings.Contains(line, `"state_event"`) || strings.Contains(line, `"action":"handle remote event"`) {
 			t.Log(strings.TrimSpace(line))
 		}
 	}
@@ -419,8 +420,13 @@ func changes(t *testing.T, ctx context.Context, events coretest.Events, bob *pee
 			if e.Type == api.EventMessageAdded && e.Decode(t, &data) && strings.HasPrefix(data.Message.Text, "* ") {
 				t.Errorf("an edit came as a new message")
 			}
-			return e.Type == api.EventMessageUpdated && e.Decode(t, &data) &&
-				data.Message.MessageID == added.Message.MessageID && match(data.Message)
+			if e.Type != api.EventMessageUpdated || !e.Decode(t, &data) || data.Message.MessageID != added.Message.MessageID {
+				return false
+			}
+			// What changed, without the text, to diagnose a failure on CI.
+			m := data.Message
+			t.Logf("waiting for %s: message.updated with edited=%v deleted=%v reactions=%+v", what, m.Edited, m.Deleted, m.Reactions)
+			return match(m)
 		})
 	}
 
