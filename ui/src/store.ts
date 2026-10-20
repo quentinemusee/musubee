@@ -302,14 +302,15 @@ export class Store {
     }
   }
 
-  /** Sends a text message to the selected conversation. */
-  async send(text: string): Promise<void> {
+  /** Sends a text message to the selected conversation, as an answer to the message answered if given. */
+  async send(text: string, answered?: string): Promise<void> {
     const conversationId = this.#state.selected;
     if (conversationId === undefined) {
       return;
     }
     try {
-      const { message } = await this.client.call("messages.send", { conversation_id: conversationId, text });
+      const params = answered === undefined ? { conversation_id: conversationId, text } : { conversation_id: conversationId, text, reply_to: answered };
+      const { message } = await this.client.call("messages.send", params);
       // The core's events about the message may have arrived first, and are
       // newer than this answer: a send that fails at once (an account
       // without network) would otherwise stay "sending".
@@ -319,6 +320,48 @@ export class Store {
       }
     } catch (error) {
       this.#set({ error: `Could not send the message: ${describe(error)}` });
+    }
+  }
+
+  /*
+   * The user's changes to messages (API 1.8). The core changes the message
+   * at once and tells it (message.updated), then answers once the network
+   * did: a refusal undoes the change there, and shows here as an error.
+   */
+
+  /** Adds the user's reaction to a message. */
+  async react(message: Message, key: string): Promise<void> {
+    await this.#change("Could not add the reaction", () =>
+      this.client.call("messages.react", { conversation_id: message.conversation_id, message_id: message.message_id, key }),
+    );
+  }
+
+  /** Takes back the user's reaction with this key (as the core keyed it). */
+  async unreact(message: Message, key: string): Promise<void> {
+    await this.#change("Could not take the reaction back", () =>
+      this.client.call("messages.unreact", { conversation_id: message.conversation_id, message_id: message.message_id, key }),
+    );
+  }
+
+  /** Replaces the text of one of the user's messages. */
+  async edit(message: Message, text: string): Promise<void> {
+    await this.#change("Could not edit the message", () =>
+      this.client.call("messages.edit", { conversation_id: message.conversation_id, message_id: message.message_id, text }),
+    );
+  }
+
+  /** Deletes one of the user's messages for everyone. */
+  async deleteMessage(message: Message): Promise<void> {
+    await this.#change("Could not delete the message for everyone", () =>
+      this.client.call("messages.delete", { conversation_id: message.conversation_id, message_id: message.message_id }),
+    );
+  }
+
+  async #change(failure: string, call: () => Promise<unknown>): Promise<void> {
+    try {
+      await call();
+    } catch (error) {
+      this.#set({ error: `${failure}: ${describe(error)}` });
     }
   }
 

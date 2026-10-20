@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "vitest";
 import type { Message } from "./core-api/types.gen";
-import { reactionLabel, replyQuote, replyTo } from "./message";
+import { hasActions, messageActions, ownReaction, reactionLabel, replyQuote, replyTo, sameEmoji } from "./message";
 
 describe("reactionLabel", () => {
   test("says who reacted", () => {
@@ -43,5 +43,60 @@ describe("replyTo", () => {
     expect(replyTo(message)).toEqual({ message_id: "m1", sender_name: "Bob", text: "Hi" });
     expect(replyTo({ ...message, from_me: true, sender_name: "" })).toEqual({ message_id: "m1", from_me: true, text: "Hi" });
     expect(replyTo({ ...message, text: "", deleted: true })).toEqual({ message_id: "m1", sender_name: "Bob", deleted: true });
+  });
+});
+
+describe("messageActions", () => {
+  const all = { reply: true, react: true, edit: true, delete: true };
+  const theirs: Message = {
+    message_id: "m1",
+    conversation_id: "c1",
+    from_me: false,
+    sender_name: "Bob",
+    timestamp_ms: 1,
+    kind: "text",
+    text: "Hi",
+    status: "received",
+  };
+  const mine: Message = { ...theirs, message_id: "m2", from_me: true, sender_name: "", status: "sent" };
+
+  test("offers what the network allows", () => {
+    expect(messageActions(mine, all)).toEqual(all);
+    expect(messageActions(mine, { react: true })).toEqual({ reply: false, react: true, edit: false, delete: false });
+    expect(hasActions(messageActions(mine, undefined))).toBe(false);
+  });
+
+  test("edits and deletes the user's own messages only, and edits text only", () => {
+    expect(messageActions(theirs, all)).toEqual({ reply: true, react: true, edit: false, delete: false });
+    expect(messageActions({ ...mine, kind: "notice" }, all)).toEqual({ reply: true, react: true, edit: false, delete: true });
+  });
+
+  test("offers nothing on a deleted message or one not on the network", () => {
+    expect(hasActions(messageActions({ ...theirs, deleted: true, text: "" }, all))).toBe(false);
+    expect(hasActions(messageActions({ ...mine, status: "sending" }, all))).toBe(false);
+    expect(hasActions(messageActions({ ...mine, status: "failed" }, all))).toBe(false);
+  });
+});
+
+describe("ownReaction", () => {
+  test("finds the user's reaction whatever its variation selector", () => {
+    const message = {
+      message_id: "m1",
+      conversation_id: "c1",
+      from_me: false,
+      sender_name: "Bob",
+      timestamp_ms: 1,
+      kind: "text",
+      text: "Hi",
+      status: "received",
+      reactions: [
+        { key: "👍️", count: 2, from_me: true },
+        { key: "😂", count: 1 },
+      ],
+    } satisfies Message;
+    expect(ownReaction(message, "👍")?.key).toBe("👍️");
+    expect(ownReaction(message, "😂")).toBeUndefined();
+    expect(sameEmoji("❤️", "❤")).toBe(true);
+    expect(sameEmoji("❤️", "👍")).toBe(false);
   });
 });
