@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.7"
+const APIVersion = "1.8"
 
 // Command names.
 const (
@@ -51,9 +51,31 @@ const (
 	// Returns the latest messages of a conversation, or the ones before a cursor,
 	// oldest first.
 	CommandMessagesList = "messages.list"
-	// Sends a text message. The message is stored at once with status sending;
-	// its delivery is reported later by message.updated events.
+	// Sends a text message, since API 1.8 as an answer to another message
+	// (reply_to, when the conversation's actions allow it). The message is stored
+	// at once with status sending; its delivery is reported later by
+	// message.updated events.
 	CommandMessagesSend = "messages.send"
+	// Adds the user's reaction to a message, then waits for the network's answer.
+	// The message changes at once (message.updated); when the network refuses,
+	// the reaction is taken back and the command fails with network. A reaction
+	// the user already made changes nothing. Since API 1.8.
+	CommandMessagesReact = "messages.react"
+	// Takes back the user's reaction with this key, then waits for the network's
+	// answer, like messages.react. Without such a reaction, changes nothing.
+	// Since API 1.8.
+	CommandMessagesUnreact = "messages.unreact"
+	// Replaces the text of one of the user's text messages, then waits for the
+	// network's answer. The message changes at once (message.updated, edited);
+	// when the network refuses (for example a message too old to edit), the edit
+	// is undone and the command fails with network. Since API 1.8.
+	CommandMessagesEdit = "messages.edit"
+	// Deletes one of the user's messages for everyone, then waits for the
+	// network's answer. The message is erased from this device at once
+	// (message.updated, deleted), whatever the network answers: when it refuses,
+	// the command fails with network, and the message stays on the network. Since
+	// API 1.8.
+	CommandMessagesDelete = "messages.delete"
 	// Lists the persons the user merged conversations into, with their
 	// conversations on this device. A person whose conversations are all absent
 	// from this device (an account not added here) is not listed. Since API 1.2.
@@ -124,6 +146,10 @@ var Commands = []CommandSpec{
 	{Name: CommandConversationsMarkRead, Params: reflect.TypeFor[ConversationsMarkReadParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandMessagesList, Params: reflect.TypeFor[MessagesListParams](), Result: reflect.TypeFor[MessagesListResult]()},
 	{Name: CommandMessagesSend, Params: reflect.TypeFor[MessagesSendParams](), Result: reflect.TypeFor[MessagesSendResult]()},
+	{Name: CommandMessagesReact, Params: reflect.TypeFor[MessagesReactParams](), Result: reflect.TypeFor[Empty]()},
+	{Name: CommandMessagesUnreact, Params: reflect.TypeFor[MessagesReactParams](), Result: reflect.TypeFor[Empty]()},
+	{Name: CommandMessagesEdit, Params: reflect.TypeFor[MessagesEditParams](), Result: reflect.TypeFor[Empty]()},
+	{Name: CommandMessagesDelete, Params: reflect.TypeFor[MessagesDeleteParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandPersonsList, Params: reflect.TypeFor[Empty](), Result: reflect.TypeFor[PersonsListResult]()},
 	{Name: CommandPersonsCreate, Params: reflect.TypeFor[PersonsCreateParams](), Result: reflect.TypeFor[PersonResult]()},
 	{Name: CommandPersonsRename, Params: reflect.TypeFor[PersonsRenameParams](), Result: reflect.TypeFor[PersonResult]()},
@@ -384,6 +410,23 @@ type Conversation struct {
 	// The user marked the conversation as unread (on another device, for now);
 	// reading it clears the flag. Omitted when false. Since API 1.4.
 	MarkedUnread bool `json:"marked_unread,omitempty"`
+	// What the conversation's network lets the user do to messages. Omitted when
+	// it allows none of them. Since API 1.8.
+	Actions *ConversationActions `json:"actions,omitempty"`
+}
+
+// ConversationActions: Each action is omitted when the network does not allow
+// it. The network may still refuse one message (for example one too old to
+// edit): the command then fails.
+type ConversationActions struct {
+	// messages.send with reply_to.
+	Reply bool `json:"reply,omitempty"`
+	// messages.react and messages.unreact.
+	React bool `json:"react,omitempty"`
+	// messages.edit.
+	Edit bool `json:"edit,omitempty"`
+	// messages.delete.
+	Delete bool `json:"delete,omitempty"`
 }
 
 // ConversationKind is $defs/ConversationKind of the schema.
@@ -532,6 +575,29 @@ type MessagesListResult struct {
 type MessagesSendParams struct {
 	ConversationID string `json:"conversation_id"`
 	Text           string `json:"text"`
+	// The message this one answers, in the same conversation. Since API 1.8.
+	ReplyTo string `json:"reply_to,omitempty"`
+}
+
+// MessagesReactParams is $defs/MessagesReactParams of the schema.
+type MessagesReactParams struct {
+	ConversationID string `json:"conversation_id"`
+	MessageID      string `json:"message_id"`
+	// The reaction, usually one emoji.
+	Key string `json:"key"`
+}
+
+// MessagesEditParams is $defs/MessagesEditParams of the schema.
+type MessagesEditParams struct {
+	ConversationID string `json:"conversation_id"`
+	MessageID      string `json:"message_id"`
+	Text           string `json:"text"`
+}
+
+// MessagesDeleteParams is $defs/MessagesDeleteParams of the schema.
+type MessagesDeleteParams struct {
+	ConversationID string `json:"conversation_id"`
+	MessageID      string `json:"message_id"`
 }
 
 // MessagesSendResult is $defs/MessagesSendResult of the schema.

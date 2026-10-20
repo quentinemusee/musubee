@@ -344,6 +344,11 @@ func (c *Core) translate(update localmatrix.Update) ([]*api.Event, error) {
 		if err != nil {
 			return nil, err
 		}
+		// The statuses of the user's changes (edits, reactions,
+		// redactions) are the commands' answers, not messages' (ADR 0035).
+		if evt.Type != event.EventMessage || evt.Content.AsMessage().RelatesTo.GetReplaceID() != "" {
+			return nil, nil
+		}
 		msg, err := c.messageOf(ctx, evt)
 		if err != nil {
 			return nil, err
@@ -595,6 +600,14 @@ func (c *Core) dispatch(ctx context.Context, command string, params json.RawMess
 		return handle(ctx, params, c.messagesList)
 	case api.CommandMessagesSend:
 		return handle(ctx, params, c.messagesSend)
+	case api.CommandMessagesReact:
+		return handle(ctx, params, c.messagesReact)
+	case api.CommandMessagesUnreact:
+		return handle(ctx, params, c.messagesUnreact)
+	case api.CommandMessagesEdit:
+		return handle(ctx, params, c.messagesEdit)
+	case api.CommandMessagesDelete:
+		return handle(ctx, params, c.messagesDelete)
 	case api.CommandPersonsList:
 		return handle(ctx, params, c.personsList)
 	case api.CommandPersonsCreate:

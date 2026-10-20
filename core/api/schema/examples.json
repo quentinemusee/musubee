@@ -74,7 +74,8 @@
       { "conversation_id": "c2", "account_id": "a1", "network_id": "echo", "name": "Family", "kind": "group", "activity_ms": 1791496000000 }
     ], "before": "k8" } },
     { "target": "command:conversations.list:result", "value": { "conversations": [
-      { "conversation_id": "c2", "account_id": "a1", "network_id": "echo", "name": "Family", "kind": "group", "activity_ms": 1791496000000, "unread_count": 3 },
+      { "conversation_id": "c2", "account_id": "a1", "network_id": "echo", "name": "Family", "kind": "group", "activity_ms": 1791496000000, "unread_count": 3,
+        "actions": { "reply": true, "react": true, "edit": true, "delete": true } },
       { "conversation_id": "c3", "account_id": "a1", "network_id": "echo", "name": "Delayed Echo", "kind": "direct", "activity_ms": 1791495000000, "marked_unread": true }
     ] } },
 
@@ -94,6 +95,21 @@
     { "target": "command:messages.send:result", "value": { "message": {
       "message_id": "m3", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1791496801000, "kind": "text", "text": "Hello 👋", "status": "sending"
     } } },
+
+    { "target": "command:messages.send:params", "value": { "conversation_id": "c1", "text": "Yes", "reply_to": "m2" } },
+    { "target": "command:messages.send:result", "value": { "message": {
+      "message_id": "m4", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1791496802000, "kind": "text", "text": "Yes", "status": "sending",
+      "reply_to": { "message_id": "m2", "sender_name": "Instant Echo", "text": "Hi" }
+    } } },
+
+    { "target": "command:messages.react:params", "value": { "conversation_id": "c1", "message_id": "m2", "key": "👍" } },
+    { "target": "command:messages.react:result", "value": {} },
+    { "target": "command:messages.unreact:params", "value": { "conversation_id": "c1", "message_id": "m2", "key": "👍" } },
+    { "target": "command:messages.unreact:result", "value": {} },
+    { "target": "command:messages.edit:params", "value": { "conversation_id": "c1", "message_id": "m3", "text": "Hello again 👋" } },
+    { "target": "command:messages.edit:result", "value": {} },
+    { "target": "command:messages.delete:params", "value": { "conversation_id": "c1", "message_id": "m3" } },
+    { "target": "command:messages.delete:result", "value": {} },
 
     { "target": "command:persons.list:params", "value": {} },
     { "target": "command:persons.list:result", "value": { "persons": [ { "person_id": "h1", "name": "Alice", "conversation_ids": ["c1", "c4"] } ] } },
@@ -153,6 +169,9 @@
     { "target": "command:messages.list:params", "why": "limit is at least 1", "value": { "conversation_id": "c1", "limit": 0 } },
     { "target": "command:messages.list:params", "why": "limit is at most 200", "value": { "conversation_id": "c1", "limit": 201 } },
     { "target": "command:messages.send:params", "why": "text is not empty", "value": { "conversation_id": "c1", "text": "" } },
+    { "target": "command:messages.react:params", "why": "key is not empty", "value": { "conversation_id": "c1", "message_id": "m2", "key": "" } },
+    { "target": "command:messages.edit:params", "why": "text is required", "value": { "conversation_id": "c1", "message_id": "m3" } },
+    { "target": "command:messages.delete:params", "why": "message_id is required", "value": { "conversation_id": "c1" } },
     { "target": "command:messages.send:result", "why": "status is required", "value": { "message": {
       "message_id": "m3", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1, "kind": "text", "text": "x"
     } } },

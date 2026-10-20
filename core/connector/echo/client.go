@@ -44,6 +44,9 @@ type client struct {
 var (
 	_ bridgev2.NetworkAPI                    = (*client)(nil)
 	_ bridgev2.ReadReceiptHandlingNetworkAPI = (*client)(nil)
+	_ bridgev2.EditHandlingNetworkAPI        = (*client)(nil)
+	_ bridgev2.ReactionHandlingNetworkAPI    = (*client)(nil)
+	_ bridgev2.RedactionHandlingNetworkAPI   = (*client)(nil)
 )
 
 func newClient(connector *Connector, login *bridgev2.UserLogin) *client {
@@ -267,9 +270,57 @@ func (c *client) GetUserInfo(_ context.Context, ghost *bridgev2.Ghost) (*bridgev
 // formatted text only.
 func (c *client) GetCapabilities(context.Context, *bridgev2.Portal) *event.RoomFeatures {
 	return &event.RoomFeatures{
-		ID:            "com.musubee.echo.capabilities.v1",
+		ID:            "com.musubee.echo.capabilities.v2",
 		MaxTextLength: 4096,
+		Reply:         event.CapLevelFullySupported,
+		Edit:          event.CapLevelFullySupported,
+		Delete:        event.CapLevelFullySupported,
+		Reaction:      event.CapLevelFullySupported,
 	}
+}
+
+// reachable fails a change of the user's toward a contact that cannot be
+// reached, as HandleMatrixMessage fails a message.
+func reachable(portal *bridgev2.Portal) error {
+	if networkid.UserID(portal.ID) == ContactUnreachable {
+		return bridgev2.WrapErrorInStatus(ErrUnreachable).
+			WithStatus(event.MessageStatusFail).
+			WithErrorReason(event.MessageStatusNetworkError).
+			WithIsCertain(true).
+			WithSendNotice(false)
+	}
+	return nil
+}
+
+// HandleMatrixEdit accepts the user's edits: bridgev2 stores the new text.
+func (c *client) HandleMatrixEdit(_ context.Context, msg *bridgev2.MatrixEdit) error {
+	return reachable(msg.Portal)
+}
+
+// PreHandleMatrixReaction gives a reaction its emoji ID, the emoji itself:
+// one reaction per emoji and sender.
+func (c *client) PreHandleMatrixReaction(_ context.Context, msg *bridgev2.MatrixReaction) (bridgev2.MatrixReactionPreResponse, error) {
+	key := msg.Content.RelatesTo.Key
+	return bridgev2.MatrixReactionPreResponse{
+		SenderID: c.selfID(),
+		EmojiID:  networkid.EmojiID(key),
+		Emoji:    key,
+	}, nil
+}
+
+// HandleMatrixReaction accepts the user's reactions.
+func (c *client) HandleMatrixReaction(_ context.Context, msg *bridgev2.MatrixReaction) (*database.Reaction, error) {
+	return nil, reachable(msg.Portal)
+}
+
+// HandleMatrixReactionRemove accepts that the user takes a reaction back.
+func (c *client) HandleMatrixReactionRemove(_ context.Context, msg *bridgev2.MatrixReactionRemove) error {
+	return reachable(msg.Portal)
+}
+
+// HandleMatrixMessageRemove accepts that the user deletes a message.
+func (c *client) HandleMatrixMessageRemove(_ context.Context, msg *bridgev2.MatrixMessageRemove) error {
+	return reachable(msg.Portal)
 }
 
 // HandleMatrixMessage "sends" a message the user wrote, then echoes it back

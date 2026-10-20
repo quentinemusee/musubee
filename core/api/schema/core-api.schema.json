@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.7",
+  "x-musubee-api-version": "1.8",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -179,11 +179,51 @@
           "additionalProperties": false
         },
         "messages.send": {
-          "description": "Sends a text message. The message is stored at once with status sending; its delivery is reported later by message.updated events.",
+          "description": "Sends a text message, since API 1.8 as an answer to another message (reply_to, when the conversation's actions allow it). The message is stored at once with status sending; its delivery is reported later by message.updated events.",
           "type": "object",
           "properties": {
             "params": { "$ref": "#/$defs/MessagesSendParams" },
             "result": { "$ref": "#/$defs/MessagesSendResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "messages.react": {
+          "description": "Adds the user's reaction to a message, then waits for the network's answer. The message changes at once (message.updated); when the network refuses, the reaction is taken back and the command fails with network. A reaction the user already made changes nothing. Since API 1.8.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/MessagesReactParams" },
+            "result": { "$ref": "#/$defs/Empty" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "messages.unreact": {
+          "description": "Takes back the user's reaction with this key, then waits for the network's answer, like messages.react. Without such a reaction, changes nothing. Since API 1.8.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/MessagesReactParams" },
+            "result": { "$ref": "#/$defs/Empty" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "messages.edit": {
+          "description": "Replaces the text of one of the user's text messages, then waits for the network's answer. The message changes at once (message.updated, edited); when the network refuses (for example a message too old to edit), the edit is undone and the command fails with network. Since API 1.8.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/MessagesEditParams" },
+            "result": { "$ref": "#/$defs/Empty" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "messages.delete": {
+          "description": "Deletes one of the user's messages for everyone, then waits for the network's answer. The message is erased from this device at once (message.updated, deleted), whatever the network answers: when it refuses, the command fails with network, and the message stays on the network. Since API 1.8.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/MessagesDeleteParams" },
+            "result": { "$ref": "#/$defs/Empty" }
           },
           "required": ["params", "result"],
           "additionalProperties": false
@@ -628,9 +668,24 @@
         "marked_unread": {
           "description": "The user marked the conversation as unread (on another device, for now); reading it clears the flag. Omitted when false. Since API 1.4.",
           "type": "boolean"
+        },
+        "actions": {
+          "description": "What the conversation's network lets the user do to messages. Omitted when it allows none of them. Since API 1.8.",
+          "$ref": "#/$defs/ConversationActions"
         }
       },
       "required": ["conversation_id", "account_id", "network_id", "name", "kind"],
+      "additionalProperties": false
+    },
+    "ConversationActions": {
+      "description": "Each action is omitted when the network does not allow it. The network may still refuse one message (for example one too old to edit): the command then fails.",
+      "type": "object",
+      "properties": {
+        "reply": { "description": "messages.send with reply_to.", "type": "boolean" },
+        "react": { "description": "messages.react and messages.unreact.", "type": "boolean" },
+        "edit": { "description": "messages.edit.", "type": "boolean" },
+        "delete": { "description": "messages.delete.", "type": "boolean" }
+      },
       "additionalProperties": false
     },
     "ConversationKind": {
@@ -844,9 +899,49 @@
         "text": {
           "type": "string",
           "minLength": 1
+        },
+        "reply_to": {
+          "description": "The message this one answers, in the same conversation. Since API 1.8.",
+          "type": "string"
         }
       },
       "required": ["conversation_id", "text"],
+      "additionalProperties": false
+    },
+    "MessagesReactParams": {
+      "type": "object",
+      "properties": {
+        "conversation_id": { "type": "string" },
+        "message_id": { "type": "string" },
+        "key": {
+          "description": "The reaction, usually one emoji.",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["conversation_id", "message_id", "key"],
+      "additionalProperties": false
+    },
+    "MessagesEditParams": {
+      "type": "object",
+      "properties": {
+        "conversation_id": { "type": "string" },
+        "message_id": { "type": "string" },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["conversation_id", "message_id", "text"],
+      "additionalProperties": false
+    },
+    "MessagesDeleteParams": {
+      "type": "object",
+      "properties": {
+        "conversation_id": { "type": "string" },
+        "message_id": { "type": "string" }
+      },
+      "required": ["conversation_id", "message_id"],
       "additionalProperties": false
     },
     "MessagesSendResult": {
