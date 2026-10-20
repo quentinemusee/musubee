@@ -22,7 +22,8 @@ import org.json.JSONObject
  * - the app is on screen ([visible]): the inbox shows it.
  *
  * A conversation that is read again (unread count 0 and not marked unread)
- * loses its notification, wherever it was read.
+ * loses its notification, wherever it was read. An account that is logged
+ * out loses its notifications and its mark: a new login starts afresh.
  */
 class MessageNotifications(
     private val watermarks: Watermarks,
@@ -33,6 +34,9 @@ class MessageNotifications(
     interface Watermarks {
         /** Returns the account's mark, setting it to [now] the first time. */
         fun since(accountId: String, now: Long): Long
+
+        /** Forgets the account's mark. */
+        fun forget(accountId: String)
     }
 
     /** One line of a notification: who wrote, and what. */
@@ -53,21 +57,18 @@ class MessageNotifications(
         data class Cancel(override val conversationId: String) : Action
     }
 
-    // Messages waiting for their conversation's next update, and the lines
-    // already shown, by conversation. Only the event thread touches them.
+    private class Shown(val accountId: String, val lines: List<Line>)
+
+    // Messages waiting for their conversation's next update, and what is
+    // shown, by conversation. Only the event thread touches them.
     private val waiting = HashMap<String, MutableList<Line>>()
-    private val shown = HashMap<String, List<Line>>()
+    private val shown = HashMap<String, Shown>()
 
     /** Returns what to do after one event of the core. */
     fun onEvent(event: JSONObject): List<Action> {
         val data = event.optJSONObject("data") ?: return emptyList()
         return when (event.optString("type")) {
-            "account.updated" -> {
-                data.optJSONObject("account")?.optString("account_id")?.takeIf { it.isNotEmpty() }?.let {
-                    watermarks.since(it, now())
-                }
-                emptyList()
-            }
+            "account.updated" -> data.optJSONObject("account")?.let(::onAccount).orEmpty()
             "message.added" -> {
                 data.optJSONObject("message")?.let(::waitForConversation)
                 emptyList()
@@ -75,6 +76,19 @@ class MessageNotifications(
             "conversation.updated" -> data.optJSONObject("conversation")?.let(::onConversation).orEmpty()
             else -> emptyList()
         }
+    }
+
+    private fun onAccount(account: JSONObject): List<Action> {
+        val accountId = account.optString("account_id")
+        if (accountId.isEmpty()) return emptyList()
+        if (account.optString("state") != "logged_out") {
+            watermarks.since(accountId, now())
+            return emptyList()
+        }
+        watermarks.forget(accountId)
+        val gone = shown.filterValues { it.accountId == accountId }.keys
+        shown.keys.removeAll(gone)
+        return gone.map { Action.Cancel(it) }
     }
 
     private fun waitForConversation(message: JSONObject) {
@@ -98,12 +112,13 @@ class MessageNotifications(
         if (!unread) {
             return if (shown.remove(conversationId) != null) listOf(Action.Cancel(conversationId)) else emptyList()
         }
+        val accountId = conversation.optString("account_id")
         val now = now()
-        val since = maxOf(watermarks.since(conversation.optString("account_id"), now), now - MAX_AGE_MILLIS)
+        val since = maxOf(watermarks.since(accountId, now), now - MAX_AGE_MILLIS)
         val news = arrived.filter { it.timestampMs >= since }
         if (news.isEmpty() || visible()) return emptyList()
-        val lines = (shown[conversationId].orEmpty() + news).takeLast(MAX_LINES)
-        shown[conversationId] = lines
+        val lines = (shown[conversationId]?.lines.orEmpty() + news).takeLast(MAX_LINES)
+        shown[conversationId] = Shown(accountId, lines)
         return listOf(
             Action.Post(
                 conversationId = conversationId,

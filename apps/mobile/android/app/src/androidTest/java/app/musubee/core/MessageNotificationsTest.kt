@@ -21,6 +21,10 @@ class MessageNotificationsTest {
     private val rules = MessageNotifications(
         watermarks = object : MessageNotifications.Watermarks {
             override fun since(accountId: String, now: Long) = marks.getOrPut(accountId) { now }
+
+            override fun forget(accountId: String) {
+                marks.remove(accountId)
+            }
         },
         now = { now },
         visible = { visible },
@@ -29,7 +33,8 @@ class MessageNotificationsTest {
     private fun event(type: String, key: String, data: JSONObject) =
         JSONObject().put("type", type).put("data", JSONObject().put(key, data))
 
-    private fun account() = rules.onEvent(event("account.updated", "account", JSONObject().put("account_id", "a1")))
+    private fun account(state: String = "connected") =
+        rules.onEvent(event("account.updated", "account", JSONObject().put("account_id", "a1").put("state", state)))
 
     private fun message(text: String, timestamp: Long, fromMe: Boolean = false) = rules.onEvent(
         event(
@@ -119,6 +124,20 @@ class MessageNotificationsTest {
         message("hi", now + 1)
         conversation(1)
         assertEquals(emptyList<String>(), texts(conversation(0, markedUnread = true)))
+    }
+
+    @Test
+    fun aLoggedOutAccountLosesItsNotificationsAndItsMark() {
+        account()
+        message("hi", now + 1)
+        conversation(1)
+        assertEquals(listOf("cancel"), texts(account("logged_out")))
+        assertEquals(null, marks["a1"])
+        // Logged in again later: the history in between is not news.
+        now += 3_600_000L
+        account()
+        message("sent while logged out", now - 60_000)
+        assertEquals(emptyList<String>(), texts(conversation(1)))
     }
 
     @Test
