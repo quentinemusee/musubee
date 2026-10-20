@@ -162,6 +162,18 @@ test(
     await (await waitFor(exactly("Send"), "the Send button", { kind: BUTTON })).click();
     await waitFor(exactly(`Instant Echo: ${text}`), "the echo");
 
+    // A reaction by touch (docs/ADR/0035): the echo's actions, the last
+    // ones of the thread, then a quick reaction, which the chip shows as
+    // the user's.
+    const more = await driver.$$(`//${BUTTON}[@text="More actions" or @content-desc="More actions"]`);
+    if (more.length === 0) {
+      await describeScreen();
+      throw new Error("no message offers its actions");
+    }
+    await more[more.length - 1].click();
+    await (await waitFor(exactly("React with 👍"), "the quick reactions", { kind: BUTTON })).click();
+    await waitFor((attr) => `contains(${attr}, ": you")`, "the user's reaction", { kind: BUTTON });
+
     // Back returns to the inbox (a phone shows one pane at a time), where
     // the conversation's row now previews the echo.
     await driver.back();
