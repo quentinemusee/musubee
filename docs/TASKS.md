@@ -368,6 +368,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.66 — Starred messages** (E2.4)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.36 `messages.star`, `messages.starred` and `Message.starred` (ADR 0065): kept per room on the device; "Star" in a message's menu, "Starred" above the inbox. 🧪 `TestStar`, `TestStarred`, `ui/src/store.test.ts`, the desktop e2e "a starred message is listed".
 
+**T2.67 — Links in messages** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). http and https addresses are links, shown as written (ADR 0066); the desktop opens them through the main process in the system's browser, Android through the WebView's default. 🧪 `ui/src/links.test.ts`, `apps/desktop/test/external-links.test.ts`, the desktop e2e "a web address in a message is a link" and "the interface is isolated". By hand: a link on Android.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

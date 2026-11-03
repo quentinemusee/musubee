@@ -644,3 +644,11 @@ stars (core):       go test -tags=goolm -count=1 -run 'Star' -v ./core/localmatr
 stars, scope (ui):  cd ui && npx vitest run src/store.test.ts
 stars in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "starred message"
 ```
+
+To verify in the test session: T2.67 (cloud sprint, no test run; see ADR 0066). By hand: tap a link in the Android app.
+
+```
+links (ui):         cd ui && npx vitest run src/links.test.ts
+links (desktop):    cd apps/desktop && npx vitest run test/external-links.test.ts
+links in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "is a link|isolated"
+```

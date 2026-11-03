@@ -75,3 +75,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0063](0063-conversation-colors.md) | A conversation's or a person's own color: the app's accents, per thread, kept per device | accepted | T2.61 |
 | [0064](0064-notification-actions.md) | Notification actions on Android: reply and mark read through the core service, after unlocking | accepted | T2.64 |
 | [0065](0065-starred-messages.md) | Starred messages: the user's room account data, listed across conversations | accepted | T2.66 |
+| [0066](0066-links-in-messages.md) | Links in messages: web addresses only, opened outside the app by the shell | accepted | T2.67 |
