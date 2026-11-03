@@ -291,7 +291,7 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 - Outcome: **implemented, unverified** (cloud sprint, no test run). A search result opens its conversation at the message, read up to 20 pages back, centred and outlined for two seconds (ADR 0046's consequences). 🧪 `ui/src/store.test.ts` ("reveals a message").
 
 **T2.40 — Drafts** (E2.4)
-- Outcome: **implemented, unverified** (cloud sprint, no test run). Each conversation's composer keeps the text the user left there while the app runs, in memory only (unsent text stays off the disk); an edit's text never replaces it. 🧪 `apps/desktop/e2e/app.spec.ts`, "an unsent text waits". Left: drafts that survive a restart (sealed in the core's database, if wanted).
+- Outcome: **implemented, unverified** (cloud sprint, no test run). Each conversation's composer keeps the text the user left there while the app runs, in memory only (unsent text stays off the disk); an edit's text never replaces it. 🧪 `apps/desktop/e2e/app.spec.ts`, "an unsent text waits". Since T2.52, drafts survive a restart (ADR 0057).
 
 **T2.41 — Density** (E2.7)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). "Density" (comfortable, compact) in the appearance settings, a root attribute that lowers the spacing token (ADR 0040's consequences). 🧪 `ui/src/appearance.test.ts`.
@@ -325,6 +325,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 
 **T2.51 — Leave a group** (E2.3)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.29 `conversations.leave` and `ConversationActions.leave` (ADR 0056): the user's leave to the bridge (`BridgeMatrixLeave` on), waited for by its status; the portal and the room are deleted on success; "Leave…" in a group's header. 🧪 `TestLeave`, the desktop e2e "the user leaves a group". Left: deleting a group for everyone.
+
+**T2.52 — Drafts that survive a restart** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.30 `conversations.setDraft` and `Conversation.draft` (ADR 0057): the user's room account data in the local server, saved a second after typing stops, read back after a restart. 🧪 `TestDraft` (localmatrix and embedded), `ui/src/store.test.ts`, the desktop e2e "an unsent text waits". Left: "Draft:" in the inbox's previews.
 
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.

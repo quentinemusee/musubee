@@ -587,3 +587,10 @@ To verify in the test session: T2.51 (cloud sprint, no test run; see ADR 0056):
 leave (core):       go test -tags=goolm -count=1 -run 'Leave|DeleteChat' -v ./core/embedded/
 leave in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "leaves a group"
 ```
+
+To verify in the test session: T2.52 (cloud sprint, no test run; see ADR 0057):
+
+```
+drafts (core):      go test -tags=goolm -count=1 -run 'Draft' -v ./core/localmatrix/ ./core/embedded/
+drafts in the app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "unsent text waits"      (ui: npx vitest run src/store.test.ts)
+```

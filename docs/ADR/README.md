@@ -66,3 +66,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0054](0054-forwarding-messages.md) | Forwarding a message: a new message of the user's, built by the core from what the device stores | accepted | T2.48 |
 | [0055](0055-mentions.md) | Mentions: the network's own marking, shown in the thread and let through a mute | accepted | T2.50 |
 | [0056](0056-leaving-groups.md) | Leaving a group: the user's leave event to the bridge, confirmed by its status | accepted | T2.51 |
+| [0057](0057-drafts.md) | Drafts: kept by the core with the messages, saved a moment after typing | accepted | T2.52 |
