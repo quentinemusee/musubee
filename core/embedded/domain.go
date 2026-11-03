@@ -156,6 +156,10 @@ func (c *Core) conversationsList(ctx context.Context, p api.ConversationsListPar
 		rooms = rooms[:p.Limit]
 		result.Before = activityCursor(rooms[len(rooms)-1].Cursor())
 	}
+	// Pinned conversations come first, on the first page only (API 1.24).
+	if rooms, err = c.pinnedFirst(ctx, rooms, p.Before == ""); err != nil {
+		return result, err
+	}
 	owners, err := c.persons.Owners(ctx)
 	if err != nil {
 		return result, err
@@ -240,6 +244,7 @@ func (c *Core) conversation(ctx context.Context, activity *localmatrix.RoomActiv
 	conv.UnreadCount = int64(read.Unread)
 	conv.MarkedUnread = read.MarkedUnread
 	conv.MutedUntilMS = mutedUntil(read.MutedUntil, time.Now())
+	conv.Pinned = read.Pinned
 	if conv.Seen, err = c.seen(ctx, room.ID); err != nil {
 		return nil, err
 	}
@@ -278,6 +283,29 @@ func portalLogin(ctx context.Context, br *bridgev2.Bridge, portal *bridgev2.Port
 	return logins[0].ID, logins[0], nil
 }
 
+// pinnedFirst takes the pinned rooms out of a page of rooms by activity,
+// and puts all of them before it on the first page (docs/ADR/0052).
+func (c *Core) pinnedFirst(ctx context.Context, rooms []*localmatrix.RoomActivity, first bool) ([]*localmatrix.RoomActivity, error) {
+	pinned, err := c.host.Matrix.PinnedRooms(ctx)
+	if err != nil || len(pinned) == 0 {
+		return rooms, err
+	}
+	isPinned := make(map[id.RoomID]bool, len(pinned))
+	for _, room := range pinned {
+		isPinned[room.Room.ID] = true
+	}
+	var result []*localmatrix.RoomActivity
+	if first {
+		result = append(result, pinned...)
+	}
+	for _, room := range rooms {
+		if !isPinned[room.Room.ID] {
+			result = append(result, room)
+		}
+	}
+	return result, nil
+}
+
 func (c *Core) conversationsTyping(ctx context.Context, p api.ConversationsTypingParams) (api.Empty, error) {
 	roomID, err := c.room(ctx, p.ConversationID)
 	if err != nil {
@@ -305,6 +333,16 @@ func (c *Core) conversationsMute(ctx context.Context, p api.ConversationsMutePar
 		return api.Empty{}, err
 	}
 	return api.Empty{}, c.host.Matrix.Mute(ctx, roomID, p.UntilMS)
+}
+
+// conversationsPin pins or unpins a conversation (API 1.24,
+// docs/ADR/0052).
+func (c *Core) conversationsPin(ctx context.Context, p api.ConversationsPinParams) (api.Empty, error) {
+	roomID, err := c.room(ctx, p.ConversationID)
+	if err != nil {
+		return api.Empty{}, err
+	}
+	return api.Empty{}, c.host.Matrix.Pin(ctx, roomID, p.Pinned)
 }
 
 // mutedUntil is a conversation's muted_until_ms: a mute that ended is

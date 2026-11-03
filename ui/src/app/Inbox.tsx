@@ -125,6 +125,7 @@ const InboxRow = memo(function InboxRow({ entry, current, now, networkNames, onO
         <span id={`${id}-meta`} className="conversation-meta">
           {networks.join(" · ")}
           {latest.kind === "group" ? " · Group" : ""}
+          {entry.conversations.some((c) => c.pinned === true) ? " · Pinned" : ""}
           {muted ? " · Muted" : ""}
         </span>
         <span className="conversation-bottom">

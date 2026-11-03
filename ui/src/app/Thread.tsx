@@ -143,6 +143,14 @@ export function Thread() {
         >
           Mark unread
         </button>
+        <button
+          type="button"
+          className="secondary"
+          aria-pressed={conversation.pinned === true}
+          onClick={() => void store.pin(selected, conversation.pinned !== true)}
+        >
+          Pin
+        </button>
         <MuteButton key={selected} conversation={conversation} />
         {conversation.kind === "direct" ? (
           <button type="button" className="secondary person-button" aria-expanded={panelOpen} onClick={() => setPanelFor(panelOpen ? undefined : selected)}>

@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.23"
+const APIVersion = "1.24"
 
 // Command names.
 const (
@@ -54,7 +54,10 @@ const (
 	CommandLoginCancel = "login.cancel"
 	// Lists the conversations of every account, or of one account, the most
 	// recently active first. Without a limit, returns them all; with one, returns
-	// a page and a cursor to the next. Ordered by activity since API 1.3.
+	// a page and a cursor to the next. Ordered by activity since API 1.3. Since
+	// API 1.24, the first page (no cursor) starts with every pinned conversation,
+	// the most recently active first, and the pages hold the others only: a page
+	// can then be shorter than its limit and still have a next one.
 	CommandConversationsList = "conversations.list"
 	// Tells the conversation's network that the user types (again while typing,
 	// every few seconds, as networks forget it), or stopped. Networks that do not
@@ -71,6 +74,11 @@ const (
 	// conversation is then sent again in a conversation.updated event, if its
 	// mute changed. Since API 1.23.
 	CommandConversationsMute = "conversations.mute"
+	// Pins a conversation at the top of the inbox, or unpins it. The network is
+	// told when it supports it (Matrix's favourite tag), and a pin set in the
+	// network's other apps shows here. The conversation is then sent again in a
+	// conversation.updated event, if its pin changed. Since API 1.24.
+	CommandConversationsPin = "conversations.pin"
 	// Records that the user read a conversation up to a message (by default its
 	// last one), and clears its marked_unread flag. The network is told when it
 	// supports read receipts. Reading never moves back: a message before the
@@ -217,6 +225,7 @@ var Commands = []CommandSpec{
 	{Name: CommandConversationsTyping, Params: reflect.TypeFor[ConversationsTypingParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsMarkUnread, Params: reflect.TypeFor[ConversationsMarkUnreadParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsMute, Params: reflect.TypeFor[ConversationsMuteParams](), Result: reflect.TypeFor[Empty]()},
+	{Name: CommandConversationsPin, Params: reflect.TypeFor[ConversationsPinParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsMarkRead, Params: reflect.TypeFor[ConversationsMarkReadParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandMessagesList, Params: reflect.TypeFor[MessagesListParams](), Result: reflect.TypeFor[MessagesListResult]()},
 	{Name: CommandMessagesSearch, Params: reflect.TypeFor[MessagesSearchParams](), Result: reflect.TypeFor[MessagesSearchResult]()},
@@ -584,6 +593,9 @@ type Conversation struct {
 	// The user marked the conversation as unread (on another device, for now);
 	// reading it clears the flag. Omitted when false. Since API 1.4.
 	MarkedUnread bool `json:"marked_unread,omitempty"`
+	// The user pinned the conversation at the top of the inbox. Omitted when
+	// false. Since API 1.24.
+	Pinned bool `json:"pinned,omitempty"`
 	// The user muted the conversation, here or in another app of its network:
 	// when the mute ends, in Unix milliseconds, or -1 until unmuted. Omitted when
 	// not muted, or when the mute ended. Since API 1.23.
@@ -708,6 +720,12 @@ type ConversationsMuteParams struct {
 	// When the mute ends, in Unix milliseconds; -1: until unmuted; 0: unmutes the
 	// conversation.
 	UntilMS int64 `json:"until_ms"`
+}
+
+// ConversationsPinParams is $defs/ConversationsPinParams of the schema.
+type ConversationsPinParams struct {
+	ConversationID string `json:"conversation_id"`
+	Pinned         bool   `json:"pinned"`
 }
 
 // ConversationsMarkReadParams is $defs/ConversationsMarkReadParams of the

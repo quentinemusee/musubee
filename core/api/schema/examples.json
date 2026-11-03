@@ -85,7 +85,7 @@
     { "target": "command:conversations.list:result", "value": { "conversations": [
       { "conversation_id": "c2", "account_id": "a1", "network_id": "echo", "name": "Family", "kind": "group", "activity_ms": 1791496000000, "unread_count": 3,
         "actions": { "reply": true, "react": true, "edit": true, "delete": true } },
-      { "conversation_id": "c3", "account_id": "a1", "network_id": "echo", "name": "Delayed Echo", "kind": "direct", "activity_ms": 1791495000000, "marked_unread": true, "muted_until_ms": -1 }
+      { "conversation_id": "c3", "account_id": "a1", "network_id": "echo", "name": "Delayed Echo", "kind": "direct", "activity_ms": 1791495000000, "marked_unread": true, "pinned": true, "muted_until_ms": -1 }
     ] } },
 
     { "target": "command:conversations.markRead:params", "value": { "conversation_id": "c1" } },
@@ -153,6 +153,8 @@
     { "target": "command:conversations.mute:params", "value": { "conversation_id": "c1", "until_ms": 1791498600000 } },
     { "target": "command:conversations.mute:params", "value": { "conversation_id": "c1", "until_ms": -1 } },
     { "target": "command:conversations.mute:result", "value": {} },
+    { "target": "command:conversations.pin:params", "value": { "conversation_id": "c1", "pinned": true } },
+    { "target": "command:conversations.pin:result", "value": {} },
     { "target": "command:messages.search:params", "value": { "query": "picnic" } },
     { "target": "command:messages.search:params", "value": { "query": "picnic", "conversation_id": "c1", "limit": 20, "before": "k4" } },
     { "target": "command:messages.search:result", "value": { "messages": [
@@ -259,6 +261,7 @@
     { "target": "command:messages.search:params", "why": "query is not empty", "value": { "query": "" } },
     { "target": "command:conversations.markUnread:params", "why": "conversation_id is required", "value": {} },
     { "target": "command:conversations.mute:params", "why": "until_ms is at least -1", "value": { "conversation_id": "c1", "until_ms": -2 } },
+    { "target": "command:conversations.pin:params", "why": "pinned is required", "value": { "conversation_id": "c1" } },
     { "target": "command:conversations.typing:params", "why": "typing is required", "value": { "conversation_id": "c1" } },
     { "target": "command:messages.fetchOlder:params", "why": "limit is at most 200", "value": { "conversation_id": "c1", "limit": 500 } },
     { "target": "command:messages.fetchOlder:result", "why": "messages is required", "value": { "end": true } },

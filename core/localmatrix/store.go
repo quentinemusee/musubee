@@ -99,6 +99,9 @@ type ReadState struct {
 	Unread int
 	// MarkedUnread is set while the user has marked the room as unread.
 	MarkedUnread bool
+	// Pinned is set while the user keeps the room at the top of the inbox:
+	// Matrix's favourite tag (docs/ADR/0052).
+	Pinned bool
 	// MutedUntil is when the user's mute of the room ends, in Unix
 	// milliseconds: MutedForever until unmuted, 0 when not muted. A time
 	// in the past is not muted either.
@@ -896,6 +899,32 @@ func (s *store) setRoomAccountData(ctx context.Context, userID id.UserID, roomID
 	return err
 }
 
+// taggedRooms returns the rooms a user tagged with a tag.
+func (s *store) taggedRooms(ctx context.Context, userID id.UserID, tag event.RoomTag) ([]id.RoomID, error) {
+	rows, err := s.db.Query(ctx,
+		`SELECT room_id, content FROM local_room_account_data WHERE user_id=$1 AND data_type=$2`, userID, accountDataTags)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var roomIDs []id.RoomID
+	for rows.Next() {
+		var roomID id.RoomID
+		var content string
+		if err = rows.Scan(&roomID, &content); err != nil {
+			return nil, err
+		}
+		var tags event.TagEventContent
+		if json.Unmarshal([]byte(content), &tags) != nil {
+			continue
+		}
+		if _, ok := tags.Tags[tag]; ok {
+			roomIDs = append(roomIDs, roomID)
+		}
+	}
+	return roomIDs, rows.Err()
+}
+
 func (s *store) getRoomAccountData(ctx context.Context, userID id.UserID, roomID id.RoomID, dataType string, into any) (bool, error) {
 	var content string
 	err := s.db.QueryRow(ctx,
@@ -974,6 +1003,11 @@ func (s *store) readState(ctx context.Context, roomID id.RoomID, userID id.UserI
 		return nil, err
 	}
 	st.MutedUntil = muted.Until
+	var tags event.TagEventContent
+	if _, err := s.getRoomAccountData(ctx, userID, roomID, accountDataTags, &tags); err != nil {
+		return nil, err
+	}
+	_, st.Pinned = tags.Tags[event.RoomTagFavourite]
 	return &st, nil
 }
 

@@ -17,6 +17,7 @@
 package localmatrix
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -852,4 +853,80 @@ func (s *Server) Mute(ctx context.Context, roomID id.RoomID, untilMS int64) erro
 		})
 	}
 	return nil
+}
+
+// setTag adds or removes a tag of a user's room, keeping the others, and
+// reports whether it changed.
+func (s *Server) setTag(ctx context.Context, userID id.UserID, roomID id.RoomID, tag event.RoomTag, isTagged bool) (bool, error) {
+	var tags event.TagEventContent
+	if _, err := s.store.getRoomAccountData(ctx, userID, roomID, accountDataTags, &tags); err != nil {
+		return false, err
+	}
+	if _, was := tags.Tags[tag]; was == isTagged {
+		return false, nil
+	}
+	if tags.Tags == nil {
+		tags.Tags = make(event.Tags)
+	}
+	if isTagged {
+		tags.Tags[tag] = event.TagMetadata{}
+	} else {
+		delete(tags.Tags, tag)
+	}
+	return true, s.store.setRoomAccountData(ctx, userID, roomID, accountDataTags, &tags)
+}
+
+// Pin pins or unpins a room for the user (docs/ADR/0052): Matrix's
+// favourite tag, which bridgev2 hands to connectors that handle tags
+// (TagHandlingNetworkAPI) as the room's whole m.tag account data.
+func (s *Server) Pin(ctx context.Context, roomID id.RoomID, pinned bool) error {
+	changed, err := s.setTag(ctx, s.userID, roomID, event.RoomTagFavourite, pinned)
+	if err != nil || !changed {
+		return err
+	}
+	s.publish(Update{ReadState: roomID})
+	room, err := s.store.getRoom(ctx, roomID)
+	if err != nil {
+		return err
+	}
+	var tags event.TagEventContent
+	if _, err = s.store.getRoomAccountData(ctx, s.userID, roomID, accountDataTags, &tags); err != nil {
+		return err
+	}
+	if conn := s.connector(room.BridgeID); conn != nil && conn.br != nil {
+		conn.br.QueueMatrixEvent(conn.br.Log.WithContext(ctx), &event.Event{
+			Type:      event.AccountDataRoomTags,
+			RoomID:    roomID,
+			Sender:    s.userID,
+			Timestamp: time.Now().UnixMilli(),
+			Content:   event.Content{Parsed: &tags},
+		})
+	}
+	return nil
+}
+
+// PinnedRooms returns the rooms the user pinned, the most recently active
+// first.
+func (s *Server) PinnedRooms(ctx context.Context) ([]*RoomActivity, error) {
+	roomIDs, err := s.store.taggedRooms(ctx, s.userID, event.RoomTagFavourite)
+	if err != nil {
+		return nil, err
+	}
+	rooms := make([]*RoomActivity, 0, len(roomIDs))
+	for _, roomID := range roomIDs {
+		room, err := s.store.roomActivity(ctx, roomID)
+		if errors.Is(err, ErrNotFound) {
+			continue
+		} else if err != nil {
+			return nil, err
+		}
+		rooms = append(rooms, room)
+	}
+	slices.SortStableFunc(rooms, func(a, b *RoomActivity) int {
+		if a.At != b.At {
+			return cmp.Compare(b.At, a.At)
+		}
+		return cmp.Compare(b.Room.ID, a.Room.ID)
+	})
+	return rooms, nil
 }

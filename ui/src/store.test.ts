@@ -438,6 +438,40 @@ describe("Store", () => {
     expect(store.getState().error).toMatch(/^Could not change the conversation's notifications/);
   });
 
+  test("pins a conversation at the top at once, and puts it back if the core refuses", async () => {
+    const calls: unknown[] = [];
+    let refuse = false;
+    const shell = scriptedShell({
+      ...coreState([conversation("c1", "Adam", 3), conversation("c2", "Bea", 2), conversation("c3", "Cy", 1)]),
+      "conversations.pin": (params) => {
+        calls.push(params);
+        return refuse ? Promise.reject(new Error("no")) : {};
+      },
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    const order = () => store.getState().conversations.map((c) => c.conversation_id + (c.pinned ? "*" : ""));
+
+    await store.pin("c3", true);
+    expect(order()).toEqual(["c3*", "c1", "c2"]);
+    // A newer message elsewhere stays below the pin.
+    shell.emit("conversation.updated", { conversation: conversation("c2", "Bea", 9) });
+    expect(order()).toEqual(["c3*", "c2", "c1"]);
+    await store.pin("c3", false);
+    expect(order()).toEqual(["c2", "c1", "c3"]);
+    expect(calls).toEqual([
+      { conversation_id: "c3", pinned: true },
+      { conversation_id: "c3", pinned: false },
+    ]);
+
+    refuse = true;
+    await store.pin("c1", true);
+    expect(order()).toEqual(["c2", "c1", "c3"]);
+    expect(store.getState().error).toMatch(/^Could not pin the conversation/);
+  });
+
   test("reads older messages page by page, one page at a time", async () => {
     // 250 messages, m0 to m249; the core pages them from the newest.
     const all = Array.from({ length: 250 }, (_, i) => message(`m${i}`, i));

@@ -501,6 +501,30 @@ export class Store {
     }
   }
 
+  /** Pins or unpins a conversation (API 1.24): at once in the store, back if the core refuses. */
+  async pin(conversationId: string, pinned: boolean): Promise<void> {
+    const apply = (value: boolean) => {
+      const conversations = this.#state.conversations;
+      const index = conversations.findIndex((c) => c.conversation_id === conversationId);
+      const conversation = conversations[index];
+      if (conversation === undefined || (conversation.pinned === true) === value) {
+        return false;
+      }
+      const { pinned: _, ...rest } = conversation;
+      this.#set({ conversations: placeConversation(conversations.toSpliced(index, 1), value ? { ...rest, pinned: true } : rest) });
+      return true;
+    };
+    if (!apply(pinned)) {
+      return;
+    }
+    try {
+      await this.client.call("conversations.pin", { conversation_id: conversationId, pinned });
+    } catch (error) {
+      apply(!pinned);
+      this.#set({ error: `Could not ${pinned ? "pin" : "unpin"} the conversation: ${describe(error)}` });
+    }
+  }
+
   async markRead(conversationId: string): Promise<void> {
     const conversations = this.#state.conversations;
     const index = conversations.findIndex((c) => c.conversation_id === conversationId);
@@ -1034,11 +1058,13 @@ function upsert<T>(items: readonly T[], item: T, key: (item: T) => string): T[] 
 }
 
 /**
- * The order of the conversation list: the most recently active first. The
- * sort is stable, so conversations as active keep the core's order.
+ * The order of the conversation list: pinned conversations first (API
+ * 1.24, docs/ADR/0052), then the most recently active first. The sort is
+ * stable, so conversations as active keep the core's order.
  */
 export function byActivity(a: Conversation, b: Conversation): number {
-  return (b.activity_ms ?? 0) - (a.activity_ms ?? 0);
+  const pinned = Number(b.pinned === true) - Number(a.pinned === true);
+  return pinned === 0 ? (b.activity_ms ?? 0) - (a.activity_ms ?? 0) : pinned;
 }
 
 /**

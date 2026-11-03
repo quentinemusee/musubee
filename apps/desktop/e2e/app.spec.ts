@@ -458,6 +458,25 @@ test("the user mutes a conversation, kept after a restart, then unmutes it", asy
   await app.close();
 });
 
+test("a pinned conversation stays at the top of the inbox, after a restart too", async () => {
+  const dataDir = newDataDir();
+  let { app, page } = await launch(dataDir);
+  await addEchoAccount(page, "pin");
+  const rows = page.locator(".inbox-row button.conversation");
+  const last = await rows.last().getAttribute("aria-label");
+  expect(last).not.toBeNull();
+  await page.getByRole("button", { name: last!, exact: true }).click();
+  await page.getByRole("button", { name: "Pin", pressed: false }).click();
+  await expect(page.getByRole("button", { name: "Pin", pressed: true })).toBeVisible();
+  await expect(rows.first()).toHaveAccessibleName(last!);
+  await expect(rows.first()).toHaveAccessibleDescription(/Pinned/);
+
+  await app.close();
+  ({ app, page } = await launch(dataDir));
+  await expect(page.locator(".inbox-row button.conversation").first()).toHaveAccessibleName(last!);
+  await app.close();
+});
+
 test("the user chooses what notifications show, kept by the main process after a restart", async () => {
   const dataDir = newDataDir();
   let { app, page } = await launch(dataDir);

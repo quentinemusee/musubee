@@ -554,20 +554,14 @@ func (in *Intent) EnsureInvited(ctx context.Context, roomID id.RoomID, userID id
 }
 
 // TagRoom adds or removes a tag (favourite, low priority, ...) of the user.
+// The user's favourite tag is Musubee's pin (docs/ADR/0052): a change made
+// in another app of the network is published as the room's read state.
 func (in *Intent) TagRoom(ctx context.Context, roomID id.RoomID, tag event.RoomTag, isTagged bool) error {
-	var tags event.TagEventContent
-	if _, err := in.server.store.getRoomAccountData(ctx, in.mxid, roomID, accountDataTags, &tags); err != nil {
-		return err
+	changed, err := in.server.setTag(ctx, in.mxid, roomID, tag, isTagged)
+	if err == nil && changed && in.mxid == in.server.userID && tag == event.RoomTagFavourite {
+		in.server.publish(Update{ReadState: roomID})
 	}
-	if tags.Tags == nil {
-		tags.Tags = make(event.Tags)
-	}
-	if isTagged {
-		tags.Tags[tag] = event.TagMetadata{}
-	} else {
-		delete(tags.Tags, tag)
-	}
-	return in.server.store.setRoomAccountData(ctx, in.mxid, roomID, accountDataTags, &tags)
+	return err
 }
 
 // MuteRoom mutes the room for the user until the given time (zero unmutes).
