@@ -6,6 +6,7 @@ import type { Account } from "../core-api/types.gen";
 import type { CoreStatus } from "../shell";
 import { AddAccount } from "./AddAccount";
 import { AppearanceSettings } from "./AppearanceSettings";
+import { EmojiVerification } from "./EmojiVerification";
 import { VerifyDevice } from "./VerifyDevice";
 import { Inbox } from "./Inbox";
 import { SearchField, SearchResults } from "./Search";
@@ -201,6 +202,9 @@ function AccountItem({ account, label, onLogInAgain }: { account: Account; label
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  // Comparing emoji (API 1.22): started here, or asked by another device.
+  const [comparing, setComparing] = useState<"start" | "answer" | null>(null);
+  const incoming = useAppState((s) => s.verifications?.[account.account_id]?.step === "incoming");
 
   async function logout() {
     setBusy(true);
@@ -217,6 +221,9 @@ function AccountItem({ account, label, onLogInAgain }: { account: Account; label
         {account.verification === "verified" ? <span className="account-verified"> · Verified device</span> : null}
       </span>
       {verifying ? <VerifyDevice accountId={account.account_id} label={label} onClose={() => setVerifying(false)} /> : null}
+      {comparing !== null ? (
+        <EmojiVerification accountId={account.account_id} label={label} start={comparing === "start"} onClose={() => setComparing(null)} />
+      ) : null}
       {confirming ? (
         <fieldset className="account-actions">
           <legend className="hint">Log out? Its conversations will be removed from this device.</legend>
@@ -235,8 +242,24 @@ function AccountItem({ account, label, onLogInAgain }: { account: Account; label
             </button>
           ) : null}
           {account.verification === "unverified" ? (
-            <button type="button" className="link" aria-label={`Verify this device for ${label}`} aria-haspopup="dialog" onClick={() => setVerifying(true)}>
-              Verify this device…
+            <>
+              <button type="button" className="link" aria-label={`Verify this device for ${label}`} aria-haspopup="dialog" onClick={() => setVerifying(true)}>
+                Verify this device…
+              </button>
+              <button
+                type="button"
+                className="link"
+                aria-label={`Compare emoji with another device for ${label}`}
+                aria-haspopup="dialog"
+                onClick={() => setComparing("start")}
+              >
+                Compare emoji…
+              </button>
+            </>
+          ) : null}
+          {incoming && comparing === null ? (
+            <button type="button" aria-haspopup="dialog" onClick={() => setComparing("answer")}>
+              Another device asks to verify this one…
             </button>
           ) : null}
           <button type="button" className="link" aria-label={`Log out of ${label}`} onClick={() => setConfirming(true)}>

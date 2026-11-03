@@ -1312,3 +1312,25 @@ button.flow:hover:not(:disabled) {
 :root[data-density="compact"] .message {
   padding: 3px 9px;
 }
+
+/* Comparing emoji with another device (docs/ADR/0049). */
+.verification-emoji {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: var(--space);
+  margin: var(--space) 0;
+  padding: 0;
+  list-style: none;
+  text-align: center;
+}
+
+.verification-emoji li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: calc(12 * var(--text));
+}
+
+.verification-emoji-glyph {
+  font-size: calc(32 * var(--text));
+}

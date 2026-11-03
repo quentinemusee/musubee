@@ -11,7 +11,7 @@ import { CoreApiError, CoreClient, parseEvent } from "./core-api/client";
 import { accepts, MediaCache, sendChoice, sendProblem, uploadBlob } from "./media";
 import { pageStorage } from "./appearance";
 import { loadTogether, saveTogether, togetherSources, togetherView, type TogetherStorage } from "./together";
-import type { Account, Conversation, Event, Message, Network, Person } from "./core-api/types.gen";
+import type { Account, Conversation, Event, Message, Network, Person, VerificationAction, VerificationEvent } from "./core-api/types.gen";
 import { mergePlan } from "./merge";
 import { replyTo } from "./message";
 import type { CoreStatus, ShellCore } from "./shell";
@@ -58,6 +58,8 @@ export interface State {
    * selected conversation alone.
    */
   together?: string;
+  /** Each account's interactive verification, as its last step said (API 1.22). */
+  verifications?: Readonly<Record<string, VerificationEvent>>;
   /** A message the thread scrolls to and highlights once shown (a search result). */
   focus?: string;
   /** Who types in each conversation, by name (API 1.20); "" for someone unnamed. */
@@ -645,6 +647,15 @@ export class Store {
     }
   }
 
+  /** Takes the user's step in a verification by emoji (API 1.22); a failure shows as the app's error. */
+  async verification(accountId: string, action: VerificationAction): Promise<void> {
+    try {
+      await this.client.call("accounts.verification", { account_id: accountId, action });
+    } catch (error) {
+      this.#set({ error: `Could not verify this device: ${describe(error)}` });
+    }
+  }
+
   async logout(accountId: string): Promise<void> {
     try {
       await this.client.call("accounts.logout", { account_id: accountId });
@@ -868,6 +879,19 @@ export class Store {
 
   #apply(event: Event): void {
     switch (event.type) {
+      case "account.verification": {
+        const data = event.data;
+        this.#set({ verifications: { ...this.#state.verifications, [data.account_id]: data } });
+        if (data.step === "done") {
+          const accounts = this.#state.accounts;
+          const index = accounts.findIndex((a) => a.account_id === data.account_id);
+          const account = accounts[index];
+          if (account !== undefined) {
+            this.#set({ accounts: accounts.with(index, { ...account, verification: "verified" }) });
+          }
+        }
+        break;
+      }
       case "conversation.typing": {
         const { conversation_id, names } = event.data;
         const { [conversation_id]: _, ...others } = this.#state.typing ?? {};
