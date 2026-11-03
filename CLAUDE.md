@@ -572,3 +572,11 @@ To verify in the test session: T2.49 (cloud sprint, no test run):
 members (core):     go test -tags=goolm -count=1 -run 'Members' -v ./core/embedded/
 members in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "shows its members"
 ```
+
+To verify in the test session: T2.50 (cloud sprint, no test run; see ADR 0055). The echo contact answers `/mention text`:
+
+```
+mentions (core):    go test -tags=goolm -count=1 -run 'Mentions' -v ./core/embedded/
+mentions (shells):  cd apps/desktop && npx vitest run test/notification-rules.test.ts      (Android: the notification rules command of T2.17)
+mentions in app:    cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "mentions the user"
+```

@@ -320,6 +320,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.49 — A group's members** (E2.3)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.27 `conversations.members`: the room's joined members without the bridge's bot, the user first; "Members…" in a group's header. No ADR: a read of what the local server already stores. 🧪 `TestMembers`, the desktop e2e "a group shows its members". Left: following membership changes live; avatars.
 
+**T2.50 — Mentions** (E2.4, E2.6)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.28 `Message.mentions_me` from Matrix's `m.mentions` (ADR 0055): outlined in the thread, let through a mute by Android and the desktop; the echo contact answers `/mention`. 🧪 `TestMentions`, `MessageNotificationsTest`, `apps/desktop/test/notification-rules.test.ts`, the desktop e2e "mentions the user stands out". Left: an "@" in the inbox; checking Signal's and Matrix's connectors.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

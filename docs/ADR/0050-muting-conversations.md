@@ -59,6 +59,7 @@ Since the main process now knows the conversations' names, a group's desktop not
 - Muting on one Musubee device reaches the user's other Musubee devices only through the network: through Telegram, but not through the echo network or Signal, whose connectors do not handle mutes.
 - A conversation muted while a notification of it is shown loses that notification on Android. On the desktop, Electron's notification stays until it is clicked or replaced.
 - A person's entry in the inbox is muted only when all of its conversations are.
+- Since T2.50, a message that mentions the user gets through a mute (ADR 0055).
 
 ## Verification
 
