@@ -39,7 +39,7 @@ The copy is a new message of the user's. It answers nothing, and does not say "F
 
 ## Consequences
 
-- Forwarding can move a message from an end-to-end encrypted conversation into one that a bridge host or the network can read. The destination's privacy note says so (ADR 0039); the dialog does not repeat it yet.
+- Forwarding can move a message from an end-to-end encrypted conversation into one that a bridge host or the network can read. The dialog says so next to each such destination ("Telegram can read it there", from the destination's privacy, ADR 0039).
 - Media that the device has not stored (history beyond what was downloaded) cannot be forwarded.
 - Forwarding several messages at once is a later task.
 
@@ -49,4 +49,5 @@ The copy is a new message of the user's. It answers nothing, and does not say "F
 |---|---|---|
 | A text, a photo with its caption (same bytes) and a GIF (still animated) are forwarded; unknown messages and conversations fail | **implemented, unverified** | `core/embedded/forward_test.go` |
 | Which messages offer forwarding | **implemented, unverified** | `ui/src/message.test.ts` |
+| The warning for a destination that others can read | **implemented, unverified** | `ui/src/privacy.test.ts` |
 | The desktop app forwards a message from one echo conversation to another | **implemented, unverified** | `apps/desktop/e2e/app.spec.ts`, "the user forwards a message" |

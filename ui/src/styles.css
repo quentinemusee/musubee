@@ -1401,3 +1401,7 @@ button.flow:hover:not(:disabled) {
 .forward-network {
   color: var(--color-muted);
 }
+
+.forward-warning {
+  color: var(--color-error);
+}

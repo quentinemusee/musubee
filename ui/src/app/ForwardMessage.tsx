@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Message } from "../core-api/types.gen";
 import { normalizeName } from "../merge";
+import { forwardWarning } from "../privacy";
 import { useAppState, useStore } from "./state";
 
 /**
@@ -33,6 +34,8 @@ export function ForwardMessage({ message, onClose }: { message: Message; onClose
     const wanted = normalizeName(filter);
     return conversations.filter((c) => wanted === "" || normalizeName(c.name).includes(wanted));
   }, [conversations, filter]);
+  // Where the message comes from: its privacy is what forwarding may lose.
+  const source = conversations.find((c) => c.conversation_id === message.conversation_id)?.privacy;
   const networkName = (networkId: string) => networks.find((n) => n.network_id === networkId)?.name ?? networkId;
 
   async function send(conversationId: string, name: string) {
@@ -58,11 +61,13 @@ export function ForwardMessage({ message, onClose }: { message: Message; onClose
       <ul className="forward-list">
         {shown.map((c) => {
           const name = c.name || "Unnamed conversation";
+          const warning = forwardWarning(source, c.privacy);
           return (
             <li key={c.conversation_id}>
               <button type="button" className="secondary" disabled={sending !== undefined} onClick={() => void send(c.conversation_id, name)}>
                 {name}
                 <span className="forward-network"> · {networkName(c.network_id)}</span>
+                {warning === "" ? null : <span className="forward-warning"> · {warning}</span>}
               </button>
             </li>
           );

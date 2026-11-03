@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { describe, expect, test } from "vitest";
-import { privacyWords } from "./privacy";
+import { forwardWarning, privacyWords } from "./privacy";
 
 describe("privacyWords", () => {
   test("says end-to-end encryption, and from where Musubee connects", () => {
@@ -32,4 +32,16 @@ describe("privacyWords", () => {
     }
     expect(privacyWords({ level: "device_only" }, "Echo", "on_device")).toMatchObject({ safe: true, label: "Test conversation" });
   });
+});
+
+test("forwardWarning: says who can read a message that leaves an end-to-end encrypted conversation", () => {
+  const e2e = { level: "end_to_end" } as const;
+  expect(forwardWarning(e2e, { level: "network_can_read", readers: "Telegram" })).toBe("Telegram can read it there");
+  expect(forwardWarning(e2e, { level: "bridge_can_read", readers: "the bridge's host" })).toBe("the bridge's host can read it there");
+  expect(forwardWarning(e2e, { level: "unknown" })).toBe("it may not stay end-to-end encrypted there");
+  expect(forwardWarning(e2e, undefined)).toBe("it may not stay end-to-end encrypted there");
+  expect(forwardWarning(e2e, e2e)).toBe("");
+  expect(forwardWarning(e2e, { level: "device_only" })).toBe("");
+  expect(forwardWarning({ level: "network_can_read", readers: "Telegram" }, { level: "network_can_read", readers: "Discord" })).toBe("");
+  expect(forwardWarning(undefined, { level: "network_can_read", readers: "Telegram" })).toBe("");
 });

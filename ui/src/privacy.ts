@@ -63,3 +63,19 @@ export function privacyWords(privacy: ConversationPrivacy | undefined, network: 
       };
   }
 }
+
+/**
+ * What forwarding a message from one conversation to another exposes
+ * (docs/ADR/0054): "Telegram can read it there" when the message leaves an
+ * end-to-end encrypted conversation for one that others can read; ""
+ * otherwise. The destination's own note says the rest.
+ */
+export function forwardWarning(from: ConversationPrivacy | undefined, to: ConversationPrivacy | undefined): string {
+  if (from?.level !== "end_to_end" || to?.level === "end_to_end" || to?.level === "device_only") {
+    return "";
+  }
+  if ((to?.level === "network_can_read" || to?.level === "bridge_can_read") && to.readers !== undefined && to.readers !== "") {
+    return `${to.readers} can read it there`;
+  }
+  return "it may not stay end-to-end encrypted there";
+}
