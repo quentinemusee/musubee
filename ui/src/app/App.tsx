@@ -13,6 +13,7 @@ import { NotificationSettings } from "./NotificationSettings";
 import { SearchField, SearchResults } from "./Search";
 import { useBackToInbox } from "./navigation";
 import { NotificationsContext, useAppState, useStore } from "./state";
+import { Shortcuts } from "./Shortcuts";
 import { Thread } from "./Thread";
 
 /** What the login screen does: add an account, or log in to one again. */
@@ -50,6 +51,7 @@ export function App() {
       {notificationSettings && preview !== undefined ? (
         <NotificationSettings notifications={preview} onClose={() => setNotificationSettings(false)} />
       ) : null}
+      <Shortcuts />
       <ErrorBanner />
       {keyLost ? (
         <main className="app-main">

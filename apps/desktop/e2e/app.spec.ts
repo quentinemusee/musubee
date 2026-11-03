@@ -500,6 +500,23 @@ test("a message that mentions the user stands out", async () => {
   await app.close();
 });
 
+test("keyboard shortcuts reach the search and the next conversation", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "shortcuts");
+  const rows = page.locator(".inbox-row button.conversation");
+  await rows.first().click();
+  const first = await rows.first().getAttribute("aria-label");
+  const second = await rows.nth(1).getAttribute("aria-label");
+  await expect(page.locator("#thread-title")).toHaveText(first!);
+  await page.keyboard.press("Alt+ArrowDown");
+  await expect(page.locator("#thread-title")).toHaveText(second!);
+  await page.keyboard.press("Alt+ArrowUp");
+  await expect(page.locator("#thread-title")).toHaveText(first!);
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+k" : "Control+k");
+  await expect(page.getByRole("searchbox", { name: "Search messages" })).toBeFocused();
+  await app.close();
+});
+
 test("a group shows its members", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "members");

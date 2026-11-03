@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Quentin Raimbaud
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Message } from "../core-api/types.gen";
 import { activityLabel } from "../inbox";
 import { summary } from "../media";
 import { useNow } from "./Inbox";
+import { SEARCH_FIELD_ID } from "./Shortcuts";
 import { useAppState, useStore } from "./state";
 
 /** How long typing pauses before the search runs. */
@@ -20,7 +21,7 @@ const SEARCH_DELAY_MS = 300;
 export function SearchField() {
   const store = useStore();
   const [query, setQuery] = useState("");
-  const fieldId = useId();
+  const fieldId = SEARCH_FIELD_ID;
 
   useEffect(() => {
     const timer = setTimeout(() => void store.searchMessages(query), query.trim() === "" ? 0 : SEARCH_DELAY_MS);
