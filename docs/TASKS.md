@@ -341,6 +341,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.56 — Unread count on the desktop icon** (E2.3)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). The main process counts unread messages of the conversations it knows, muted ones left out, and sets it on the app's icon (macOS, Linux launchers; ADR 0059). 🧪 `apps/desktop/test/notification-rules.test.ts` (`cd apps/desktop && npx vitest run test/notification-rules.test.ts`). Left: Windows' taskbar overlay.
 
+**T2.57 — Copy a message's text** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). "Copy text" in a message's menu writes its latest text to the clipboard. 🧪 none automated (the clipboard needs a focused window): to try by hand in the desktop and Android apps.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

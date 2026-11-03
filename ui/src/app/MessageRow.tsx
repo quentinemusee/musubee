@@ -77,7 +77,9 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers,
   const menuId = useId();
   const toggle = useRef<HTMLButtonElement>(null);
   const forwardable = handlers?.forward !== undefined && canForward(message);
-  const showMenu = menu !== "closed" && (hasActions(allowed) || forwardable) && handlers !== undefined;
+  // Copying needs only text and a page allowed to write the clipboard.
+  const copyable = handlers !== undefined && !deleted && message.text !== "" && navigator.clipboard !== undefined;
+  const showMenu = menu !== "closed" && (hasActions(allowed) || forwardable || copyable) && handlers !== undefined;
 
   function close(refocus: boolean) {
     setMenu("closed");
@@ -88,7 +90,13 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers,
 
   return (
     <div className="message-row" data-message-id={message.message_id} data-highlighted={highlighted}>
-      <div className="message" data-from-me={message.from_me} data-status={message.status} data-deleted={deleted} data-mentions-me={message.mentions_me === true}>
+      <div
+        className="message"
+        data-from-me={message.from_me}
+        data-status={message.status}
+        data-deleted={deleted}
+        data-mentions-me={message.mentions_me === true}
+      >
         {!message.from_me && message.sender_name ? <span className="sender">{message.sender_name}</span> : null}
         {/* Said first to a screen reader; the outline shows it (docs/ADR/0055). */}
         {message.mentions_me === true ? <span className="visually-hidden">Mentions you. </span> : null}
@@ -151,7 +159,7 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers,
               {message.status === "sent" && seen !== undefined ? <span className="seen"> · {seen}</span> : null}
             </span>
           ) : null}
-          {hasActions(allowed) || forwardable ? (
+          {hasActions(allowed) || forwardable || copyable ? (
             <button
               ref={toggle}
               type="button"
@@ -173,6 +181,7 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers,
           message={message}
           allowed={allowed}
           forwardable={forwardable}
+          copyable={copyable}
           handlers={handlers}
           confirmDelete={menu === "confirm-delete"}
           onConfirmDelete={() => setMenu("confirm-delete")}
@@ -190,6 +199,7 @@ interface MessageMenuProps {
   message: Message;
   allowed: MessageActions;
   forwardable: boolean;
+  copyable: boolean;
   handlers: MessageHandlers;
   confirmDelete: boolean;
   onConfirmDelete: () => void;
@@ -203,10 +213,9 @@ interface MessageMenuProps {
  * it, and so do moving the focus out and pressing elsewhere. Deleting asks
  * first.
  */
-function MessageMenu({ id, toggle, message, allowed, forwardable, handlers, confirmDelete, onConfirmDelete, onClose }: MessageMenuProps) {
+function MessageMenu({ id, toggle, message, allowed, forwardable, copyable, handlers, confirmDelete, onConfirmDelete, onClose }: MessageMenuProps) {
   const ref = useRef<HTMLFieldSetElement>(null);
-  const outside = (target: unknown) =>
-    target instanceof Node && !(ref.current?.contains(target) ?? false) && !(toggle.current?.contains(target) ?? false);
+  const outside = (target: unknown) => target instanceof Node && !(ref.current?.contains(target) ?? false) && !(toggle.current?.contains(target) ?? false);
 
   const cancel = useRef<HTMLButtonElement>(null);
   // The other reactions, behind "More reactions".
@@ -262,7 +271,9 @@ function MessageMenu({ id, toggle, message, allowed, forwardable, handlers, conf
       <legend className="visually-hidden">Actions</legend>
       {confirmDelete ? (
         <>
-          <p className="message-menu-question">{message.status === "queued" ? "Cancel this message? It has not been sent." : "Delete this message for everyone?"}</p>
+          <p className="message-menu-question">
+            {message.status === "queued" ? "Cancel this message? It has not been sent." : "Delete this message for everyone?"}
+          </p>
           <div className="message-menu-buttons">
             <button ref={cancel} type="button" className="secondary" onClick={() => onClose(true)}>
               {message.status === "queued" ? "Keep" : "Cancel"}
@@ -349,6 +360,12 @@ function MessageMenu({ id, toggle, message, allowed, forwardable, handlers, conf
             {allowed.edit ? (
               <button type="button" className="secondary" onClick={() => run(() => handlers.edit(message), false)}>
                 Edit
+              </button>
+            ) : null}
+            {copyable ? (
+              // The clipboard keeps the text as the user sees it, edits included.
+              <button type="button" className="secondary" onClick={() => run(() => void navigator.clipboard.writeText(message.text).catch(() => undefined))}>
+                Copy text
               </button>
             ) : null}
             {forwardable ? (
