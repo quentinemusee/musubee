@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.31"
+const APIVersion = "1.32"
 
 // Command names.
 const (
@@ -637,6 +637,9 @@ type Conversation struct {
 	// The user marked the conversation as unread (on another device, for now);
 	// reading it clears the flag. Omitted when false. Since API 1.4.
 	MarkedUnread bool `json:"marked_unread,omitempty"`
+	// The conversation's picture, to read with media.read: a group's own, a
+	// direct conversation's contact's. Omitted when it has none. Since API 1.32.
+	AvatarID string `json:"avatar_id,omitempty"`
 	// The user archived the conversation (conversations.archive). Omitted when
 	// false. Since API 1.31.
 	Archived bool `json:"archived,omitempty"`

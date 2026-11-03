@@ -7,6 +7,7 @@ import { accepts, formatSize } from "../media";
 import { canRecord, VoiceRecorder, type Recording } from "../recorder";
 import { accountLabel } from "../merge";
 import { replyQuote, replyTo, seenLabel, typingText } from "../message";
+import { Avatar } from "./Avatar";
 import { DeleteConversation, type Removal } from "./DeleteConversation";
 import { ForwardMessage } from "./ForwardMessage";
 import { MembersDialog } from "./MembersDialog";
@@ -141,6 +142,7 @@ export function Thread() {
         <button type="button" className="secondary back" aria-label="Back to conversations" onClick={() => closeConversation(store)}>
           ‹
         </button>
+        <Avatar mediaId={conversation.avatar_id} name={person?.name ?? (conversation.name || "Unnamed conversation")} size="small" />
         <h2 id="thread-title">{person?.name ?? (conversation.name || "Unnamed conversation")}</h2>
         {/* Leaves the conversation: shown, it would be read again at once. */}
         <button

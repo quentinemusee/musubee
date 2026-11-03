@@ -245,6 +245,9 @@ func (c *Core) conversation(ctx context.Context, activity *localmatrix.RoomActiv
 	conv.MarkedUnread = read.MarkedUnread
 	conv.MutedUntilMS = mutedUntil(read.MutedUntil, time.Now())
 	conv.Pinned = read.Pinned
+	if conv.AvatarID, err = c.avatarID(ctx, room.ID); err != nil {
+		return nil, err
+	}
 	conv.Archived = read.ArchivedAt != 0
 	if conv.Draft, err = c.host.Matrix.Draft(ctx, room.ID); err != nil {
 		return nil, err
@@ -337,6 +340,21 @@ func (c *Core) conversationsMute(ctx context.Context, p api.ConversationsMutePar
 		return api.Empty{}, err
 	}
 	return api.Empty{}, c.host.Matrix.Mute(ctx, roomID, p.UntilMS)
+}
+
+// avatarID is the media ID of a room's picture (API 1.32, docs/ADR/0061),
+// or "": a direct conversation's is its contact's (bridgev2 copies it with
+// PrivateChatPortalMeta).
+func (c *Core) avatarID(ctx context.Context, roomID id.RoomID) (string, error) {
+	avatar, err := c.host.Matrix.State(ctx, roomID, event.StateRoomAvatar, "")
+	if err != nil || avatar == nil {
+		return "", err
+	}
+	url := avatar.Content.AsRoomAvatar().URL
+	if url == "" {
+		return "", nil
+	}
+	return mediaID(url), nil
 }
 
 // conversationsSetDraft keeps the text left unsent in a conversation

@@ -355,7 +355,7 @@ func (c *Core) translate(update localmatrix.Update) ([]*api.Event, error) {
 		return c.messageChanged(ctx, update.Event.RoomID, target, false)
 	case update.Event != nil && update.Event.Type == event.EventRedaction:
 		return c.redacted(ctx, update.Event)
-	case update.Event != nil && update.Event.Type == event.StateRoomName:
+	case update.Event != nil && (update.Event.Type == event.StateRoomName || update.Event.Type == event.StateRoomAvatar):
 		c.announceConversation(update.Event.RoomID)
 		return nil, nil
 	case update.MessageStatus != nil:

@@ -246,6 +246,12 @@ func userInfo(contact Contact) *bridgev2.UserInfo {
 	return &bridgev2.UserInfo{
 		Name:        ptr.Ptr(contact.Name),
 		Identifiers: []string{"echo:" + string(contact.ID)},
+		// Every contact has a picture, the generated gradient, so that the
+		// apps show avatars without a real network (docs/ADR/0061).
+		Avatar: &bridgev2.Avatar{
+			ID:  networkid.AvatarID("echo-avatar-v1"),
+			Get: func(context.Context) ([]byte, error) { return makePNG() },
+		},
 	}
 }
 

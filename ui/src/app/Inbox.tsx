@@ -5,6 +5,7 @@ import { createContext, memo, use, useEffect, useId, useMemo, useRef, useState }
 import { Virtualizer, type CustomItemComponentProps, type VirtualizerHandle } from "virtua";
 import { activityLabel, entryOf, inboxEntries, isArchived, preview, unreadBadge, type InboxEntry } from "../inbox";
 import { typingText } from "../message";
+import { Avatar } from "./Avatar";
 import { isMuted } from "../mute";
 import { openConversation } from "./navigation";
 import { useAppState, useStore } from "./state";
@@ -134,6 +135,7 @@ const InboxRow = memo(function InboxRow({ entry, current, now, networkNames, onO
         aria-describedby={badge === undefined ? `${id}-meta ${id}-preview` : `${id}-unread ${id}-meta ${id}-preview`}
         onClick={() => onOpen(latest.conversation_id)}
       >
+        <Avatar mediaId={latest.avatar_id} name={entry.name} />
         <span className="conversation-top">
           <span className="conversation-name">{entry.name}</span>
           {activity === undefined ? null : (

@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.31",
+  "x-musubee-api-version": "1.32",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -948,6 +948,10 @@
         "marked_unread": {
           "description": "The user marked the conversation as unread (on another device, for now); reading it clears the flag. Omitted when false. Since API 1.4.",
           "type": "boolean"
+        },
+        "avatar_id": {
+          "description": "The conversation's picture, to read with media.read: a group's own, a direct conversation's contact's. Omitted when it has none. Since API 1.32.",
+          "type": "string"
         },
         "archived": {
           "description": "The user archived the conversation (conversations.archive). Omitted when false. Since API 1.31.",

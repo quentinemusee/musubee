@@ -12,7 +12,7 @@ type Loaded = { state: "idle" } | { state: "loading" } | { state: "ready"; url: 
  * Reads a media as a Blob of the given type while enabled, and gives an
  * object URL of it, revoked when the component lets it go.
  */
-function useMediaURL(cache: MediaCache | undefined, mediaId: string | undefined, type: string | null, enabled: boolean): Loaded {
+export function useMediaURL(cache: MediaCache | undefined, mediaId: string | undefined, type: string | null, enabled: boolean): Loaded {
   const key = cache !== undefined && mediaId !== undefined && type !== null && enabled ? `${type}\n${mediaId}` : undefined;
   const [result, setResult] = useState<{ key: string; url?: string }>();
   useEffect(() => {
