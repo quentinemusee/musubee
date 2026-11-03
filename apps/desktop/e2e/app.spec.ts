@@ -851,7 +851,13 @@ test("an account without network keeps its conversations and says so", async () 
   await expect(page.getByRole("log").locator(".message", { hasText: "before the network went away" })).toHaveCount(2);
   await page.getByLabel("Message").fill("while offline");
   await page.getByRole("button", { name: "Send" }).click();
-  await expect(page.getByRole("log").locator('[data-status="failed"]', { hasText: "while offline" })).toBeVisible();
+  // It waits on the device for the network (API 1.14), even across a restart.
+  const waiting = page.getByRole("log").locator('[data-status="queued"]', { hasText: "while offline" });
+  await expect(waiting).toContainText("Waiting for the network");
+  await app.close();
+  ({ app, page } = await launch(dataDir));
+  await inboxRows(page).first().getByRole("button").click();
+  await expect(page.getByRole("log").locator('[data-status="queued"]', { hasText: "while offline" })).toBeVisible();
   await app.close();
 });
 

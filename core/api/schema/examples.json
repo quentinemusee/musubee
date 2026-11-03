@@ -127,6 +127,9 @@
       { "message_id": "m7", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1791496805000, "kind": "text", "text": "Nice", "status": "sent",
         "reply_to": { "message_id": "m5", "sender_name": "Instant Echo", "text": "A sunset", "kind": "image" } }
     ] } },
+    { "target": "command:messages.send:result", "value": { "message": {
+      "message_id": "m9", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1791496807000, "kind": "text", "text": "On the train", "status": "queued"
+    } } },
     { "target": "command:messages.fetchOlder:params", "value": { "conversation_id": "c1" } },
     { "target": "command:messages.fetchOlder:params", "value": { "conversation_id": "c1", "limit": 20 } },
     { "target": "command:messages.fetchOlder:result", "value": { "messages": [

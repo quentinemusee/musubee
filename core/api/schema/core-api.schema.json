@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.13",
+  "x-musubee-api-version": "1.14",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -189,7 +189,7 @@
           "additionalProperties": false
         },
         "messages.send": {
-          "description": "Sends a text message, since API 1.8 as an answer to another message (reply_to, when the conversation's actions allow it). The message is stored at once with status sending; its delivery is reported later by message.updated events.",
+          "description": "Sends a text message, since API 1.8 as an answer to another message (reply_to, when the conversation's actions allow it). The message is stored at once with status sending; its delivery is reported later by message.updated events. Since API 1.14, while the conversation's account is not connected, it is stored with status queued instead, and goes once the account connects, even after a restart.",
           "type": "object",
           "properties": {
             "params": { "$ref": "#/$defs/MessagesSendParams" },
@@ -1025,9 +1025,9 @@
       "enum": ["text", "notice", "emote", "image", "video", "audio", "voice", "file", "unsupported"]
     },
     "MessageStatus": {
-      "description": "received: from someone else. sending, sent and failed: the delivery of a message from the user.",
+      "description": "received: from someone else. sending, sent and failed: the delivery of a message from the user. queued: a message from the user that waits on this device for its account to connect, and goes then (since API 1.14).",
       "type": "string",
-      "enum": ["received", "sending", "sent", "failed"]
+      "enum": ["received", "queued", "sending", "sent", "failed"]
     },
     "MessagesListParams": {
       "type": "object",

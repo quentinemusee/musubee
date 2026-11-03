@@ -106,6 +106,7 @@ type Core struct {
 	logins   map[string]*loginProcess
 
 	uploads uploads
+	outbox  outbox
 
 	persons *persons.Store
 	// personsMu orders the persons commands, and so their events.
@@ -366,6 +367,10 @@ func (c *Core) translate(update localmatrix.Update) ([]*api.Event, error) {
 		account, err := c.account(ctx, network, login, loginName(br, login))
 		if err != nil {
 			return nil, err
+		}
+		if account.State == api.AccountStateConnected {
+			// Messages that waited for an account go once it connects.
+			c.releaseQueuedLater()
 		}
 		return []*api.Event{{Type: api.EventAccountUpdated, Data: api.AccountEvent{Account: account}}}, nil
 	}

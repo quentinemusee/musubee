@@ -865,13 +865,10 @@ func TestOfflineLoginKeepsItsConversations(t *testing.T) {
 	if len(messages) != 2 || messages[0].Text != "before" {
 		t.Errorf("messages while offline = %+v", messages)
 	}
-	// Sending fails: there is no network.
+	// Without network, a message waits on the device (API 1.14).
 	sent := call[api.MessagesSendResult](t, c, api.CommandMessagesSend, api.MessagesSendParams{ConversationID: conv.ConversationID, Text: "now"}).Message
-	failure := waitEvent(t, c, "failure", messageEvent(t, api.EventMessageUpdated, func(m api.Message) bool {
-		return m.MessageID == sent.MessageID && m.Status != api.MessageStatusSending
-	}))
-	if msg := decode[api.MessageEvent](t, failure.Data).Message; msg.Status != api.MessageStatusFailed {
-		t.Errorf("message sent offline = %+v, want failed", msg)
+	if sent.Status != api.MessageStatusQueued {
+		t.Errorf("message sent offline = %+v, want queued", sent)
 	}
 }
 

@@ -253,6 +253,63 @@ func (s *Server) SendMessage(ctx context.Context, roomID id.RoomID, content *eve
 // (*event.RedactionEventContent), which erases what it redacts at once.
 // The caller checks that the change is the user's to make.
 func (s *Server) SendEvent(ctx context.Context, roomID id.RoomID, eventType event.Type, content any) (id.EventID, error) {
+	return s.sendEvent(ctx, roomID, eventType, content, false)
+}
+
+// ReasonQueued marks the status of a message held on the device until its
+// account connects (QueueMessage, docs/ADR/0043): pending, not yet handed
+// to the bridge.
+const ReasonQueued event.MessageStatusReason = "app.musubee.queued"
+
+// QueueMessage stores a message from the device's user like SendMessage,
+// but holds it on the device, pending with ReasonQueued, until Release
+// hands it to the bridge: its account is not connected.
+func (s *Server) QueueMessage(ctx context.Context, roomID id.RoomID, content *event.MessageEventContent) (id.EventID, error) {
+	return s.sendEvent(ctx, roomID, event.EventMessage, content, true)
+}
+
+// QueuedMessage is a message held by QueueMessage.
+type QueuedMessage struct {
+	RoomID  id.RoomID
+	EventID id.EventID
+}
+
+// Queued lists the held messages, the oldest first.
+func (s *Server) Queued(ctx context.Context) ([]QueuedMessage, error) {
+	return s.store.queued(ctx)
+}
+
+// Release hands a held message to its room's bridge, once: it reports
+// false when the message is not held (released already, or deleted).
+func (s *Server) Release(ctx context.Context, roomID id.RoomID, eventID id.EventID) (bool, error) {
+	room, err := s.store.getRoom(ctx, roomID)
+	if err != nil {
+		return false, err
+	}
+	conn := s.connector(room.BridgeID)
+	if conn == nil || conn.br == nil {
+		return false, fmt.Errorf("the bridge %q of room %s is not running", room.BridgeID, roomID)
+	}
+	released, err := s.store.unqueue(ctx, eventID, time.Now())
+	if err != nil || !released {
+		return false, err
+	}
+	evt, err := s.store.getEvent(ctx, roomID, eventID)
+	if err != nil {
+		return false, err
+	}
+	// Pending without the reason: the interface shows it as sending.
+	if st, err := s.store.getMessageStatus(ctx, eventID); err == nil && st != nil {
+		s.publish(Update{MessageStatus: st})
+	}
+	if evt.Unsigned.RedactedBecause != nil {
+		// Deleted while it waited: nothing to send.
+		return true, s.failIfPending(ctx, roomID, eventID, errors.New("deleted before it was sent"))
+	}
+	return true, s.dispatch(ctx, conn, roomID, evt)
+}
+
+func (s *Server) sendEvent(ctx context.Context, roomID id.RoomID, eventType event.Type, content any, queue bool) (id.EventID, error) {
 	var redacts id.EventID
 	switch c := content.(type) {
 	case *event.MessageEventContent:
@@ -306,25 +363,37 @@ func (s *Server) SendEvent(ctx context.Context, roomID id.RoomID, eventType even
 		return "", err
 	}
 	pending := &MessageStatus{RoomID: roomID, EventID: evt.ID, Status: event.MessageStatusPending, UpdatedAt: time.Now()}
+	if queue {
+		pending.Reason = ReasonQueued
+	}
 	if err = s.setMessageStatus(ctx, pending); err != nil {
 		return "", err
 	}
+	if queue {
+		return evt.ID, nil
+	}
+	return evt.ID, s.dispatch(ctx, conn, roomID, evt)
+}
+
+// dispatch hands a stored event of the user's to its room's bridge. Errors
+// it returns are local; the delivery is reported as a message status.
+func (s *Server) dispatch(ctx context.Context, conn *Connector, roomID id.RoomID, evt *event.Event) error {
 	// The bridge may modify a message's content (reply fallbacks), so it
 	// gets a copy.
 	bridged := *evt
-	if msg, ok := content.(*event.MessageEventContent); ok {
+	if msg, ok := evt.Content.Parsed.(*event.MessageEventContent); ok {
 		parsed := *msg
 		bridged.Content = event.Content{Parsed: &parsed}
 	}
 	// The message is stored and pending first, so the application shows it
 	// at once, even when the room is not a portal yet.
-	if err = waitForPortal(ctx, conn.br, roomID, s.portalWait); err != nil {
+	if err := waitForPortal(ctx, conn.br, roomID, s.portalWait); err != nil {
 		// The caller gave up (or the lookup failed): the message is stored,
 		// so it must not stay pending.
 		if failErr := s.failIfPending(context.WithoutCancel(ctx), roomID, evt.ID, err); failErr != nil {
-			return "", errors.Join(err, failErr)
+			return errors.Join(err, failErr)
 		}
-		return "", err
+		return err
 	}
 	// With a portal event buffer, this returns once the event is queued (it
 	// blocks while the portal's queue is full).
@@ -333,11 +402,9 @@ func (s *Server) SendEvent(ctx context.Context, roomID id.RoomID, eventType even
 		// Most failures were reported through SendMessageStatus already, but
 		// a few paths (portal being deleted, bridge shutting down) report
 		// nothing: never leave the message pending forever.
-		if err = s.failIfPending(ctx, roomID, evt.ID, result.Error); err != nil {
-			return "", err
-		}
+		return s.failIfPending(ctx, roomID, evt.ID, result.Error)
 	}
-	return evt.ID, nil
+	return nil
 }
 
 // Retract takes one of the user's events back on this device only, without

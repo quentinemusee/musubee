@@ -10,6 +10,8 @@ import { DELETED_TEXT, hasActions, messageActions, ownReaction, QUICK_REACTIONS,
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
 
 const STATUS_LABELS: Record<string, string> = {
+  // API 1.14: it goes once the account connects.
+  queued: "Waiting for the network",
   sending: "Sending…",
   sent: "Sent",
   failed: "Not sent",

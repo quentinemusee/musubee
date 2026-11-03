@@ -350,7 +350,7 @@ func (c *Core) messagesSend(ctx context.Context, p api.MessagesSendParams) (api.
 		}
 		content.RelatesTo = (&event.RelatesTo{}).SetReplyTo(target.ID)
 	}
-	eventID, err := c.host.Matrix.SendMessage(ctx, roomID, content)
+	eventID, err := c.sendOrQueue(ctx, roomID, content)
 	if err != nil {
 		return api.MessagesSendResult{}, err
 	}
@@ -458,6 +458,9 @@ func (c *Core) message(ctx context.Context, evt *event.Event, rel *localmatrix.R
 	switch st.Status {
 	case event.MessageStatusPending:
 		msg.Status = api.MessageStatusSending
+		if st.Reason == localmatrix.ReasonQueued {
+			msg.Status = api.MessageStatusQueued
+		}
 	case event.MessageStatusRetriable, event.MessageStatusFail:
 		msg.Status = api.MessageStatusFailed
 		msg.Error = st.Message

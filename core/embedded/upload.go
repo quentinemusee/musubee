@@ -282,7 +282,7 @@ func (c *Core) messagesSendMedia(ctx context.Context, p api.MessagesSendMediaPar
 	if content.URL, err = c.host.Matrix.UploadMedia(ctx, roomID, data, p.FileName, p.MimeType); err != nil {
 		return api.MessagesSendResult{}, err
 	}
-	eventID, err := c.host.Matrix.SendMessage(ctx, roomID, content)
+	eventID, err := c.sendOrQueue(ctx, roomID, content)
 	if err != nil {
 		return api.MessagesSendResult{}, err
 	}

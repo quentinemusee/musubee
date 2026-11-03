@@ -651,6 +651,42 @@ func (s *store) setMessageStatus(ctx context.Context, st *MessageStatus) error {
 	return err
 }
 
+// queued lists the messages held on the device (ReasonQueued), in the order
+// they were stored.
+func (s *store) queued(ctx context.Context) ([]QueuedMessage, error) {
+	rows, err := s.db.Query(ctx,
+		`SELECT st.room_id, st.event_id FROM local_message_status st
+		 JOIN local_event e ON e.event_id=st.event_id
+		 WHERE st.status=$1 AND st.reason=$2 ORDER BY e.stream_order`,
+		event.MessageStatusPending, ReasonQueued)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []QueuedMessage
+	for rows.Next() {
+		var q QueuedMessage
+		if err = rows.Scan(&q.RoomID, &q.EventID); err != nil {
+			return nil, err
+		}
+		out = append(out, q)
+	}
+	return out, rows.Err()
+}
+
+// unqueue takes a message out of the held ones, and reports whether it was
+// held: two releases of one message never both send it.
+func (s *store) unqueue(ctx context.Context, eventID id.EventID, at time.Time) (bool, error) {
+	res, err := s.db.Exec(ctx,
+		`UPDATE local_message_status SET reason='', updated_at=$4 WHERE event_id=$1 AND status=$2 AND reason=$3`,
+		eventID, event.MessageStatusPending, ReasonQueued, at.UnixMilli())
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
+}
+
 func (s *store) getMessageStatus(ctx context.Context, eventID id.EventID) (*MessageStatus, error) {
 	var st MessageStatus
 	var updatedAt int64

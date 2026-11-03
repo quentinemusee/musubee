@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.13"
+const APIVersion = "1.14"
 
 // Command names.
 const (
@@ -60,7 +60,9 @@ const (
 	// Sends a text message, since API 1.8 as an answer to another message
 	// (reply_to, when the conversation's actions allow it). The message is stored
 	// at once with status sending; its delivery is reported later by
-	// message.updated events.
+	// message.updated events. Since API 1.14, while the conversation's account is
+	// not connected, it is stored with status queued instead, and goes once the
+	// account connects, even after a restart.
 	CommandMessagesSend = "messages.send"
 	// Adds the user's reaction to a message, then waits for the network's answer.
 	// The message changes at once (message.updated); when the network refuses,
@@ -682,11 +684,14 @@ const (
 )
 
 // MessageStatus: received: from someone else. sending, sent and failed: the
-// delivery of a message from the user.
+// delivery of a message from the user. queued: a message from the user that
+// waits on this device for its account to connect, and goes then (since API
+// 1.14).
 type MessageStatus string
 
 const (
 	MessageStatusReceived MessageStatus = "received"
+	MessageStatusQueued   MessageStatus = "queued"
 	MessageStatusSending  MessageStatus = "sending"
 	MessageStatusSent     MessageStatus = "sent"
 	MessageStatusFailed   MessageStatus = "failed"
