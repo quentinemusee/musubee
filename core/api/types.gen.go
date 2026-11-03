@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.14"
+const APIVersion = "1.15"
 
 // Command names.
 const (
@@ -19,6 +19,13 @@ const (
 	CommandNetworksList = "networks.list"
 	// Lists the accounts the user added, on every network.
 	CommandAccountsList = "accounts.list"
+	// Verifies this device for a Matrix account with the account's recovery key
+	// (the key its Matrix app gave when secure backup was set up), then restores
+	// the account's key backup, so that older encrypted messages and other
+	// clients trust this device. The key is neither stored nor logged. Fails with
+	// invalid_params for a key that is not the account's, and unsupported for an
+	// account without secure backup or of another network. Since API 1.15.
+	CommandAccountsVerify = "accounts.verify"
 	// Logs an account out of its network and removes it from this device, with
 	// the conversations only it reached. The account first appears once more, in
 	// an account.updated event with the state logged_out. Since API 1.1.
@@ -164,6 +171,7 @@ var Commands = []CommandSpec{
 	{Name: CommandCoreHello, Params: reflect.TypeFor[Empty](), Result: reflect.TypeFor[HelloResult]()},
 	{Name: CommandNetworksList, Params: reflect.TypeFor[Empty](), Result: reflect.TypeFor[NetworksListResult]()},
 	{Name: CommandAccountsList, Params: reflect.TypeFor[Empty](), Result: reflect.TypeFor[AccountsListResult]()},
+	{Name: CommandAccountsVerify, Params: reflect.TypeFor[AccountsVerifyParams](), Result: reflect.TypeFor[AccountsVerifyResult]()},
 	{Name: CommandAccountsLogout, Params: reflect.TypeFor[AccountsLogoutParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandLoginStart, Params: reflect.TypeFor[LoginStartParams](), Result: reflect.TypeFor[LoginStep]()},
 	{Name: CommandLoginSubmit, Params: reflect.TypeFor[LoginSubmitParams](), Result: reflect.TypeFor[LoginStep]()},
@@ -289,7 +297,20 @@ type Account struct {
 	// Where the account's bridge runs. Omitted by cores before API 1.12. Since
 	// API 1.12.
 	Connection AccountConnection `json:"connection,omitempty"`
+	// For accounts whose devices are verified (Matrix): whether this device is,
+	// as other clients see it (accounts.verify). Omitted for other networks, and
+	// while the core does not know yet. Since API 1.15.
+	Verification DeviceVerification `json:"verification,omitempty"`
 }
+
+// DeviceVerification: verified: signed by the account's cross-signing keys;
+// other clients trust this device. unverified: not yet. Since API 1.15.
+type DeviceVerification string
+
+const (
+	DeviceVerificationVerified   DeviceVerification = "verified"
+	DeviceVerificationUnverified DeviceVerification = "unverified"
+)
 
 // AccountConnection: on_device: the core on this device talks to the network
 // itself; no server of Musubee sees the messages. hosted_bridge: a bridge on a
@@ -330,6 +351,20 @@ type AccountEvent struct {
 // AccountsLogoutParams is $defs/AccountsLogoutParams of the schema.
 type AccountsLogoutParams struct {
 	AccountID string `json:"account_id"`
+}
+
+// AccountsVerifyParams is $defs/AccountsVerifyParams of the schema.
+type AccountsVerifyParams struct {
+	AccountID string `json:"account_id"`
+	// As the user typed or pasted it; spaces do not matter.
+	RecoveryKey string `json:"recovery_key"`
+}
+
+// AccountsVerifyResult is $defs/AccountsVerifyResult of the schema.
+type AccountsVerifyResult struct {
+	// A key backup was found and its keys imported; false when the account has
+	// secure backup but no key backup.
+	BackupRestored bool `json:"backup_restored"`
 }
 
 // LoginStartParams is $defs/LoginStartParams of the schema.

@@ -95,6 +95,11 @@ func (c *Core) account(ctx context.Context, network networkid.BridgeID, login ne
 	if err != nil || state == nil {
 		return account, err
 	}
+	if br := c.host.Bridge(network); br != nil {
+		if ul := br.GetCachedUserLoginByID(login); ul != nil {
+			account.Verification = verification(ul.Client)
+		}
+	}
 	account.State = accountState(state.StateEvent)
 	if account.State != api.AccountStateConnected {
 		account.Error = state.Message

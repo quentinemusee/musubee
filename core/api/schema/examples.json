@@ -27,7 +27,8 @@
 
     { "target": "command:accounts.list:params", "value": {} },
     { "target": "command:accounts.list:result", "value": { "accounts": [
-      { "account_id": "a3", "network_id": "telegram", "name": "+33 6 00 00 00 00", "state": "connected", "connection": "on_device" }
+      { "account_id": "a3", "network_id": "telegram", "name": "+33 6 00 00 00 00", "state": "connected", "connection": "on_device" },
+      { "account_id": "a4", "network_id": "matrix", "name": "alice (example.org)", "state": "connected", "connection": "on_device", "verification": "unverified" }
     ] } },
     { "target": "command:conversations.list:result", "value": { "conversations": [
       { "conversation_id": "c5", "account_id": "a3", "network_id": "telegram", "name": "Bob", "kind": "direct", "privacy": { "level": "network_can_read", "readers": "Telegram" } },
@@ -130,6 +131,8 @@
     { "target": "command:messages.send:result", "value": { "message": {
       "message_id": "m9", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1791496807000, "kind": "text", "text": "On the train", "status": "queued"
     } } },
+    { "target": "command:accounts.verify:params", "value": { "account_id": "a4", "recovery_key": "EsTc 1234 abcd" } },
+    { "target": "command:accounts.verify:result", "value": { "backup_restored": true } },
     { "target": "command:messages.fetchOlder:params", "value": { "conversation_id": "c1" } },
     { "target": "command:messages.fetchOlder:params", "value": { "conversation_id": "c1", "limit": 20 } },
     { "target": "command:messages.fetchOlder:result", "value": { "messages": [
@@ -225,6 +228,8 @@
     { "target": "command:conversations.list:result", "why": "max_size is at least 1", "value": { "conversations": [
       { "conversation_id": "c1", "account_id": "a1", "network_id": "echo", "name": "x", "kind": "direct", "activity_ms": 1, "actions": { "media": { "file": { "max_size": 0 } } } }
     ] } },
+    { "target": "command:accounts.verify:params", "why": "recovery_key is not empty", "value": { "account_id": "a4", "recovery_key": "" } },
+    { "target": "command:accounts.list:result", "why": "unknown verification", "value": { "accounts": [ { "account_id": "a4", "network_id": "matrix", "name": "", "state": "connected", "verification": "trusted" } ] } },
     { "target": "command:messages.fetchOlder:params", "why": "limit is at most 200", "value": { "conversation_id": "c1", "limit": 500 } },
     { "target": "command:messages.fetchOlder:result", "why": "messages is required", "value": { "end": true } },
     { "target": "command:media.read:params", "why": "length is at most 1 MiB", "value": { "media_id": "f1", "length": 1048577 } },

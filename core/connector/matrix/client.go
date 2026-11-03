@@ -73,6 +73,9 @@ type client struct {
 	ghostLock sync.Mutex
 	names     map[id.UserID]string
 
+	// The uploads to the key backup (recovery.go).
+	recovery recovery
+
 	// Fields of the sync goroutine only.
 	healthy bool
 	joining map[id.RoomID]bool
@@ -220,6 +223,8 @@ func (c *client) setUp(ctx context.Context) bool {
 		c.initialized = true
 		c.ready = true
 		c.lock.Unlock()
+		// Whether other clients trust this device (recovery.go).
+		c.checkVerified(ctx)
 	}
 	var directs event.DirectChatsEventContent
 	err := c.cli.GetAccountData(ctx, event.AccountDataDirectChats.Type, &directs)
@@ -345,6 +350,8 @@ func (c *client) onSync(ctx context.Context, res *mautrix.RespSync, _ string) bo
 		c.healthy = true
 		c.login.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
 	}
+	// Room keys received in this sync go to the key backup, if trusted.
+	c.uploadKeysLater(ctx)
 	return true
 }
 
