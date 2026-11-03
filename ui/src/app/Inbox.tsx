@@ -146,7 +146,7 @@ const InboxRow = memo(function InboxRow({ entry, current, now, networkNames, onO
 });
 
 /** The time, updated every minute: "today" changes at midnight. */
-function useNow(): number {
+export function useNow(): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60_000);

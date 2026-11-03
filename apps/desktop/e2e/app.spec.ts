@@ -396,6 +396,27 @@ test("scrolling up brings the network's older history, to its start", async () =
   await app.close();
 });
 
+test("search finds a message in any conversation and opens it", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "search");
+  await sendAndGetEcho(page, "the picnic is on Sunday");
+  await page.getByRole("button", { name: "Delayed Echo" }).click();
+  await expect(page.getByRole("heading", { name: "Delayed Echo" })).toBeVisible();
+
+  await page.getByRole("searchbox", { name: "Search messages" }).fill("PICNIC");
+  const results = page.getByRole("region", { name: "Messages with “PICNIC”" });
+  // The user's message and its echo.
+  await expect(results.getByRole("listitem")).toHaveCount(2);
+  await expect(results.getByRole("listitem").first()).toContainText("Instant Echo");
+  await results.getByRole("button").first().click();
+  await expect(page.getByRole("heading", { name: "Instant Echo" })).toBeVisible();
+  // Escape ends the search: the inbox is back.
+  await page.getByRole("searchbox", { name: "Search messages" }).press("Escape");
+  await expect(results).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Conversations" })).toBeVisible();
+  await app.close();
+});
+
 test("log out of an account: it goes away with its conversations", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "leaving");

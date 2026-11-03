@@ -266,6 +266,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.31 — Remember a person's thread** (E2.5)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). The persons read "All together" are remembered per device in the page's storage, and open together again (ADR 0042's consequences). 🧪 `ui/src/store.test.ts` ("remembers the persons read together").
 
+**T2.32 — Search the messages** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.17 `messages.search` (ADR 0046): LIKE over the stored and edited text, checked against the latest text; a "Search messages" field in the sidebar lists the results in place of the inbox and opens their conversation. Left: jumping to the message found, FTS5 when histories grow, non-ASCII case folding. Also looked at: `TestServeRunsTheCore`'s Windows failure (`core.db` still open at cleanup): `Host.Stop` already waits up to 5 s for the database's connections and logs "Database connections still open after closing it" otherwise; if it fails again, that line in the test's log says whether bridgev2's leftover handlers held a connection longer.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

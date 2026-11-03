@@ -8,6 +8,7 @@ import { AddAccount } from "./AddAccount";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { VerifyDevice } from "./VerifyDevice";
 import { Inbox } from "./Inbox";
+import { SearchField, SearchResults } from "./Search";
 import { useBackToInbox } from "./navigation";
 import { useAppState, useStore } from "./state";
 import { Thread } from "./Thread";
@@ -23,6 +24,7 @@ export function App() {
   const hasAccounts = useAppState((s) => s.accounts.length > 0);
   const view = useAppState((s) => (s.selected === undefined ? "inbox" : "thread"));
   const keyLost = useAppState((s) => s.status.state === "failed" && s.status.keyLost === true);
+  const searching = useAppState((s) => s.search !== undefined);
   useBackToInbox(store);
   return (
     <div className="app">
@@ -57,7 +59,8 @@ export function App() {
             <button type="button" className="secondary" onClick={() => setAdding({})}>
               Add an account
             </button>
-            <Inbox />
+            <SearchField />
+            {searching ? <SearchResults /> : <Inbox />}
           </nav>
           <main className="app-main">
             <Thread />

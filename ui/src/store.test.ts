@@ -545,6 +545,38 @@ describe("Store", () => {
     expect(store.getState().together).toBeUndefined();
   });
 
+  test("searches the messages, keeping only the latest search's answer (API 1.17)", async () => {
+    const answers = new Map<string, (value: unknown) => void>();
+    const shell = scriptedShell({
+      ...coreState([conversation("c1", "Adam")]),
+      "messages.search": (params) => {
+        const { query, before } = params as { query: string; before?: string };
+        if (before === "k1") {
+          return { messages: [message("m0", 0)] };
+        }
+        return new Promise((resolve) => answers.set(query, resolve));
+      },
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    const older = store.searchMessages("pic");
+    const newer = store.searchMessages("picnic");
+    expect(store.getState().search).toEqual({ query: "picnic", results: [], more: "loading" });
+    answers.get("picnic")?.({ messages: [message("m2", 2)], before: "k1" });
+    await newer;
+    // The older search answers last: ignored.
+    answers.get("pic")?.({ messages: [message("m9", 9)] });
+    await older;
+    expect(ids(store.getState().search!.results)).toEqual(["m2:2:received"]);
+    await store.searchMore();
+    expect(ids(store.getState().search!.results)).toEqual(["m2:2:received", "m0:0:received"]);
+    expect(store.getState().search?.more).toBe("end");
+    await store.searchMessages("  ");
+    expect(store.getState().search).toBeUndefined();
+  });
+
   test("asks the network for older history once the device's is read (API 1.13)", async () => {
     const fetched: unknown[] = [];
     let pages = [

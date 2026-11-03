@@ -58,8 +58,18 @@ export interface State {
    * selected conversation alone.
    */
   together?: string;
+  /** A search of the messages (API 1.17), while the user searches. */
+  search?: SearchState;
   /** A media the user sends, while its bytes go to the core (API 1.10). */
   upload?: UploadState;
+}
+
+export interface SearchState {
+  query: string;
+  /** The newest first. */
+  results: readonly Message[];
+  /** A cursor for more results, "loading" while they are read, or "end". */
+  more: { cursor: string } | "loading" | "end";
 }
 
 /** How sendMedia sends a file. */
@@ -692,6 +702,61 @@ export class Store {
         ids.has(c.conversation_id) && c.person_id !== person.person_id ? { ...c, person_id: person.person_id } : c,
       ),
     });
+  }
+
+  /**
+   * Searches the messages on the device (API 1.17). A newer search replaces
+   * an older one's results, even if the older one answers last; an empty
+   * query ends the search.
+   */
+  async searchMessages(query: string): Promise<void> {
+    const text = query.trim();
+    if (text === "") {
+      this.clearSearch();
+      return;
+    }
+    this.#set({ search: { query: text, results: [], more: "loading" } });
+    try {
+      const result = await this.client.call("messages.search", { query: text });
+      if (this.#state.search?.query !== text) {
+        return;
+      }
+      this.#set({ search: { query: text, results: result.messages, more: result.before === undefined ? "end" : { cursor: result.before } } });
+    } catch (error) {
+      if (this.#state.search?.query === text) {
+        this.#set({ search: { query: text, results: [], more: "end" }, error: `Could not search: ${describe(error)}` });
+      }
+    }
+  }
+
+  /** Reads the next page of the current search's results. */
+  async searchMore(): Promise<void> {
+    const search = this.#state.search;
+    if (search === undefined || typeof search.more !== "object") {
+      return;
+    }
+    const { query } = search;
+    this.#set({ search: { ...search, more: "loading" } });
+    try {
+      const result = await this.client.call("messages.search", { query, before: search.more.cursor });
+      const current = this.#state.search;
+      if (current?.query !== query) {
+        return;
+      }
+      this.#set({
+        search: { query, results: [...current.results, ...result.messages], more: result.before === undefined ? "end" : { cursor: result.before } },
+      });
+    } catch (error) {
+      if (this.#state.search?.query === query) {
+        this.#set({ search: { ...search }, error: `Could not search: ${describe(error)}` });
+      }
+    }
+  }
+
+  /** Ends the search: the inbox shows again. */
+  clearSearch(): void {
+    const { search: _, ...rest } = this.#state;
+    this.#replace(rest);
   }
 
   /** Shows a problem to the user, in their words. */

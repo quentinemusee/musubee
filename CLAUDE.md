@@ -486,3 +486,11 @@ To verify in the test session: T2.30 (cloud sprint, no test run; see ADR 0043):
 ```
 cancel waiting:     go test -tags=goolm -count=1 -run 'CancelAWaitingMessage' -v ./core/embedded/       (ui: npx vitest run src/message.test.ts)
 ```
+
+To verify in the test session: T2.31 and T2.32 (cloud sprint, no test run; see ADR 0042 and 0046):
+
+```
+search (core):      go test -tags=goolm -count=1 -run 'SearchMessages' -v ./core/embedded/
+search, together:   cd ui && npx vitest run src/store.test.ts src/core-api/contract.test.ts
+search in the app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "search finds"
+```

@@ -1213,3 +1213,46 @@ button.flow:hover:not(:disabled) {
 .account-verified {
   color: var(--color-muted);
 }
+
+/* Searching the messages (docs/ADR/0046). */
+.search-field input {
+  width: 100%;
+}
+
+.search-results ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.search-result {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 6px var(--space);
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  text-align: left;
+}
+
+.search-result-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space);
+  font-weight: 600;
+}
+
+.search-result-head time,
+.search-result-text {
+  color: var(--color-muted);
+  font-size: calc(13 * var(--text));
+  font-weight: normal;
+}
+
+.search-result-text {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
