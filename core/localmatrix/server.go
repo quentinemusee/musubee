@@ -18,6 +18,7 @@ package localmatrix
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -243,6 +244,33 @@ func (s *Server) publish(update Update) {
 // Subscribe and Server.MessageStatus); the returned error only covers local
 // failures.
 func (s *Server) SendMessage(ctx context.Context, roomID id.RoomID, content *event.MessageEventContent) (id.EventID, error) {
+	return s.SendEvent(ctx, roomID, event.EventMessage, content)
+}
+
+// SendEvent sends an event from the device's user in a room, like
+// SendMessage: a message (an edit too), a reaction
+// (*event.ReactionEventContent) or a redaction
+// (*event.RedactionEventContent), which erases what it redacts at once.
+// The caller checks that the change is the user's to make.
+func (s *Server) SendEvent(ctx context.Context, roomID id.RoomID, eventType event.Type, content any) (id.EventID, error) {
+	var redacts id.EventID
+	switch c := content.(type) {
+	case *event.MessageEventContent:
+		if eventType != event.EventMessage {
+			return "", fmt.Errorf("%s with message content", eventType.Type)
+		}
+	case *event.ReactionEventContent:
+		if eventType != event.EventReaction {
+			return "", fmt.Errorf("%s with reaction content", eventType.Type)
+		}
+	case *event.RedactionEventContent:
+		if eventType != event.EventRedaction || c.Redacts == "" {
+			return "", fmt.Errorf("%s with redaction content", eventType.Type)
+		}
+		redacts = c.Redacts
+	default:
+		return "", fmt.Errorf("cannot send %s events", eventType.Type)
+	}
 	room, err := s.store.getRoom(ctx, roomID)
 	if err != nil {
 		return "", err
@@ -260,12 +288,19 @@ func (s *Server) SendMessage(ctx context.Context, roomID id.RoomID, content *eve
 		ID:        newEventID(s.serverName),
 		RoomID:    roomID,
 		Sender:    s.userID,
-		Type:      event.EventMessage,
+		Type:      eventType,
 		Timestamp: time.Now().UnixMilli(),
 		Content:   event.Content{Parsed: content},
+		Redacts:   redacts,
 	}
 	err = s.transact(ctx, func(ctx context.Context, store func(*event.Event) error) error {
-		return store(evt)
+		if err := store(evt); err != nil {
+			return err
+		}
+		if redacts != "" {
+			return s.store.redact(ctx, roomID, evt.ID, redacts)
+		}
+		return nil
 	})
 	if err != nil {
 		return "", err
@@ -274,10 +309,13 @@ func (s *Server) SendMessage(ctx context.Context, roomID id.RoomID, content *eve
 	if err = s.setMessageStatus(ctx, pending); err != nil {
 		return "", err
 	}
-	// The bridge may modify the content (reply fallbacks), so it gets a copy.
+	// The bridge may modify a message's content (reply fallbacks), so it
+	// gets a copy.
 	bridged := *evt
-	parsed := *content
-	bridged.Content = event.Content{Parsed: &parsed}
+	if msg, ok := content.(*event.MessageEventContent); ok {
+		parsed := *msg
+		bridged.Content = event.Content{Parsed: &parsed}
+	}
 	// The message is stored and pending first, so the application shows it
 	// at once, even when the room is not a portal yet.
 	if err = waitForPortal(ctx, conn.br, roomID, s.portalWait); err != nil {
@@ -300,6 +338,43 @@ func (s *Server) SendMessage(ctx context.Context, roomID id.RoomID, content *eve
 		}
 	}
 	return evt.ID, nil
+}
+
+// Retract takes one of the user's events back on this device only, without
+// telling the bridge: a change that the network refused. It is stored as a
+// redaction by the user, which erases the event like SendEvent's.
+func (s *Server) Retract(ctx context.Context, roomID id.RoomID, eventID id.EventID) error {
+	evt := &event.Event{
+		ID:        newEventID(s.serverName),
+		RoomID:    roomID,
+		Sender:    s.userID,
+		Type:      event.EventRedaction,
+		Timestamp: time.Now().UnixMilli(),
+		Content:   event.Content{Parsed: &event.RedactionEventContent{Redacts: eventID}},
+		Redacts:   eventID,
+	}
+	return s.transact(ctx, func(ctx context.Context, store func(*event.Event) error) error {
+		if err := store(evt); err != nil {
+			return err
+		}
+		return s.store.redact(ctx, roomID, evt.ID, eventID)
+	})
+}
+
+// Reaction returns the event of the device user's reaction with a key to a
+// message, or "" when there is none (or it was redacted).
+func (s *Server) Reaction(ctx context.Context, roomID id.RoomID, target id.EventID, key string) (id.EventID, error) {
+	var eventID id.EventID
+	err := s.store.db.QueryRow(ctx, `
+		SELECT event_id FROM local_event
+		WHERE room_id=$1 AND relates_to=$2 AND rel_type='m.annotation' AND sender=$3 AND redacted_by IS NULL
+			AND json_extract(content, '$."m.relates_to".key')=$4
+		ORDER BY stream_order DESC LIMIT 1`,
+		roomID, target, s.userID, key).Scan(&eventID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return eventID, err
 }
 
 // DefaultPortalWait is the default of Options.PortalWait.

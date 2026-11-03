@@ -189,14 +189,9 @@ func (c *Core) conversation(ctx context.Context, activity *localmatrix.RoomActiv
 	if err != nil || portal == nil {
 		return nil, err
 	}
-	receiver := portal.Receiver
-	if receiver == "" {
-		// A portal shared by the user's logins: any of them reaches it.
-		logins, err := br.GetUserLoginsInPortal(ctx, portal.PortalKey)
-		if err != nil || len(logins) == 0 {
-			return nil, err
-		}
-		receiver = logins[0].ID
+	receiver, login, err := portalLogin(ctx, br, portal)
+	if err != nil || receiver == "" {
+		return nil, err
 	}
 	kind := api.ConversationKindGroup
 	if portal.RoomType == database.RoomTypeDM {
@@ -217,6 +212,7 @@ func (c *Core) conversation(ctx context.Context, activity *localmatrix.RoomActiv
 		Kind:           kind,
 		PersonID:       personID,
 		ActivityMS:     activity.At,
+		Actions:        actions(ctx, portal, login),
 	}
 	if activity.LastMessage != nil {
 		msg, err := c.messageOf(ctx, activity.LastMessage)
@@ -232,6 +228,21 @@ func (c *Core) conversation(ctx context.Context, activity *localmatrix.RoomActiv
 	conv.UnreadCount = int64(read.Unread)
 	conv.MarkedUnread = read.MarkedUnread
 	return conv, nil
+}
+
+// portalLogin returns the ID of the user's login that a portal belongs to,
+// or "" while no login reaches it, and that login while it is loaded.
+func portalLogin(ctx context.Context, br *bridgev2.Bridge, portal *bridgev2.Portal) (networkid.UserLoginID, *bridgev2.UserLogin, error) {
+	if portal.Receiver != "" {
+		login, err := br.GetExistingUserLoginByID(ctx, portal.Receiver)
+		return portal.Receiver, login, err
+	}
+	// A portal shared by the user's logins: any of them reaches it.
+	logins, err := br.GetUserLoginsInPortal(ctx, portal.PortalKey)
+	if err != nil || len(logins) == 0 {
+		return "", nil, err
+	}
+	return logins[0].ID, logins[0], nil
 }
 
 func (c *Core) conversationsMarkRead(ctx context.Context, p api.ConversationsMarkReadParams) (api.Empty, error) {
@@ -319,7 +330,21 @@ func (c *Core) messagesSend(ctx context.Context, p api.MessagesSendParams) (api.
 	if err != nil {
 		return api.MessagesSendResult{}, err
 	}
-	eventID, err := c.host.Matrix.SendMessage(ctx, roomID, &event.MessageEventContent{MsgType: event.MsgText, Body: p.Text})
+	content := &event.MessageEventContent{MsgType: event.MsgText, Body: p.Text}
+	if p.ReplyTo != "" {
+		_, target, err := c.target(ctx, p.ConversationID, p.ReplyTo)
+		if err != nil {
+			return api.MessagesSendResult{}, err
+		}
+		if target.Unsigned.RedactedBecause != nil {
+			return api.MessagesSendResult{}, newError(api.ErrorCodeInvalidParams, "cannot answer message %q", p.ReplyTo)
+		}
+		if err = c.allowed(ctx, roomID, "replies", func(a *api.ConversationActions) bool { return a.Reply }); err != nil {
+			return api.MessagesSendResult{}, err
+		}
+		content.RelatesTo = (&event.RelatesTo{}).SetReplyTo(target.ID)
+	}
+	eventID, err := c.host.Matrix.SendMessage(ctx, roomID, content)
 	if err != nil {
 		return api.MessagesSendResult{}, err
 	}

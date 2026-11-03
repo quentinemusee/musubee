@@ -392,3 +392,11 @@ changes in the app: cd apps/desktop && npm run build && npx playwright test app.
 ```
 
 The notification commands of T2.17 also cover edits and deletions; the Matrix journey of T2.2 covers a Matrix account's.
+
+Verified in T2.19 (Windows, Go 1.27.1, Node 24.20, Electron 44.7.0; the Synapse and Android journeys on CI only; see ADR 0035):
+
+```
+user changes:       go test -tags=goolm -count=1 -run 'UserChanges|RefusedChanges' -v ./core/embedded/
+message actions:    cd ui && npx vitest run src/message.test.ts src/store.test.ts
+actions in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "reacts to a message"
+```

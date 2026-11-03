@@ -532,11 +532,25 @@ ol {
 }
 
 .reaction {
-  padding: 0 6px;
   border: 1px solid var(--color-border);
   border-radius: 999px;
   background: var(--color-surface);
   font-size: 13px;
+}
+
+.reaction > span {
+  display: block;
+  padding: 0 6px;
+}
+
+/* A reaction the user can press to add or take back theirs. */
+.reaction > button {
+  padding: 0 6px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
 }
 
 .reaction[data-from-me="true"] {
@@ -553,13 +567,112 @@ ol {
 
 .composer {
   display: flex;
-  gap: var(--space);
+  flex-direction: column;
+  gap: calc(var(--space) / 2);
   padding-top: var(--space);
   border-top: 1px solid var(--color-border);
 }
 
-.composer input {
+.composer-form {
+  display: flex;
+  gap: var(--space);
+}
+
+.composer-form input {
   flex: 1;
+}
+
+/* The message the composer answers or edits, above it. */
+.composer-draft {
+  display: flex;
+  gap: var(--space);
+  align-items: center;
+  padding: 2px 8px;
+  border-left: 3px solid var(--color-accent);
+  border-radius: 4px;
+  background: var(--color-quote);
+  font-size: 13px;
+}
+
+.composer-draft-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  margin: 0;
+}
+
+.composer-draft-what {
+  font-weight: 600;
+}
+
+/* The button that opens a message's actions, in its meta line: small, with
+   a touch target as tall as the line allows. */
+.message-more {
+  margin: -4px -8px -4px 0;
+  padding: 0 8px;
+  border: none;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.message-more[aria-expanded="true"] {
+  color: var(--color-accent);
+}
+
+/* A message's actions, under its bubble, on the bubble's side. */
+.message-menu {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space) / 2);
+  align-self: flex-start;
+  max-width: 100%;
+  min-width: 0;
+  margin: 4px 0 0;
+  padding: var(--space);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 15%);
+}
+
+.message-menu[data-from-me="true"] {
+  align-self: flex-end;
+}
+
+.message-menu-question {
+  margin: 0;
+}
+
+.quick-reactions,
+.message-menu-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* At least 40 px wide and tall: fingers press these. */
+.quick-reactions button {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-color: transparent;
+  font-size: 20px;
+}
+
+.quick-reactions button[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  background: var(--color-mine);
+}
+
+.message-menu-buttons button {
+  min-height: 40px;
+}
+
+button.danger-text {
+  color: var(--color-error);
 }
 
 .add-account {

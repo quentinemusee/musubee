@@ -151,6 +151,8 @@ func TestMatrixAccount(t *testing.T) {
 	// message (T2.18).
 	exchange(t, ctx, c, events, bob, room, conv.ConversationID, "before the restart")
 	changedTexts := changes(t, ctx, events, bob, room)
+	// The user's own changes go the other way (T2.19).
+	changedTexts = append(changedTexts, ownChanges(t, ctx, c, events, bob, room, conv)...)
 
 	// 5. A direct conversation can belong to a person.
 	var person api.PersonResult
@@ -298,6 +300,9 @@ type peer struct {
 	mu sync.Mutex
 	// decrypted holds the texts of the encrypted messages bob decrypted.
 	decrypted []string
+	// seen holds the messages and reactions bob decrypted, and the
+	// redactions bob received.
+	seen []*event.Event
 }
 
 func newPeer(t *testing.T, ctx context.Context, localpart, password string) *peer {
@@ -329,6 +334,20 @@ func newPeer(t *testing.T, ctx context.Context, localpart, password string) *pee
 		p.mu.Lock()
 		defer p.mu.Unlock()
 		p.decrypted = append(p.decrypted, evt.Content.AsMessage().Body)
+		p.seen = append(p.seen, evt)
+	})
+	cli.Syncer.(*mautrix.DefaultSyncer).OnEventType(event.EventReaction, func(_ context.Context, evt *event.Event) {
+		if evt.Mautrix.EventSource&event.SourceDecrypted == 0 {
+			return
+		}
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		p.seen = append(p.seen, evt)
+	})
+	cli.Syncer.(*mautrix.DefaultSyncer).OnEventType(event.EventRedaction, func(_ context.Context, evt *event.Event) {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		p.seen = append(p.seen, evt)
 	})
 	syncCtx, stop := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -477,6 +496,103 @@ func changes(t *testing.T, ctx context.Context, events coretest.Events, bob *pee
 	}
 	changed("the deletion", func(m api.Message) bool { return m.Deleted && m.Text == "" })
 	return []string{original, edited}
+}
+
+// ownChanges has the user answer bob's message, react to it and take the
+// reaction back, then edit and delete the answer; bob gets each change,
+// encrypted but for the redactions. It returns the texts, which the log
+// must not hold.
+func ownChanges(t *testing.T, ctx context.Context, c *embedded.Core, events coretest.Events, bob *peer, room id.RoomID, conv api.Conversation) []string {
+	t.Helper()
+	if want := (api.ConversationActions{Reply: true, React: true, Edit: true, Delete: true}); conv.Actions == nil || *conv.Actions != want {
+		t.Errorf("actions = %+v, want %+v", conv.Actions, want)
+	}
+	question := "answer me " + coretest.RandomHex(t)
+	asked := bob.send(t, ctx, room, question)
+	e := events.Wait(t, ctx, "bob's question", time.Minute, func(e coretest.Event) bool {
+		var data api.MessageEvent
+		return e.Type == api.EventMessageAdded && e.Decode(t, &data) && data.Message.Text == question
+	})
+	var received api.MessageEvent
+	e.Decode(t, &received)
+	target := received.Message.MessageID
+
+	answer := "an answer " + coretest.RandomHex(t)
+	var sent api.MessagesSendResult
+	coretest.Call(t, c, api.CommandMessagesSend, api.MessagesSendParams{ConversationID: conv.ConversationID, Text: answer, ReplyTo: target}, &sent)
+	reply := bob.waitSeen(t, ctx, "the answer", func(evt *event.Event) bool {
+		return evt.Type == event.EventMessage && evt.Content.AsMessage().Body == answer
+	})
+	if got := reply.Content.AsMessage().RelatesTo.GetReplyTo(); got != asked {
+		t.Errorf("the answer replies to %s, want %s", got, asked)
+	}
+
+	react := api.MessagesReactParams{ConversationID: conv.ConversationID, MessageID: target, Key: "👍"}
+	coretest.Call(t, c, api.CommandMessagesReact, react, nil)
+	reaction := bob.waitSeen(t, ctx, "the reaction", func(evt *event.Event) bool {
+		rel := evt.Content.AsReaction().RelatesTo
+		return evt.Type == event.EventReaction && rel.EventID == asked && rel.Type == event.RelAnnotation
+	})
+	if key := reaction.Content.AsReaction().RelatesTo.Key; key != "👍\ufe0f" {
+		t.Errorf("reaction key = %q, want 👍 with the variation selector", key)
+	}
+	coretest.Call(t, c, api.CommandMessagesUnreact, react, nil)
+	bob.waitSeen(t, ctx, "the reaction taken back", redacts(reaction.ID))
+
+	edited := "an edited answer " + coretest.RandomHex(t)
+	coretest.Call(t, c, api.CommandMessagesEdit, api.MessagesEditParams{ConversationID: conv.ConversationID, MessageID: sent.Message.MessageID, Text: edited}, nil)
+	bob.waitSeen(t, ctx, "the edit", func(evt *event.Event) bool {
+		content := evt.Content.AsMessage()
+		return evt.Type == event.EventMessage && content.RelatesTo.GetReplaceID() == reply.ID && content.NewContent != nil && content.NewContent.Body == edited
+	})
+
+	coretest.Call(t, c, api.CommandMessagesDelete, api.MessagesDeleteParams{ConversationID: conv.ConversationID, MessageID: sent.Message.MessageID}, nil)
+	bob.waitSeen(t, ctx, "the deletion", redacts(reply.ID))
+
+	// The core shows the answer deleted, after one edit: its own edit came
+	// back from the server without changing it again.
+	var history api.MessagesListResult
+	coretest.Call(t, c, api.CommandMessagesList, api.MessagesListParams{ConversationID: conv.ConversationID}, &history)
+	for _, m := range history.Messages {
+		switch m.MessageID {
+		case sent.Message.MessageID:
+			if !m.Deleted || m.Text != "" {
+				t.Errorf("the answer: deleted %v, text %d bytes; want deleted", m.Deleted, len(m.Text))
+			}
+		case target:
+			if len(m.Reactions) != 0 {
+				t.Errorf("bob's question keeps reactions %+v", m.Reactions)
+			}
+		}
+	}
+	return []string{question, answer, edited}
+}
+
+func redacts(target id.EventID) func(*event.Event) bool {
+	return func(evt *event.Event) bool {
+		return evt.Type == event.EventRedaction && (evt.Redacts == target || evt.Content.AsRedaction().Redacts == target)
+	}
+}
+
+// waitSeen waits until bob got an event that matches, and returns it.
+func (p *peer) waitSeen(t *testing.T, ctx context.Context, what string, match func(*event.Event) bool) *event.Event {
+	t.Helper()
+	deadline := time.Now().Add(time.Minute)
+	for time.Now().Before(deadline) && ctx.Err() == nil {
+		p.mu.Lock()
+		i := slices.IndexFunc(p.seen, match)
+		var found *event.Event
+		if i >= 0 {
+			found = p.seen[i]
+		}
+		p.mu.Unlock()
+		if found != nil {
+			return found
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	t.Fatalf("bob did not get %s", what)
+	return nil
 }
 
 func (p *peer) waitDecrypted(t *testing.T, ctx context.Context, room id.RoomID, text string) {

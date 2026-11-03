@@ -3,9 +3,9 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import { VList, type VListHandle } from "virtua";
-import type { Message } from "../core-api/types.gen";
+import type { ConversationActions, Message } from "../core-api/types.gen";
 import type { HistoryState } from "../store";
-import { MessageRow } from "./MessageRow";
+import { MessageRow, type MessageHandlers } from "./MessageRow";
 
 export interface MessageListProps {
   /** The messages of one conversation, oldest first. */
@@ -17,6 +17,10 @@ export interface MessageListProps {
   labelledBy?: string;
   /** Called when the user scrolls to the newest message, or away from it. The list opens there. */
   onBottomChange?: (atBottom: boolean) => void;
+  /** What the conversation's network lets the user do to messages (API 1.8). */
+  actions?: ConversationActions | undefined;
+  /** What the user does to messages; without, the messages offer no action. Keep it stable. */
+  handlers?: MessageHandlers | undefined;
 }
 
 /**
@@ -48,7 +52,7 @@ function shownOf(messages: readonly Message[], shift: boolean, news: Message | u
  * the top, and keeps the message being read in place when they arrive.
  * Render one per conversation (key it by conversation ID).
  */
-export function MessageList({ messages, history, onOlder, labelledBy, onBottomChange }: MessageListProps) {
+export function MessageList({ messages, history, onOlder, labelledBy, onBottomChange, actions, handlers }: MessageListProps) {
   const ref = useRef<VListHandle>(null);
   const atBottom = useRef(true);
 
@@ -113,7 +117,7 @@ export function MessageList({ messages, history, onOlder, labelledBy, onBottomCh
         }}
         onResize={loadIfNeeded}
       >
-        {(message) => <MessageRow key={message.message_id} message={message} />}
+        {(message) => <MessageRow key={message.message_id} message={message} actions={actions} handlers={handlers} />}
       </VList>
       <output className="visually-hidden">
         {current.news ? `${current.news.sender_name || "New message"}: ${current.news.text}` : ""}

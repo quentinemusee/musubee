@@ -78,7 +78,12 @@ type client struct {
 	joining map[id.RoomID]bool
 }
 
-var _ bridgev2.NetworkAPI = (*client)(nil)
+var (
+	_ bridgev2.NetworkAPI                  = (*client)(nil)
+	_ bridgev2.EditHandlingNetworkAPI      = (*client)(nil)
+	_ bridgev2.ReactionHandlingNetworkAPI  = (*client)(nil)
+	_ bridgev2.RedactionHandlingNetworkAPI = (*client)(nil)
+)
 
 // cryptoAccountID keys a login's rows in the crypto store. It names the
 // device too: signing in again creates a new device, whose keys must not
@@ -532,11 +537,27 @@ func (c *client) onMessage(ctx context.Context, evt *event.Event) {
 	}
 	content := evt.Content.AsMessage()
 	if target := content.RelatesTo.GetReplaceID(); target != "" {
+		if c.sentHere(evt) {
+			// HandleMatrixEdit sent it: bridgev2 stored it already.
+			return
+		}
 		c.queueEdit(ctx, evt, target, content.NewContent)
 		return
 	}
 	converted, replyTo := incoming(content)
 	c.queueMessage(ctx, evt, converted, replyTo)
+}
+
+// sentHere tells whether this client sent an event: the homeserver gives
+// the transaction ID back to the client that sent it only (Matrix
+// client-server API, "Transaction identifiers"). Another device of the
+// same account gets the event without it.
+func sentHere(self id.UserID, evt *event.Event) bool {
+	return evt.Sender == self && evt.Unsigned.TransactionID != ""
+}
+
+func (c *client) sentHere(evt *event.Event) bool {
+	return sentHere(c.self, evt)
 }
 
 func (c *client) meta(ctx context.Context, evt *event.Event, eventType bridgev2.RemoteEventType) simplevent.EventMeta {
@@ -744,12 +765,107 @@ func (c *client) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (*bridg
 	return &bridgev2.UserInfo{Name: ptr.Ptr(personName(user, displayName))}, nil
 }
 
-// GetCapabilities returns what the conversations support: text, for now.
+// GetCapabilities returns what the conversations support: text, replies,
+// edits, reactions and deletions. A homeserver lets anyone edit or redact
+// their own events at any time, and react with any key.
 func (c *client) GetCapabilities(context.Context, *bridgev2.Portal) *event.RoomFeatures {
 	return &event.RoomFeatures{
-		ID:            "app.musubee.matrix.capabilities.v1",
+		ID:            "app.musubee.matrix.capabilities.v2",
 		MaxTextLength: 32000,
+		Reply:         event.CapLevelFullySupported,
+		Edit:          event.CapLevelFullySupported,
+		Delete:        event.CapLevelFullySupported,
+		Reaction:      event.CapLevelFullySupported,
 	}
+}
+
+// isReady fails while the client cannot send.
+func (c *client) isReady() error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	if !c.ready || !c.connected {
+		return errNotReady
+	}
+	return nil
+}
+
+// sendFailed is the status of a change that the homeserver did not take.
+func sendFailed(err error, what string) error {
+	return bridgev2.WrapErrorInStatus(err).
+		WithErrorReason(event.MessageStatusNetworkError).
+		WithMessage(fmt.Sprintf("The %s could not be sent to the Matrix server.", what)).
+		WithSendNotice(false)
+}
+
+// HandleMatrixEdit sends the new text of one of the user's messages, as an
+// m.replace edit, encrypted if the room is.
+func (c *client) HandleMatrixEdit(ctx context.Context, msg *bridgev2.MatrixEdit) error {
+	if err := c.isReady(); err != nil {
+		return err
+	}
+	content := &event.MessageEventContent{
+		MsgType:       msg.Content.MsgType,
+		Body:          msg.Content.Body,
+		Format:        msg.Content.Format,
+		FormattedBody: msg.Content.FormattedBody,
+	}
+	content.SetEdit(id.EventID(msg.EditTarget.ID))
+	if _, err := c.send(ctx, id.RoomID(msg.Portal.ID), string(msg.Event.ID), event.EventMessage, content); err != nil {
+		return sendFailed(err, "edit")
+	}
+	return nil
+}
+
+// PreHandleMatrixReaction says who reacts. The reaction's emoji ID is its
+// remote event ID (as onReaction's), known once it is sent: bridgev2 then
+// knows the reaction when the sync brings it back.
+func (c *client) PreHandleMatrixReaction(_ context.Context, msg *bridgev2.MatrixReaction) (bridgev2.MatrixReactionPreResponse, error) {
+	return bridgev2.MatrixReactionPreResponse{
+		SenderID: networkid.UserID(c.self),
+		Emoji:    msg.Content.RelatesTo.Key,
+	}, nil
+}
+
+// HandleMatrixReaction sends a reaction, encrypted if the room is (as
+// Element does; mautrix-go's SendMessageEvent never encrypts reactions).
+func (c *client) HandleMatrixReaction(ctx context.Context, msg *bridgev2.MatrixReaction) (*database.Reaction, error) {
+	if err := c.isReady(); err != nil {
+		return nil, err
+	}
+	content := &event.ReactionEventContent{RelatesTo: event.RelatesTo{
+		Type:    event.RelAnnotation,
+		EventID: id.EventID(msg.TargetMessage.ID),
+		Key:     msg.Content.RelatesTo.Key,
+	}}
+	eventID, err := c.send(ctx, id.RoomID(msg.Portal.ID), string(msg.Event.ID), event.EventReaction, content)
+	if err != nil {
+		return nil, sendFailed(err, "reaction")
+	}
+	return &database.Reaction{EmojiID: networkid.EmojiID(eventID), Emoji: content.RelatesTo.Key}, nil
+}
+
+// HandleMatrixReactionRemove redacts one of the user's reactions.
+func (c *client) HandleMatrixReactionRemove(ctx context.Context, msg *bridgev2.MatrixReactionRemove) error {
+	return c.redact(ctx, msg.Portal, msg.Event, id.EventID(msg.TargetReaction.EmojiID), "removal of the reaction")
+}
+
+// HandleMatrixMessageRemove redacts one of the user's messages.
+func (c *client) HandleMatrixMessageRemove(ctx context.Context, msg *bridgev2.MatrixMessageRemove) error {
+	return c.redact(ctx, msg.Portal, msg.Event, id.EventID(msg.TargetMessage.ID), "deletion")
+}
+
+// redact sends a redaction, never encrypted: the homeserver must read it.
+func (c *client) redact(ctx context.Context, portal *bridgev2.Portal, evt *event.Event, target id.EventID, what string) error {
+	if err := c.isReady(); err != nil {
+		return err
+	}
+	if target == "" {
+		return sendFailed(errors.New("no remote event to redact"), what)
+	}
+	if _, err := c.cli.RedactEvent(ctx, id.RoomID(portal.ID), target, mautrix.ReqRedact{TxnID: string(evt.ID)}); err != nil {
+		return sendFailed(err, what)
+	}
+	return nil
 }
 
 // HandleMatrixMessage sends a message the user wrote, encrypted if the room
@@ -764,11 +880,8 @@ func (c *client) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMe
 			WithIsCertain(true).
 			WithSendNotice(false)
 	}
-	c.lock.Lock()
-	ready := c.ready && c.connected
-	c.lock.Unlock()
-	if !ready {
-		return nil, errNotReady
+	if err := c.isReady(); err != nil {
+		return nil, err
 	}
 	content := &event.MessageEventContent{
 		MsgType:       msg.Content.MsgType,
@@ -779,7 +892,7 @@ func (c *client) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMe
 	if msg.ReplyTo != nil {
 		content.RelatesTo = (&event.RelatesTo{}).SetReplyTo(id.EventID(msg.ReplyTo.ID))
 	}
-	eventID, err := c.send(ctx, id.RoomID(msg.Portal.ID), string(msg.Event.ID), content)
+	eventID, err := c.send(ctx, id.RoomID(msg.Portal.ID), string(msg.Event.ID), event.EventMessage, content)
 	if err != nil {
 		return nil, bridgev2.WrapErrorInStatus(err).
 			WithErrorReason(event.MessageStatusNetworkError).
@@ -795,13 +908,12 @@ func (c *client) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMe
 	}, nil
 }
 
-// send sends a message event, encrypted if the room is. It is
+// send sends a message or reaction event, encrypted if the room is. It is
 // mautrix.Client.SendMessageEvent, except that the request's body is marked
 // sensitive: mautrix logs the body of a failed request, and the text of a
 // message must never reach the logs (CLAUDE.md §6).
-func (c *client) send(ctx context.Context, room id.RoomID, txnID string, content *event.MessageEventContent) (id.EventID, error) {
-	evtType := event.EventMessage
-	var body any = content
+func (c *client) send(ctx context.Context, room id.RoomID, txnID string, evtType event.Type, content any) (id.EventID, error) {
+	body := content
 	encrypted, err := c.cli.StateStore.IsEncrypted(ctx, room)
 	if err != nil {
 		return "", fmt.Errorf("checking whether the room is encrypted: %w", err)

@@ -122,7 +122,7 @@ describe("the generated types", () => {
   // The mapped types make the compiler require one example per command and
   // per event: a command added to the schema breaks the typecheck here.
   const commands: { [K in CommandName]: Commands[K] } = {
-    "core.hello": { params: {}, result: { api_version: "1.7", core_version: "dev" } },
+    "core.hello": { params: {}, result: { api_version: "1.8", core_version: "dev" } },
     "networks.list": {
       params: {},
       result: { networks: [{ network_id: "echo", name: "Echo", login_flows: [{ flow_id: "username", name: "Username", description: "" }] }] },
@@ -158,14 +158,31 @@ describe("the generated types", () => {
     "login.cancel": { params: { process_id: "p.2" }, result: {} },
     "conversations.list": {
       params: { account_id: "a.1", limit: 50, before: "k.2" },
-      result: { conversations: [{ ...conversation, activity_ms: 1_791_496_800_000, last_message: message, unread_count: 2 }], before: "k.3" },
+      result: {
+        conversations: [
+          {
+            ...conversation,
+            activity_ms: 1_791_496_800_000,
+            last_message: message,
+            unread_count: 2,
+            actions: { reply: true, react: true, edit: true, delete: true },
+          },
+        ],
+        before: "k.3",
+      },
     },
     "conversations.markRead": { params: { conversation_id: "c.1", message_id: "m.1" }, result: {} },
     "messages.list": { params: { conversation_id: "c.1", limit: 50 }, result: { messages: [message], before: "k.1" } },
     "messages.send": {
-      params: { conversation_id: "c.1", text: "hello" },
-      result: { message: { ...message, from_me: true, status: "sending", sender_name: "alice" } },
+      params: { conversation_id: "c.1", text: "hello", reply_to: "m.1" },
+      result: {
+        message: { ...message, from_me: true, status: "sending", sender_name: "alice", reply_to: { message_id: "m.1", sender_name: "Instant Echo", text: "hello" } },
+      },
     },
+    "messages.react": { params: { conversation_id: "c.1", message_id: "m.1", key: "👍" }, result: {} },
+    "messages.unreact": { params: { conversation_id: "c.1", message_id: "m.1", key: "👍" }, result: {} },
+    "messages.edit": { params: { conversation_id: "c.1", message_id: "m.2", text: "hello again" }, result: {} },
+    "messages.delete": { params: { conversation_id: "c.1", message_id: "m.2" }, result: {} },
     "persons.list": { params: {}, result: { persons: [person] } },
     "persons.create": { params: { conversation_ids: ["c.1", "c.2"] }, result: { person } },
     "persons.rename": { params: { person_id: "h.1", name: "Alice" }, result: { person } },

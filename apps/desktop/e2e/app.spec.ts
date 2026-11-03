@@ -115,7 +115,7 @@ test("a network's reactions, edits, deletions and replies change the messages th
   };
 
   await send("/react 🎉");
-  await expect(mine("/react 🎉").getByRole("listitem", { name: "🎉: 1 person" })).toBeVisible();
+  await expect(mine("/react 🎉").getByRole("button", { name: "🎉: 1 person" })).toBeVisible();
 
   await send("/edit first try");
   await expect(theirs("first try (edited)")).toContainText("Edited");
@@ -136,10 +136,91 @@ test("a network's reactions, edits, deletions and replies change the messages th
   ({ app, page } = await launch(dataDir));
   await page.getByRole("button", { name: "Instant Echo" }).click();
   log = page.getByRole("log");
-  await expect(mine("/react 🎉").getByRole("listitem", { name: "🎉: 1 person" })).toBeVisible();
+  await expect(mine("/react 🎉").getByRole("button", { name: "🎉: 1 person" })).toBeVisible();
   await expect(theirs("first try (edited)")).toContainText("Edited");
   await expect(log.locator('.message[data-deleted="true"]')).toHaveCount(1);
   await expect(theirs("an answer").locator("blockquote")).toContainText("/reply an answer");
+  await app.close();
+});
+
+test("the user reacts to a message, answers it, edits and deletes their own, from the keyboard or the pointer", async () => {
+  const dataDir = newDataDir();
+  let { app, page } = await launch(dataDir);
+  await addEchoAccount(page, "actions");
+  let log = page.getByRole("log");
+  const mine = (text: string) => log.locator('.message[data-from-me="true"]', { hasText: text });
+  const theirs = (text: string) => log.locator('.message[data-from-me="false"]', { hasText: text });
+  const menu = page.getByRole("group", { name: "Actions" });
+  const composer = page.getByRole("textbox", { name: /Message|New text of your message/ });
+
+  await composer.fill("hello");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(mine("hello")).toContainText("Sent");
+  const echo = theirs("hello");
+  await expect(echo).toHaveCount(1);
+
+  // A reaction, then taken back by pressing it.
+  await echo.getByRole("button", { name: "More actions" }).click();
+  await menu.getByRole("button", { name: "React with 👍" }).click();
+  await expect(menu).toHaveCount(0);
+  const chip = echo.getByRole("button", { name: /^👍️?: you$/ });
+  await expect(chip).toHaveAttribute("aria-pressed", "true");
+  await chip.click();
+  await expect(echo.getByRole("list", { name: "Reactions" })).toHaveCount(0);
+
+  // From the keyboard: Escape closes the actions and gives the focus back.
+  const toggle = echo.getByRole("button", { name: "More actions" });
+  await toggle.focus();
+  await page.keyboard.press("Enter");
+  await expect(menu).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(menu.getByRole("button", { name: "React with 👍" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(toggle).toBeFocused();
+
+  // An answer quotes the message.
+  await toggle.click();
+  await menu.getByRole("button", { name: "Reply" }).click();
+  await expect(page.getByText("Replying to Instant Echo")).toBeVisible();
+  await expect(composer).toBeFocused();
+  await page.keyboard.type("an answer");
+  await page.keyboard.press("Enter");
+  await expect(mine("an answer")).toContainText("Sent");
+  await expect(mine("an answer").locator("blockquote")).toContainText("Instant Echo");
+  await expect(page.getByText("Replying to Instant Echo")).toHaveCount(0);
+
+  // An edit starts from the text; Escape leaves it.
+  const first = log.locator('.message[data-from-me="true"]').first();
+  await first.getByRole("button", { name: "More actions" }).click();
+  await menu.getByRole("button", { name: "Edit" }).click();
+  await expect(page.getByText("Editing your message")).toBeVisible();
+  await expect(composer).toHaveValue("hello");
+  await composer.fill("hello again");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(first).toContainText("hello again");
+  await expect(first).toContainText("Edited");
+  // The echo's message was not edited, and offers no edit.
+  await echo.getByRole("button", { name: "More actions" }).click();
+  await expect(menu.getByRole("button", { name: "Edit" })).toHaveCount(0);
+  await expect(menu.getByRole("button", { name: "Delete…" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  // A deletion asks first.
+  await first.getByRole("button", { name: "More actions" }).click();
+  await menu.getByRole("button", { name: "Delete…" }).click();
+  await expect(menu.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await menu.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(first).toHaveAttribute("data-deleted", "true");
+  await expect(mine("hello again")).toHaveCount(0);
+
+  // Read again from the core after a restart: the same changes.
+  await app.close();
+  ({ app, page } = await launch(dataDir));
+  await page.getByRole("button", { name: "Instant Echo" }).click();
+  log = page.getByRole("log");
+  await expect(log.locator('.message[data-deleted="true"]')).toHaveCount(1);
+  await expect(mine("an answer").locator("blockquote")).toContainText("Instant Echo");
   await app.close();
 });
 

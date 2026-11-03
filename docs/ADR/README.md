@@ -44,3 +44,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0032](0032-onboarding-in-plain-words.md) | Onboarding in plain words: the core words its networks' logins, the interface welcomes the user | accepted | T2.16 |
 | [0033](0033-message-notifications-on-android.md) | Message notifications on Android: the service decides from the core's events, without push | accepted | T2.17 |
 | [0034](0034-message-changes.md) | Changes to messages: relations kept in the local server, a deletion erases the edits too, received only | accepted | T2.18 |
+| [0035](0035-sending-message-changes.md) | Sending changes to messages: commands that wait for the network, a refusal undone on the device | accepted | T2.19 |

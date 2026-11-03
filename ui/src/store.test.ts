@@ -275,6 +275,49 @@ describe("Store", () => {
     expect(store.getState().error).toBeUndefined();
   });
 
+  test("sends the user's changes to messages, and reports a refusal", async () => {
+    const params: Record<string, unknown> = {};
+    const record = (command: string) => (p: unknown) => {
+      params[command] = p;
+      return {};
+    };
+    const shell = scriptedShell({
+      ...coreState([conversation("c1", "Adam")]),
+      "messages.send": (p: unknown) => {
+        params["messages.send"] = p;
+        return { message: message("m3", 3, { from_me: true, status: "sending" }) };
+      },
+      "messages.react": record("messages.react"),
+      "messages.unreact": record("messages.unreact"),
+      "messages.edit": record("messages.edit"),
+      "messages.delete": () => {
+        throw new Error("never here");
+      },
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    await store.select("c1");
+    const target = message("m1", 1);
+    const mine = message("m2", 2, { from_me: true, status: "sent" });
+
+    await store.send("yes", "m1");
+    await store.react(target, "👍");
+    await store.unreact(target, "👍️");
+    await store.edit(mine, "better");
+    expect(params).toEqual({
+      "messages.send": { conversation_id: "c1", text: "yes", reply_to: "m1" },
+      "messages.react": { conversation_id: "c1", message_id: "m1", key: "👍" },
+      "messages.unreact": { conversation_id: "c1", message_id: "m1", key: "👍️" },
+      "messages.edit": { conversation_id: "c1", message_id: "m2", text: "better" },
+    });
+    expect(store.getState().error).toBeUndefined();
+
+    await store.deleteMessage(mine);
+    expect(store.getState().error).toMatch(/^Could not delete the message for everyone: /);
+  });
+
   test("marks a conversation read at once, then asks the core", async () => {
     const unread = { ...conversation("c1", "Adam", 2), last_message: message("m2", 2), unread_count: 2 };
     const marked = { ...conversation("c2", "Bea", 1), marked_unread: true };
