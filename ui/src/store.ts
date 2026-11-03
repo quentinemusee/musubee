@@ -73,6 +73,8 @@ export interface State {
   typing?: Readonly<Record<string, readonly string[]>>;
   /** A search of the messages (API 1.17), while the user searches. */
   search?: SearchState;
+  /** The conversation the search looks in (API 1.17's conversation_id); none: every one. */
+  searchIn?: string;
   /** A media the user sends, while its bytes go to the core (API 1.10). */
   upload?: UploadState;
 }
@@ -952,7 +954,7 @@ export class Store {
     }
     this.#set({ search: { query: text, results: [], more: "loading" } });
     try {
-      const result = await this.client.call("messages.search", { query: text });
+      const result = await this.client.call("messages.search", { query: text, ...this.#searchScope() });
       if (this.#state.search?.query !== text) {
         return;
       }
@@ -961,6 +963,26 @@ export class Store {
       if (this.#state.search?.query === text) {
         this.#set({ search: { query: text, results: [], more: "end" }, error: `Could not search: ${describe(error)}` });
       }
+    }
+  }
+
+  #searchScope(): { conversation_id?: string } {
+    return this.#state.searchIn === undefined ? {} : { conversation_id: this.#state.searchIn };
+  }
+
+  /**
+   * Searches one conversation, or every one again (undefined); a search
+   * under way starts again in the new scope.
+   */
+  async setSearchScope(conversationId: string | undefined): Promise<void> {
+    const { searchIn: _, ...rest } = this.#state;
+    this.#replace(conversationId === undefined ? rest : { ...rest, searchIn: conversationId });
+    const query = this.#state.search?.query;
+    if (query !== undefined) {
+      // A new search, even for the same text: the scope changed.
+      const { search: __, ...cleared } = this.#state;
+      this.#replace(cleared);
+      await this.searchMessages(query);
     }
   }
 
@@ -973,7 +995,7 @@ export class Store {
     const { query } = search;
     this.#set({ search: { ...search, more: "loading" } });
     try {
-      const result = await this.client.call("messages.search", { query, before: search.more.cursor });
+      const result = await this.client.call("messages.search", { query, before: search.more.cursor, ...this.#searchScope() });
       const current = this.#state.search;
       if (current?.query !== query) {
         return;

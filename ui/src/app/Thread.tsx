@@ -9,6 +9,7 @@ import { accountLabel } from "../merge";
 import { replyQuote, replyTo, seenLabel, typingText } from "../message";
 import { accentKey } from "../conversation-accent";
 import { AccentButton } from "./AccentButton";
+import { SEARCH_FIELD_ID } from "./Shortcuts";
 import { Avatar } from "./Avatar";
 import { DeleteConversation, type Removal } from "./DeleteConversation";
 import { ForwardMessage } from "./ForwardMessage";
@@ -201,6 +202,17 @@ export function Thread() {
                 Pin
               </button>
               <AccentButton key={`accent:${themeKey}`} accentKey={themeKey} />
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setMoreFor(undefined);
+                  void store.setSearchScope(selected);
+                  document.getElementById(SEARCH_FIELD_ID)?.focus();
+                }}
+              >
+                Search here
+              </button>
               <button
                 type="button"
                 className="secondary"

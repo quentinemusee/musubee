@@ -1569,3 +1569,8 @@ kbd {
   font-family: inherit;
   font-size: calc(13 * var(--text));
 }
+
+.search-scope {
+  margin-bottom: 4px;
+  font-size: calc(13 * var(--text));
+}

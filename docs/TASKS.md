@@ -362,6 +362,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.64 — Reply and mark read from an Android notification** (E2.6)
 - Outcome: **implemented, not compiled** (cloud sprint, no Android SDK). "Reply" (inline text) and "Mark as read" on message notifications, handled by `CoreService`, after unlocking (ADR 0064). 🧪 by hand: build, then reply to an echo contact from a notification on the Pixel 8 Pro, locked and unlocked.
 
+**T2.65 — Search one conversation** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). "Search here" in the thread's "More…" limits the search to the conversation (API 1.17's `conversation_id`); "In Alice ✕" above the field searches every conversation again. 🧪 `ui/src/store.test.ts` ("searches one conversation").
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

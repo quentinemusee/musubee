@@ -20,6 +20,9 @@ const SEARCH_DELAY_MS = 300;
  */
 export function SearchField() {
   const store = useStore();
+  // The conversation the search looks in, if the thread asked for one.
+  const scope = useAppState((s) => s.searchIn);
+  const scopeName = useAppState((s) => (s.searchIn === undefined ? undefined : s.conversations.find((c) => c.conversation_id === s.searchIn)?.name));
   const [query, setQuery] = useState("");
   const fieldId = SEARCH_FIELD_ID;
 
@@ -30,6 +33,13 @@ export function SearchField() {
 
   return (
     <div className="search-field">
+      {scope === undefined ? null : (
+        <button type="button" className="secondary search-scope" onClick={() => void store.setSearchScope(undefined)}>
+          In {scopeName || "this conversation"}
+          <span aria-hidden="true"> ✕</span>
+          <span className="visually-hidden">: search every conversation instead</span>
+        </button>
+      )}
       <label htmlFor={fieldId} className="visually-hidden">
         Search messages
       </label>

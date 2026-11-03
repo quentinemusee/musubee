@@ -581,6 +581,26 @@ describe("Store", () => {
     expect(store.getState().error).toMatch(/^Could not unarchive the conversation/);
   });
 
+  test("searches one conversation, then every one again", async () => {
+    const asked: unknown[] = [];
+    const shell = scriptedShell({
+      ...coreState([conversation("c1", "Adam", 1)]),
+      "messages.search": (params) => {
+        asked.push(params);
+        return { messages: [] };
+      },
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    await store.setSearchScope("c1");
+    await store.searchMessages("hello");
+    await store.setSearchScope(undefined);
+    expect(asked).toEqual([{ query: "hello", conversation_id: "c1" }, { query: "hello" }]);
+    expect(store.getState().searchIn).toBeUndefined();
+  });
+
   test("reads older messages page by page, one page at a time", async () => {
     // 250 messages, m0 to m249; the core pages them from the newest.
     const all = Array.from({ length: 250 }, (_, i) => message(`m${i}`, i));
