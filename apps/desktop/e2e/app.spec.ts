@@ -421,9 +421,13 @@ test("typing shows the echo contact typing back, then stopping", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "typing");
   await page.getByRole("textbox", { name: "Message" }).pressSequentially("hel");
-  await expect(page.getByText("Instant Echo is typing…")).toBeVisible();
+  const line = page.locator(".typing-line");
+  await expect(line).toHaveText("Instant Echo is typing…");
+  // The inbox says it too, in place of the preview.
+  await expect(page.locator('.conversation-preview[data-typing="true"]')).toHaveText("Instant Echo is typing…");
   // It types for three seconds.
-  await expect(page.getByText("Instant Echo is typing…")).toBeHidden({ timeout: 10_000 });
+  await expect(line).toHaveText("", { timeout: 10_000 });
+  await expect(page.locator('.conversation-preview[data-typing="true"]')).toHaveCount(0);
   await app.close();
 });
 

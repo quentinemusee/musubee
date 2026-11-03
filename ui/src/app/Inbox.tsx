@@ -4,6 +4,7 @@
 import { createContext, memo, use, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Virtualizer, type CustomItemComponentProps, type VirtualizerHandle } from "virtua";
 import { activityLabel, entryOf, inboxEntries, preview, unreadBadge, type InboxEntry } from "../inbox";
+import { typingText } from "../message";
 import { isMuted } from "../mute";
 import { openConversation } from "./navigation";
 import { useAppState, useStore } from "./state";
@@ -97,6 +98,8 @@ const InboxRow = memo(function InboxRow({ entry, current, now, networkNames, onO
   const networks = [...new Set(entry.conversations.map((c) => networkNames.get(c.network_id) ?? c.network_id))];
   const activity = latest.activity_ms;
   const badge = unreadBadge(entry);
+  // Someone typing shows in place of the preview (API 1.20).
+  const typing = useAppState((s) => s.typing?.[latest.conversation_id]);
   // An entry is muted when all its conversations are (ADR 0050).
   const muted = entry.conversations.every((c) => isMuted(c, now));
   return (
@@ -129,8 +132,8 @@ const InboxRow = memo(function InboxRow({ entry, current, now, networkNames, onO
           {muted ? " · Muted" : ""}
         </span>
         <span className="conversation-bottom">
-          <span id={`${id}-preview`} className="conversation-preview">
-            {preview(entry)}
+          <span id={`${id}-preview`} className="conversation-preview" data-typing={typing !== undefined && typing.length > 0}>
+            {typing !== undefined && typing.length > 0 ? typingText(typing) : preview(entry)}
           </span>
           {badge === undefined ? null : (
             // The count is what the eye reads; the label, what a screen

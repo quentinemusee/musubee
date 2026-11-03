@@ -1421,3 +1421,8 @@ button.flow:hover:not(:disabled) {
 .message[data-mentions-me="true"] {
   box-shadow: inset 3px 0 0 var(--color-accent);
 }
+
+.conversation-preview[data-typing="true"] {
+  color: var(--color-accent);
+  font-style: italic;
+}
