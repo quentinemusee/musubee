@@ -48,15 +48,37 @@ func (c *client) FetchMessages(ctx context.Context, params bridgev2.FetchMessage
 		from = around.Start
 	}
 	count := min(max(params.Count, 1), historyLimit)
-	resp, err := c.cli.Messages(ctx, room, from, "", mautrix.DirectionBackward, &mautrix.FilterPart{Types: []event.Type{event.EventMessage, event.EventEncrypted}}, count)
+	resp, err := c.cli.Messages(ctx, room, from, "", mautrix.DirectionBackward,
+		&mautrix.FilterPart{Types: []event.Type{event.EventMessage, event.EventEncrypted, event.EventReaction}}, count)
 	if err != nil {
 		return nil, err
 	}
-	messages := make([]*bridgev2.BackfillMessage, 0, len(resp.Chunk))
+	// Decrypted first: edits and reactions may be encrypted too.
+	page := make([]*event.Event, 0, len(resp.Chunk))
 	for _, evt := range resp.Chunk {
-		if msg := c.historyMessage(ctx, params.Portal, room, evt); msg != nil {
-			messages = append(messages, msg)
+		if clear := c.historyEvent(ctx, room, evt); clear != nil {
+			page = append(page, clear)
 		}
+	}
+	edits, reactions := historyChanges(page)
+	messages := make([]*bridgev2.BackfillMessage, 0, len(page))
+	for _, evt := range page {
+		msg := c.historyMessage(ctx, params.Portal, room, evt, edits[evt.ID])
+		if msg == nil {
+			continue
+		}
+		for _, r := range reactions[evt.ID] {
+			c.senderGhost(ctx, room, r.Sender)
+			key := r.Content.AsReaction().RelatesTo.Key
+			msg.Reactions = append(msg.Reactions, &bridgev2.BackfillReaction{
+				Timestamp: time.UnixMilli(r.Timestamp),
+				Sender:    bridgev2.EventSender{Sender: networkid.UserID(r.Sender), IsFromMe: r.Sender == c.self},
+				// The reaction's event ID, as for live reactions (onReaction).
+				EmojiID: networkid.EmojiID(r.ID),
+				Emoji:   key,
+			})
+		}
+		messages = append(messages, msg)
 	}
 	// The homeserver gives the newest first; bridgev2 wants the oldest.
 	slices.Reverse(messages)
@@ -67,35 +89,76 @@ func (c *client) FetchMessages(ctx context.Context, params bridgev2.FetchMessage
 	}, nil
 }
 
-// historyMessage converts one event of the history, or nil for what the
-// thread does not show (edits, redacted or empty events): edits of older
-// messages are not applied (a later task), the message shows as sent.
-func (c *client) historyMessage(ctx context.Context, portal *bridgev2.Portal, room id.RoomID, evt *event.Event) *bridgev2.BackfillMessage {
+// historyEvent returns an event of the history in clear: decrypted when it
+// was encrypted, an "undecryptable" notice when the device has no key for
+// it, or nil for what the history does not show (redacted events).
+func (c *client) historyEvent(ctx context.Context, room id.RoomID, evt *event.Event) *event.Event {
 	evt.RoomID = room
+	if evt.Unsigned.RedactedBecause != nil {
+		return nil
+	}
 	if err := evt.Content.ParseRaw(evt.Type); err != nil && !errors.Is(err, event.ErrContentAlreadyParsed) {
 		return nil
 	}
-	var content *event.MessageEventContent
-	if evt.Type == event.EventEncrypted {
-		decrypted, err := c.crypto.Decrypt(ctx, evt)
-		if err != nil {
-			// No key on the device (or in the restored backup).
-			content = &event.MessageEventContent{MsgType: event.MsgNotice, Body: undecryptable}
-		} else if decrypted.Type == event.EventMessage {
-			content = decrypted.Content.AsMessage()
-		} else {
-			return nil
-		}
-	} else {
-		content = evt.Content.AsMessage()
+	if evt.Type != event.EventEncrypted {
+		return evt
 	}
-	if evt.Unsigned.RedactedBecause != nil || content.Body == "" && content.MsgType == "" {
+	decrypted, err := c.crypto.Decrypt(ctx, evt)
+	if err != nil {
+		notice := *evt
+		notice.Type = event.EventMessage
+		notice.Content = event.Content{Parsed: &event.MessageEventContent{MsgType: event.MsgNotice, Body: undecryptable}}
+		return &notice
+	}
+	return decrypted
+}
+
+// historyChanges finds, in a page of history, the latest edit of each
+// message by its sender, and the reactions to each message. Changes whose
+// message is on another page are not applied.
+func historyChanges(page []*event.Event) (map[id.EventID]*event.MessageEventContent, map[id.EventID][]*event.Event) {
+	senders := map[id.EventID]id.UserID{}
+	for _, evt := range page {
+		senders[evt.ID] = evt.Sender
+	}
+	edits := map[id.EventID]*event.MessageEventContent{}
+	editTimes := map[id.EventID]int64{}
+	reactions := map[id.EventID][]*event.Event{}
+	for _, evt := range page {
+		switch evt.Type {
+		case event.EventMessage:
+			content := evt.Content.AsMessage()
+			target := content.RelatesTo.GetReplaceID()
+			if target == "" || content.NewContent == nil || senders[target] != evt.Sender || evt.Timestamp < editTimes[target] {
+				continue
+			}
+			edits[target], editTimes[target] = content.NewContent, evt.Timestamp
+		case event.EventReaction:
+			rel := evt.Content.AsReaction().RelatesTo
+			if rel.Type == event.RelAnnotation && rel.Key != "" {
+				reactions[rel.EventID] = append(reactions[rel.EventID], evt)
+			}
+		}
+	}
+	return edits, reactions
+}
+
+// historyMessage converts a message of the history, as its latest edit
+// in the page left it (edited, when not nil), or nil for what the thread
+// does not show (edits, reactions, empty events).
+func (c *client) historyMessage(ctx context.Context, portal *bridgev2.Portal, room id.RoomID, evt *event.Event, edited *event.MessageEventContent) *bridgev2.BackfillMessage {
+	if evt.Type != event.EventMessage {
 		return nil
 	}
-	if content.RelatesTo.GetReplaceID() != "" {
+	content := evt.Content.AsMessage()
+	if content.RelatesTo.GetReplaceID() != "" || content.Body == "" && content.MsgType == "" {
 		return nil
 	}
 	converted, replyTo := incoming(content)
+	if edited != nil {
+		// The latest text; the reply stays the original's.
+		converted, _ = incoming(edited)
+	}
 	c.copyMedia(ctx, portal, c.connector.br.Bot, converted)
 	c.senderGhost(ctx, room, evt.Sender)
 	return &bridgev2.BackfillMessage{

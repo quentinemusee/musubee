@@ -32,7 +32,7 @@ Sources: mautrix-go v0.31.0 `client.go` (`Client.Messages`, `Client.Context`), `
 
 - After verifying with a recovery key (ADR 0044), scrolling up decrypts the history that the restored backup has keys for. Messages that the sync brought before the verification stay as "could not be decrypted": they are already on the device.
 - A room's history pages as far back as the homeserver serves it to the user (its history visibility setting).
-- Edits, reactions and redactions in older history: a later task.
+- Since T2.42, a page's edits (the sender's latest) and reactions are applied to its messages: the message shows its latest text, without the "Edited" mark, and its reactions (keyed by their event IDs, as live ones); redacted events are left out. Changes whose message is on another page are not applied.
 
 ## Verification
 

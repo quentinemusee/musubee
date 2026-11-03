@@ -296,6 +296,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.41 — Density** (E2.7)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). "Density" (comfortable, compact) in the appearance settings, a root attribute that lowers the spacing token (ADR 0040's consequences). 🧪 `ui/src/appearance.test.ts`.
 
+**T2.42 — Edits and reactions in a Matrix room's history** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). A history page's edits and reactions apply to its messages (ADR 0045's consequences). 🧪 `core/connector/matrix` `TestHistoryChanges`.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).
