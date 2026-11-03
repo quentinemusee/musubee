@@ -15,6 +15,7 @@ import { SEARCH_FIELD_ID } from "./Shortcuts";
 import { Avatar } from "./Avatar";
 import { DeleteConversation, type Removal } from "./DeleteConversation";
 import { ForwardMessage } from "./ForwardMessage";
+import { MediaGallery } from "./MediaGallery";
 import { MembersDialog } from "./MembersDialog";
 import { MessageList } from "./MessageList";
 import { MuteButton } from "./MuteButton";
@@ -94,6 +95,8 @@ export function Thread() {
   // The conversation whose "More…" actions are shown (T2.62).
   const [moreFor, setMoreFor] = useState<string | undefined>(undefined);
   const moreId = useId();
+  // The conversation whose media are shown (T2.77).
+  const [galleryFor, setGalleryFor] = useState<string | undefined>(undefined);
   // The conversation whose members are shown (API 1.27).
   const [membersFor, setMembersFor] = useState<string | undefined>(undefined);
   // The message being forwarded (docs/ADR/0054).
@@ -239,6 +242,17 @@ export function Thread() {
               <button
                 type="button"
                 className="secondary"
+                aria-haspopup="dialog"
+                onClick={() => {
+                  setMoreFor(undefined);
+                  setGalleryFor(selected);
+                }}
+              >
+                Media and files…
+              </button>
+              <button
+                type="button"
+                className="secondary"
                 onClick={() => {
                   setMoreFor(undefined);
                   void store.archive(selected, conversation.archived !== true);
@@ -302,6 +316,9 @@ export function Thread() {
           network={networks.find((n) => n.network_id === conversation.network_id)?.name ?? conversation.network_id}
           onClose={() => setDeleteFor(undefined)}
         />
+      ) : null}
+      {galleryFor === selected ? (
+        <MediaGallery conversationId={selected} name={person?.name ?? (conversation.name || "Unnamed conversation")} onClose={() => setGalleryFor(undefined)} />
       ) : null}
       {membersFor === selected ? (
         <MembersDialog conversationId={selected} name={conversation.name || "Unnamed conversation"} onClose={() => setMembersFor(undefined)} />

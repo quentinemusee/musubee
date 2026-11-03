@@ -643,6 +643,24 @@ test("the inbox shows only unread conversations on request", async () => {
   await app.close();
 });
 
+test("a conversation's media and files are listed, and open their message", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "gallery");
+  await page.getByRole("textbox", { name: "Message" }).fill("/image a sunset");
+  await page.getByRole("button", { name: "Send" }).click();
+  await page.getByRole("textbox", { name: "Message" }).fill("/file");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByRole("button", { name: "Save echo.txt" })).toBeVisible();
+  await page.getByRole("button", { name: "More…" }).click();
+  await page.getByRole("button", { name: "Media and files…" }).click();
+  const dialog = page.getByRole("dialog", { name: "Media and files of Instant Echo" });
+  await expect(dialog.getByRole("list", { name: "Photos and videos" }).getByRole("button", { name: "Photo: a sunset" })).toBeVisible();
+  await expect(dialog.getByRole("list", { name: "Files and audio" }).getByRole("button", { name: "echo.txt" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Photo: a sunset" }).click();
+  await expect(dialog).toHaveCount(0);
+  await app.close();
+});
+
 test("a group shows its members", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "members");

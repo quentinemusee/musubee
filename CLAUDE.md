@@ -688,3 +688,10 @@ export, files (ui): cd ui && npx vitest run src/export.test.ts src/store.test.ts
 unread only:        cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "only unread"
 android kotlin:     cd apps/mobile/android && ./gradlew :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin -Pmusubee.abis=x86_64 -x buildCore-x86_64     (without the Go core, after npm run sync)
 ```
+
+To verify in the test session: T2.77 (cloud sprint, no test run; interface only):
+
+```
+gallery (ui):       cd ui && npx vitest run src/gallery.test.ts
+gallery in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "media and files are listed"
+```
