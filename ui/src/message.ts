@@ -54,6 +54,54 @@ export function replyTo(message: Message): MessageReply {
   };
 }
 
+/**
+ * More reactions, behind "More reactions": common emoji, by theme, each
+ * with the name that screen readers say (their Unicode short names).
+ */
+export const MORE_REACTIONS: readonly (readonly [string, string])[] = [
+  ["😀", "grinning face"],
+  ["😊", "smiling face with smiling eyes"],
+  ["😍", "smiling face with heart-eyes"],
+  ["🥰", "smiling face with hearts"],
+  ["😘", "face blowing a kiss"],
+  ["😎", "smiling face with sunglasses"],
+  ["🤔", "thinking face"],
+  ["😅", "grinning face with sweat"],
+  ["🤣", "rolling on the floor laughing"],
+  ["😭", "loudly crying face"],
+  ["😡", "enraged face"],
+  ["😱", "face screaming in fear"],
+  ["🥳", "partying face"],
+  ["😴", "sleeping face"],
+  ["🙄", "face with rolling eyes"],
+  ["🤯", "exploding head"],
+  ["👏", "clapping hands"],
+  ["🙌", "raising hands"],
+  ["👎", "thumbs down"],
+  ["👌", "OK hand"],
+  ["✌️", "victory hand"],
+  ["🤝", "handshake"],
+  ["💪", "flexed biceps"],
+  ["👀", "eyes"],
+  ["🔥", "fire"],
+  ["✨", "sparkles"],
+  ["🎉", "party popper"],
+  ["💯", "hundred points"],
+  ["✅", "check mark button"],
+  ["❌", "cross mark"],
+  ["⭐", "star"],
+  ["💔", "broken heart"],
+];
+
+/**
+ * Whether a typed reaction is one: a short text without spaces at its
+ * ends, as networks take for a reaction key (most take emoji only, and
+ * refuse the rest: the command then fails).
+ */
+export function isReactionKey(text: string): boolean {
+  return text.length > 0 && text === text.trim() && [...text].length <= 8;
+}
+
 /** The reactions offered in a message's actions, one press away. */
 export const QUICK_REACTIONS: readonly string[] = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 

@@ -1256,3 +1256,27 @@ button.flow:hover:not(:disabled) {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+/* More reactions, behind "More reactions" (T2.36). */
+.more-reactions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  gap: 4px;
+  max-width: 360px;
+  margin-top: 4px;
+}
+
+.more-reactions button {
+  min-height: 40px;
+}
+
+.custom-reaction {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: 4px;
+}
+
+.custom-reaction input {
+  flex: 1;
+  min-width: 0;
+}

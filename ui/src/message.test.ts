@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "vitest";
 import type { Message } from "./core-api/types.gen";
-import { hasActions, messageActions, ownReaction, reactionLabel, replyQuote, replyTo, sameEmoji } from "./message";
+import { hasActions, isReactionKey, messageActions, MORE_REACTIONS, ownReaction, reactionLabel, replyQuote, replyTo, sameEmoji } from "./message";
 
 describe("reactionLabel", () => {
   test("says who reacted", () => {
@@ -16,6 +16,15 @@ describe("reactionLabel", () => {
 });
 
 describe("replyQuote", () => {
+  test("takes a typed reaction when it is short and trimmed", () => {
+    expect(isReactionKey("🦄")).toBe(true);
+    expect(isReactionKey("👍🏽")).toBe(true);
+    expect(isReactionKey("")).toBe(false);
+    expect(isReactionKey(" 🦄")).toBe(false);
+    expect(isReactionKey("a very long reaction")).toBe(false);
+    expect(new Set(MORE_REACTIONS.map(([emoji]) => emoji)).size).toBe(MORE_REACTIONS.length);
+  });
+
   test("names who reacted when the core says (API 1.19)", () => {
     expect(reactionLabel({ key: "🎉", count: 1, names: ["Alice"] })).toBe("🎉: Alice");
     expect(reactionLabel({ key: "🎉", count: 2, from_me: true, names: ["Alice"] })).toBe("🎉: you and Alice");

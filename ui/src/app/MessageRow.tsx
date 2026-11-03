@@ -5,7 +5,18 @@ import { memo, useEffect, useId, useRef, useState, type RefObject } from "react"
 import type { ConversationActions, Message, MessageReply } from "../core-api/types.gen";
 import { MessageMedia } from "./MessageMedia";
 import { hasMedia } from "../media";
-import { DELETED_TEXT, hasActions, messageActions, ownReaction, QUICK_REACTIONS, reactionLabel, replyQuote, type MessageActions } from "../message";
+import {
+  DELETED_TEXT,
+  hasActions,
+  isReactionKey,
+  messageActions,
+  MORE_REACTIONS,
+  ownReaction,
+  QUICK_REACTIONS,
+  reactionLabel,
+  replyQuote,
+  type MessageActions,
+} from "../message";
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
 
@@ -181,6 +192,10 @@ function MessageMenu({ id, toggle, message, allowed, handlers, confirmDelete, on
     target instanceof Node && !(ref.current?.contains(target) ?? false) && !(toggle.current?.contains(target) ?? false);
 
   const cancel = useRef<HTMLButtonElement>(null);
+  // The other reactions, behind "More reactions".
+  const [more, setMore] = useState(false);
+  const [custom, setCustom] = useState("");
+  const moreId = useId();
 
   // Listened to on the document: a press elsewhere does not always move the
   // focus (a tap on text, or WebKit, which does not focus buttons on click).
@@ -259,6 +274,53 @@ function MessageMenu({ id, toggle, message, allowed, handlers, confirmDelete, on
                   </button>
                 );
               })}
+              <button
+                type="button"
+                className="secondary"
+                aria-expanded={more}
+                aria-controls={moreId}
+                aria-label="More reactions"
+                onClick={() => setMore(!more)}
+              >
+                <span aria-hidden="true">＋</span>
+              </button>
+            </div>
+          ) : null}
+          {allowed.react && more ? (
+            <div id={moreId} className="more-reactions">
+              {MORE_REACTIONS.map(([emoji, name]) => {
+                const own = ownReaction(message, emoji);
+                return (
+                  <button
+                    key={emoji}
+                    type="button"
+                    className="secondary"
+                    aria-pressed={own !== undefined}
+                    aria-label={`React with ${name}`}
+                    onClick={() => run(() => (own === undefined ? handlers.react(message, emoji) : handlers.unreact(message, own.key)))}
+                  >
+                    <span aria-hidden="true">{emoji}</span>
+                  </button>
+                );
+              })}
+              <form
+                className="custom-reaction"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const key = custom.trim();
+                  if (isReactionKey(key)) {
+                    run(() => handlers.react(message, key));
+                  }
+                }}
+              >
+                <label>
+                  <span className="visually-hidden">Another reaction</span>
+                  <input value={custom} placeholder="Type an emoji" maxLength={16} onChange={(event) => setCustom(event.target.value)} />
+                </label>
+                <button type="submit" className="secondary" disabled={!isReactionKey(custom.trim())}>
+                  React
+                </button>
+              </form>
             </div>
           ) : null}
           <div className="message-menu-buttons">

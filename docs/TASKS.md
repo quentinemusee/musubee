@@ -278,6 +278,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.35 — Who reacted** (E2.4)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.19 `MessageReaction.names` (ADR 0034's consequences); reaction chips say "you, Alice and 2 others" to screen readers and on hover. 🧪 `TestMessageChanges`, `ui/src/message.test.ts`, the Synapse journey.
 
+**T2.36 — More reactions** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). "More reactions" (＋) after the six quick ones opens 32 common emoji, each named for screen readers, and a field for any other short reaction; networks that take emoji only refuse the rest, and the command says so (ADR 0035). 🧪 `ui/src/message.test.ts`.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).
