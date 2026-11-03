@@ -99,6 +99,32 @@ type ReadState struct {
 	Unread int
 	// MarkedUnread is set while the user has marked the room as unread.
 	MarkedUnread bool
+	// MutedUntil is when the user's mute of the room ends, in Unix
+	// milliseconds: MutedForever until unmuted, 0 when not muted. A time
+	// in the past is not muted either.
+	MutedUntil int64
+}
+
+// MutedForever is ReadState.MutedUntil for a room muted until unmuted, as
+// com.beeper.mute says it.
+const MutedForever int64 = -1
+
+// mutedUntil is the account data that keeps a room's mute.
+type mutedUntil struct {
+	Until int64 `json:"until"`
+}
+
+// MutedUntilMS turns a time from bridgev2 (event.MutedForever or later:
+// forever; zero: not muted) into ReadState.MutedUntil.
+func MutedUntilMS(until time.Time) int64 {
+	switch {
+	case until.IsZero():
+		return 0
+	case !until.Before(event.MutedForever):
+		return MutedForever
+	default:
+		return until.UnixMilli()
+	}
 }
 
 // MaxUnread bounds ReadState.Unread, so that counting stays cheap in rooms
@@ -942,6 +968,11 @@ func (s *store) readState(ctx context.Context, roomID id.RoomID, userID id.UserI
 		return nil, err
 	}
 	st.MarkedUnread = marked.Unread
+	var muted mutedUntil
+	if _, err := s.getRoomAccountData(ctx, userID, roomID, accountDataMutedUntil, &muted); err != nil {
+		return nil, err
+	}
+	st.MutedUntil = muted.Until
 	return &st, nil
 }
 

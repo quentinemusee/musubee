@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.22"
+const APIVersion = "1.23"
 
 // Command names.
 const (
@@ -64,6 +64,13 @@ const (
 	// read again. The conversation is then sent again in a conversation.updated
 	// event, if it was not marked already. Since API 1.18.
 	CommandConversationsMarkUnread = "conversations.markUnread"
+	// Mutes a conversation until a time, or until it is unmuted (until_ms -1), or
+	// unmutes it (until_ms 0). A muted conversation still counts its unread
+	// messages, but the apps do not notify the user of them. The network is told
+	// when it supports mutes, so that its other apps stay quiet too. The
+	// conversation is then sent again in a conversation.updated event, if its
+	// mute changed. Since API 1.23.
+	CommandConversationsMute = "conversations.mute"
 	// Records that the user read a conversation up to a message (by default its
 	// last one), and clears its marked_unread flag. The network is told when it
 	// supports read receipts. Reading never moves back: a message before the
@@ -209,6 +216,7 @@ var Commands = []CommandSpec{
 	{Name: CommandConversationsList, Params: reflect.TypeFor[ConversationsListParams](), Result: reflect.TypeFor[ConversationsListResult]()},
 	{Name: CommandConversationsTyping, Params: reflect.TypeFor[ConversationsTypingParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsMarkUnread, Params: reflect.TypeFor[ConversationsMarkUnreadParams](), Result: reflect.TypeFor[Empty]()},
+	{Name: CommandConversationsMute, Params: reflect.TypeFor[ConversationsMuteParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsMarkRead, Params: reflect.TypeFor[ConversationsMarkReadParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandMessagesList, Params: reflect.TypeFor[MessagesListParams](), Result: reflect.TypeFor[MessagesListResult]()},
 	{Name: CommandMessagesSearch, Params: reflect.TypeFor[MessagesSearchParams](), Result: reflect.TypeFor[MessagesSearchResult]()},
@@ -576,6 +584,10 @@ type Conversation struct {
 	// The user marked the conversation as unread (on another device, for now);
 	// reading it clears the flag. Omitted when false. Since API 1.4.
 	MarkedUnread bool `json:"marked_unread,omitempty"`
+	// The user muted the conversation, here or in another app of its network:
+	// when the mute ends, in Unix milliseconds, or -1 until unmuted. Omitted when
+	// not muted, or when the mute ended. Since API 1.23.
+	MutedUntilMS int64 `json:"muted_until_ms,omitempty"`
 	// What the conversation's network lets the user do to messages. Omitted when
 	// it allows none of them. Since API 1.8.
 	Actions *ConversationActions `json:"actions,omitempty"`
@@ -688,6 +700,14 @@ type TypingEvent struct {
 // schema.
 type ConversationsMarkUnreadParams struct {
 	ConversationID string `json:"conversation_id"`
+}
+
+// ConversationsMuteParams is $defs/ConversationsMuteParams of the schema.
+type ConversationsMuteParams struct {
+	ConversationID string `json:"conversation_id"`
+	// When the mute ends, in Unix milliseconds; -1: until unmuted; 0: unmutes the
+	// conversation.
+	UntilMS int64 `json:"until_ms"`
 }
 
 // ConversationsMarkReadParams is $defs/ConversationsMarkReadParams of the

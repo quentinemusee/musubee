@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.22",
+  "x-musubee-api-version": "1.23",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -193,6 +193,16 @@
           "type": "object",
           "properties": {
             "params": { "$ref": "#/$defs/ConversationsMarkUnreadParams" },
+            "result": { "$ref": "#/$defs/Empty" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "conversations.mute": {
+          "description": "Mutes a conversation until a time, or until it is unmuted (until_ms -1), or unmutes it (until_ms 0). A muted conversation still counts its unread messages, but the apps do not notify the user of them. The network is told when it supports mutes, so that its other apps stay quiet too. The conversation is then sent again in a conversation.updated event, if its mute changed. Since API 1.23.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/ConversationsMuteParams" },
             "result": { "$ref": "#/$defs/Empty" }
           },
           "required": ["params", "result"],
@@ -865,6 +875,11 @@
           "description": "The user marked the conversation as unread (on another device, for now); reading it clears the flag. Omitted when false. Since API 1.4.",
           "type": "boolean"
         },
+        "muted_until_ms": {
+          "description": "The user muted the conversation, here or in another app of its network: when the mute ends, in Unix milliseconds, or -1 until unmuted. Omitted when not muted, or when the mute ended. Since API 1.23.",
+          "type": "integer",
+          "minimum": -1
+        },
         "actions": {
           "description": "What the conversation's network lets the user do to messages. Omitted when it allows none of them. Since API 1.8.",
           "$ref": "#/$defs/ConversationActions"
@@ -992,6 +1007,19 @@
         "conversation_id": { "type": "string" }
       },
       "required": ["conversation_id"],
+      "additionalProperties": false
+    },
+    "ConversationsMuteParams": {
+      "type": "object",
+      "properties": {
+        "conversation_id": { "type": "string" },
+        "until_ms": {
+          "description": "When the mute ends, in Unix milliseconds; -1: until unmuted; 0: unmutes the conversation.",
+          "type": "integer",
+          "minimum": -1
+        }
+      },
+      "required": ["conversation_id", "until_ms"],
       "additionalProperties": false
     },
     "ConversationsMarkReadParams": {

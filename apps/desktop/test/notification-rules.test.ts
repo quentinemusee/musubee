@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { describe, expect, test } from "vitest";
-import { announcement, MAX_AGE_MS, messageSummary } from "../src/notification-rules.ts";
+import { announcement, KnownConversations, MAX_AGE_MS, messageSummary } from "../src/notification-rules.ts";
 
 const now = 1_800_000_000_000;
 const added = (message: object, type = "message.added") =>
@@ -10,6 +10,9 @@ const added = (message: object, type = "message.added") =>
     type,
     data: { message: { conversation_id: "c.1", from_me: false, sender_name: "Alice", timestamp_ms: now - 1000, kind: "text", text: "hi", status: "received", ...message } },
   });
+
+const updated = (conversation: object) =>
+  JSON.stringify({ type: "conversation.updated", data: { conversation: { conversation_id: "c.1", name: "Alice", kind: "direct", ...conversation } } });
 
 describe("desktop notifications", () => {
   test("announce a recent message from someone else while the app is in the background", () => {
@@ -32,5 +35,28 @@ describe("desktop notifications", () => {
     expect(messageSummary({ kind: "file", text: "", media: { file_name: "plan.pdf" } })).toBe("File: plan.pdf");
     expect(messageSummary({ kind: "text", text: "" })).toBe("New message");
     expect(announcement(added({ sender_name: "" }), now, false)?.title).toBe("New message");
+  });
+
+  test("stay quiet in a muted conversation, and name the group (ADR 0050)", () => {
+    const known = new KnownConversations();
+    expect(announcement(added({}), now, false, known)?.title).toBe("Alice");
+    known.learnEvent(updated({ muted_until_ms: -1 }));
+    expect(announcement(added({}), now, false, known)).toBeNull();
+    known.learnEvent(updated({ muted_until_ms: now + 1000 }));
+    expect(announcement(added({}), now, false, known)).toBeNull();
+    // A mute that ended.
+    known.learnEvent(updated({ muted_until_ms: now - 1000 }));
+    expect(announcement(added({}), now, false, known)).not.toBeNull();
+    known.learnEvent(updated({}));
+    expect(announcement(added({}), now, false, known)).not.toBeNull();
+
+    // From the core's answers to the interface.
+    known.learnResponse(JSON.stringify({ id: 4, result: { conversations: [{ conversation_id: "c.1", name: "Book club", kind: "group", muted_until_ms: -1 }] } }));
+    expect(announcement(added({}), now, false, known)).toBeNull();
+    known.learnResponse(JSON.stringify({ id: 5, result: { conversation: { conversation_id: "c.1", name: "Book club", kind: "group" } } }));
+    expect(announcement(added({}), now, false, known)?.title).toBe("Alice in Book club");
+    known.learnResponse("not json");
+    known.learnResponse(JSON.stringify({ id: 6, error: { code: "not_found", message: "no" } }));
+    expect(announcement(added({}), now, false, known)?.title).toBe("Alice in Book club");
   });
 });

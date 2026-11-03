@@ -779,7 +779,6 @@ func (s *Server) setMarkedUnread(ctx context.Context, roomID id.RoomID, unread b
 	return before.Unread, err
 }
 
-// ClearMarkedUnread clears the user's "marked as unread" flag of a room.
 // MarkUnread sets the user's "marked as unread" flag of a room
 // (docs/ADR/0023): the conversation shows unread until it is read. The
 // room's bridge gets it as Matrix account data (m.marked_unread), which
@@ -806,10 +805,51 @@ func (s *Server) MarkUnread(ctx context.Context, roomID id.RoomID) error {
 	return nil
 }
 
+// ClearMarkedUnread clears the user's "marked as unread" flag of a room.
 func (s *Server) ClearMarkedUnread(ctx context.Context, roomID id.RoomID) error {
 	was, err := s.setMarkedUnread(ctx, roomID, false)
 	if err == nil && was {
 		s.publish(Update{ReadState: roomID})
 	}
 	return err
+}
+
+// setMutedUntil stores until when the user muted a room, and reports
+// whether it changed.
+func (s *Server) setMutedUntil(ctx context.Context, roomID id.RoomID, untilMS int64) (bool, error) {
+	var before mutedUntil
+	if _, err := s.store.getRoomAccountData(ctx, s.userID, roomID, accountDataMutedUntil, &before); err != nil {
+		return false, err
+	}
+	if before.Until == untilMS {
+		return false, nil
+	}
+	return true, s.store.setRoomAccountData(ctx, s.userID, roomID, accountDataMutedUntil, &mutedUntil{Until: untilMS})
+}
+
+// Mute mutes a room until a time in Unix milliseconds (MutedForever: until
+// unmuted; 0 unmutes it), docs/ADR/0050. The room's bridge gets it as the
+// com.beeper.mute account data that bridgev2 hands to connectors that
+// handle it (MuteHandlingNetworkAPI), so that the network's other apps
+// stay quiet too.
+func (s *Server) Mute(ctx context.Context, roomID id.RoomID, untilMS int64) error {
+	changed, err := s.setMutedUntil(ctx, roomID, untilMS)
+	if err != nil || !changed {
+		return err
+	}
+	s.publish(Update{ReadState: roomID})
+	room, err := s.store.getRoom(ctx, roomID)
+	if err != nil {
+		return err
+	}
+	if conn := s.connector(room.BridgeID); conn != nil && conn.br != nil {
+		conn.br.QueueMatrixEvent(conn.br.Log.WithContext(ctx), &event.Event{
+			Type:      event.AccountDataBeeperMute,
+			RoomID:    roomID,
+			Sender:    s.userID,
+			Timestamp: time.Now().UnixMilli(),
+			Content:   event.Content{Parsed: &event.BeeperMuteEventContent{MutedUntil: untilMS}},
+		})
+	}
+	return nil
 }

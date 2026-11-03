@@ -19,7 +19,7 @@ import { APP_ORIGIN, APP_SCHEME, APP_URL, serveAppFile } from "./app-protocol.js
 import { CoreKeyError, CoreKeyLostError, loadCoreKey } from "./core-key.js";
 import { CoreProcess, type CoreStatus } from "./core-process.js";
 import { allowCheck, allowRequest } from "./permissions.js";
-import { announcement } from "./notification-rules.js";
+import { announcement, KnownConversations } from "./notification-rules.js";
 import { RequestValidator } from "./ipc.js";
 import { setAside } from "./start-over.js";
 
@@ -85,12 +85,15 @@ function main(): void {
   // The last notification of each conversation: a new message replaces it,
   // so that a conversation never stacks notifications (docs/ADR/0047).
   const shown = new Map<string, Notification>();
+  // Names and mutes of the conversations, for the notifications.
+  const conversations = new KnownConversations();
   core.onEvent((event) => {
+    conversations.learnEvent(event);
     for (const window of windows) {
       window.webContents.send("core:event", event);
     }
     const focused = [...windows].some((window) => window.isFocused());
-    const announced = Notification.isSupported() ? announcement(event, Date.now(), focused) : null;
+    const announced = Notification.isSupported() ? announcement(event, Date.now(), focused, conversations) : null;
     if (announced === null) {
       return;
     }
@@ -144,7 +147,13 @@ function main(): void {
       throw new Error("refused: not a Musubee window");
     }
     const checked = validator.check(payload);
-    return checked.ok ? core.call(checked.request) : checked.response;
+    if (!checked.ok) {
+      return checked.response;
+    }
+    return core.call(checked.request).then((response) => {
+      conversations.learnResponse(response);
+      return response;
+    });
   });
   ipcMain.handle("core:status", (event) => {
     if (!trusted(event)) {

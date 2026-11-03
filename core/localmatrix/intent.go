@@ -572,11 +572,16 @@ func (in *Intent) TagRoom(ctx context.Context, roomID id.RoomID, tag event.RoomT
 
 // MuteRoom mutes the room for the user until the given time (zero unmutes).
 func (in *Intent) MuteRoom(ctx context.Context, roomID id.RoomID, until time.Time) error {
-	var untilMS int64
-	if !until.IsZero() {
-		untilMS = until.UnixMilli()
+	untilMS := MutedUntilMS(until)
+	if in.mxid != in.server.userID {
+		return in.server.store.setRoomAccountData(ctx, in.mxid, roomID, accountDataMutedUntil, &mutedUntil{Until: untilMS})
 	}
-	return in.server.store.setRoomAccountData(ctx, in.mxid, roomID, accountDataMutedUntil, map[string]int64{"until": untilMS})
+	// The user muted the chat in another app of the network (docs/ADR/0050).
+	changed, err := in.server.setMutedUntil(ctx, roomID, untilMS)
+	if err == nil && changed {
+		in.server.publish(Update{ReadState: roomID})
+	}
+	return err
 }
 
 // GetEvent returns a stored event.

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"runtime"
 	"slices"
+	"time"
 
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
@@ -238,6 +239,7 @@ func (c *Core) conversation(ctx context.Context, activity *localmatrix.RoomActiv
 	}
 	conv.UnreadCount = int64(read.Unread)
 	conv.MarkedUnread = read.MarkedUnread
+	conv.MutedUntilMS = mutedUntil(read.MutedUntil, time.Now())
 	if conv.Seen, err = c.seen(ctx, room.ID); err != nil {
 		return nil, err
 	}
@@ -290,6 +292,28 @@ func (c *Core) conversationsMarkUnread(ctx context.Context, p api.ConversationsM
 		return api.Empty{}, err
 	}
 	return api.Empty{}, c.host.Matrix.MarkUnread(ctx, roomID)
+}
+
+// conversationsMute mutes or unmutes a conversation (API 1.23,
+// docs/ADR/0050).
+func (c *Core) conversationsMute(ctx context.Context, p api.ConversationsMuteParams) (api.Empty, error) {
+	if p.UntilMS < localmatrix.MutedForever {
+		return api.Empty{}, newError(api.ErrorCodeInvalidParams, "until_ms must be a time, -1 or 0")
+	}
+	roomID, err := c.room(ctx, p.ConversationID)
+	if err != nil {
+		return api.Empty{}, err
+	}
+	return api.Empty{}, c.host.Matrix.Mute(ctx, roomID, p.UntilMS)
+}
+
+// mutedUntil is a conversation's muted_until_ms: a mute that ended is
+// none.
+func mutedUntil(untilMS int64, now time.Time) int64 {
+	if untilMS > 0 && untilMS <= now.UnixMilli() {
+		return 0
+	}
+	return untilMS
 }
 
 func (c *Core) conversationsMarkRead(ctx context.Context, p api.ConversationsMarkReadParams) (api.Empty, error) {
