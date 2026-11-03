@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { Account } from "../core-api/types.gen";
 import type { CoreStatus } from "../shell";
 import { AddAccount } from "./AddAccount";
+import { AppearanceSettings } from "./AppearanceSettings";
 import { Inbox } from "./Inbox";
 import { useBackToInbox } from "./navigation";
 import { useAppState, useStore } from "./state";
@@ -16,6 +17,7 @@ type Adding = { again?: { account: Account; label: string } };
 export function App() {
   const store = useStore();
   const [adding, setAdding] = useState<Adding | null>(null);
+  const [settings, setSettings] = useState(false);
   const loaded = useAppState((s) => s.loaded);
   const hasAccounts = useAppState((s) => s.accounts.length > 0);
   const view = useAppState((s) => (s.selected === undefined ? "inbox" : "thread"));
@@ -26,7 +28,11 @@ export function App() {
       <header className="app-header">
         <h1>Musubee</h1>
         <StatusLine />
+        <button type="button" className="secondary app-settings" aria-haspopup="dialog" onClick={() => setSettings(true)}>
+          Appearance
+        </button>
       </header>
+      {settings ? <AppearanceSettings onClose={() => setSettings(false)} /> : null}
       <ErrorBanner />
       {keyLost ? (
         <main className="app-main">
@@ -105,8 +111,8 @@ function StartOver() {
     <section className="start-over" aria-labelledby="start-over-title">
       <h2 id="start-over-title">Musubee cannot open your data</h2>
       <p>
-        The key that protects your accounts on this device is gone, so Musubee cannot read them any more. This happens when the
-        system&apos;s secure storage was reset, or when the app&apos;s data was copied from another device.
+        The key that protects your accounts on this device is gone, so Musubee cannot read them any more. This happens when the system&apos;s secure storage was
+        reset, or when the app&apos;s data was copied from another device.
       </p>
       <p>You can start over with an empty Musubee:</p>
       <ul>

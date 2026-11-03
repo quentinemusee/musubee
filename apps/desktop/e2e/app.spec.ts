@@ -345,6 +345,39 @@ test("the thread says who can read the conversation", async () => {
   await app.close();
 });
 
+test("the user picks a theme, an accent and a text size, kept after a restart", async () => {
+  const dataDir = newDataDir();
+  let { app, page } = await launch(dataDir);
+  const root = page.locator("html");
+  await expect(root).toHaveAttribute("data-theme", "system");
+
+  await page.getByRole("button", { name: "Appearance" }).click();
+  const dialog = page.getByRole("dialog", { name: "Appearance" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("radio", { name: "Dark" }).check();
+  await dialog.getByRole("radio", { name: "Teal" }).check();
+  await dialog.getByRole("radio", { name: "Larger" }).check();
+  // Applied at once, behind the dialog.
+  await expect(root).toHaveAttribute("data-theme", "dark");
+  await expect(root).toHaveAttribute("data-accent", "teal");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(21, 21, 26)");
+  expect(await page.evaluate(() => getComputedStyle(document.body).fontSize)).toBe("19.5px");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Appearance" })).toBeVisible();
+
+  await app.close();
+  ({ app, page } = await launch(dataDir));
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator("html")).toHaveAttribute("data-text-size", "larger");
+  // Back to the system's theme.
+  await page.getByRole("button", { name: "Appearance" }).click();
+  await page.getByRole("radio", { name: "Same as the system" }).check();
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "system");
+  await app.close();
+});
+
 test("log out of an account: it goes away with its conversations", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "leaving");

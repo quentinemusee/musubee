@@ -1,16 +1,26 @@
 /* SPDX-FileCopyrightText: 2026 Quentin Raimbaud */
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 
-/* Design tokens: themes will redefine these (E2.7). */
+/* Design tokens (docs/ADR/0040). The user's appearance (appearance.ts)
+   sets data-theme, data-accent and data-text-size on the root element. */
 :root {
+  /* Each accent is a pair: its light and dark themes' halves. The light
+     accent carries white text at 4.5:1 or more, the dark one the dark
+     background's color. */
+  --accent-light: #4b45c6;
+  --accent-dark: #8e89ff;
+  --mine-light: #e7e6fb;
+  --mine-dark: #2d2b55;
+  /* Every font size is a multiple of --text, which the text size scales. */
+  --text: 1px;
   --color-bg: #f7f7f8;
   --color-surface: #ffffff;
   --color-text: #1c1c22;
   --color-muted: #5f6070;
   --color-border: #d9d9e0;
-  --color-accent: #4b45c6;
+  --color-accent: var(--accent-light);
   --color-accent-text: #ffffff;
-  --color-mine: #e7e6fb;
+  --color-mine: var(--mine-light);
   --color-theirs: #ffffff;
   --color-quote: rgb(0 0 0 / 5%);
   --color-error: #a3262f;
@@ -21,21 +31,82 @@
   color-scheme: light dark;
 }
 
+:root[data-accent="teal"] {
+  --accent-light: #0f766e;
+  --accent-dark: #5eead4;
+  --mine-light: #d5f2ee;
+  --mine-dark: #173b38;
+}
+
+:root[data-accent="rose"] {
+  --accent-light: #be123c;
+  --accent-dark: #fda4af;
+  --mine-light: #fde2e7;
+  --mine-dark: #4a1f2a;
+}
+
+:root[data-accent="amber"] {
+  --accent-light: #b45309;
+  --accent-dark: #fcd34d;
+  --mine-light: #fdebd3;
+  --mine-dark: #45321a;
+}
+
+:root[data-accent="slate"] {
+  --accent-light: #475569;
+  --accent-dark: #cbd5e1;
+  --mine-light: #e5e8ee;
+  --mine-dark: #2c333f;
+}
+
+:root[data-text-size="small"] {
+  --text: 0.9px;
+}
+
+:root[data-text-size="large"] {
+  --text: 1.15px;
+}
+
+:root[data-text-size="larger"] {
+  --text: 1.3px;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+/* The dark theme: chosen, or the system's when the user follows it. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --color-bg: #15151a;
     --color-surface: #1e1e25;
     --color-text: #ececf1;
     --color-muted: #a3a3b3;
     --color-border: #34343f;
-    --color-accent: #8e89ff;
+    --color-accent: var(--accent-dark);
     --color-accent-text: #15151a;
-    --color-mine: #2d2b55;
+    --color-mine: var(--mine-dark);
     --color-theirs: #24242c;
     --color-quote: rgb(255 255 255 / 6%);
     --color-error: #ff8a93;
     --color-error-bg: #3a1b20;
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #15151a;
+  --color-surface: #1e1e25;
+  --color-text: #ececf1;
+  --color-muted: #a3a3b3;
+  --color-border: #34343f;
+  --color-accent: var(--accent-dark);
+  --color-accent-text: #15151a;
+  --color-mine: var(--mine-dark);
+  --color-theirs: #24242c;
+  --color-quote: rgb(255 255 255 / 6%);
+  --color-error: #ff8a93;
+  --color-error-bg: #3a1b20;
 }
 
 * {
@@ -52,7 +123,7 @@ body,
 body {
   background: var(--color-bg);
   color: var(--color-text);
-  font: 15px/1.4 var(--font);
+  font: calc(15 * var(--text)) / 1.4 var(--font);
 }
 
 h1,
@@ -63,15 +134,15 @@ h3 {
 }
 
 h1 {
-  font-size: 18px;
+  font-size: calc(18 * var(--text));
 }
 
 h2 {
-  font-size: 15px;
+  font-size: calc(15 * var(--text));
 }
 
 h3 {
-  font-size: 14px;
+  font-size: calc(14 * var(--text));
 }
 
 button,
@@ -107,7 +178,7 @@ button.link {
   background: transparent;
   color: var(--color-muted);
   padding: 2px 0;
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
 }
 
 button:disabled {
@@ -167,7 +238,7 @@ ol {
 .status {
   margin: 0;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
 }
 
 .error-banner {
@@ -217,7 +288,7 @@ ol {
 
 .account-state {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
 }
 
 .account-actions legend {
@@ -233,7 +304,7 @@ ol {
   align-items: center;
   gap: 6px;
   padding-top: 4px;
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
 }
 
 /* The inbox takes the rest of the sidebar, but keeps room for a few rows
@@ -299,7 +370,7 @@ ol {
 .conversation-time,
 .conversation-meta {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: calc(12 * var(--text));
 }
 
 .conversation-bottom {
@@ -313,7 +384,7 @@ ol {
   min-width: 0;
   overflow: hidden;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -336,7 +407,7 @@ ol {
   border-radius: 10px;
   background: var(--color-accent);
   color: var(--color-accent-text);
-  font-size: 12px;
+  font-size: calc(12 * var(--text));
   font-weight: 600;
   line-height: 20px;
   text-align: center;
@@ -377,7 +448,7 @@ ol {
 .back {
   display: none;
   padding: 2px 12px;
-  font-size: 20px;
+  font-size: calc(20 * var(--text));
   line-height: 1.2;
 }
 
@@ -416,7 +487,7 @@ ol {
 
 .switcher button {
   padding: 2px 10px;
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
 }
 
 .switcher button[aria-pressed="true"] {
@@ -484,7 +555,7 @@ ol {
 
 .sender {
   font-weight: 600;
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
 }
 
 .text[data-kind="notice"],
@@ -541,14 +612,14 @@ ol {
 .media-loading,
 .media-show {
   position: relative;
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
 }
 
 .media-loading,
 .media-duration,
 .media-file-size {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
 }
 
 .media-file {
@@ -569,7 +640,7 @@ ol {
   border-left: 3px solid var(--color-accent);
   border-radius: 4px;
   background: var(--color-quote);
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
 }
 
 .reply-sender {
@@ -601,7 +672,7 @@ ol {
   border: 1px solid var(--color-border);
   border-radius: 999px;
   background: var(--color-surface);
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
 }
 
 .reaction > span {
@@ -628,7 +699,7 @@ ol {
   gap: var(--space);
   justify-content: flex-end;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: calc(12 * var(--text));
 }
 
 .composer {
@@ -657,7 +728,7 @@ ol {
   border-left: 3px solid var(--color-accent);
   border-radius: 4px;
   background: var(--color-quote);
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
 }
 
 .composer-draft-text {
@@ -680,7 +751,7 @@ ol {
   border: none;
   background: transparent;
   color: var(--color-muted);
-  font-size: 15px;
+  font-size: calc(15 * var(--text));
   line-height: 1;
 }
 
@@ -725,7 +796,7 @@ ol {
   min-height: 40px;
   padding: 0;
   border-color: transparent;
-  font-size: 20px;
+  font-size: calc(20 * var(--text));
 }
 
 .quick-reactions button[aria-pressed="true"] {
@@ -790,7 +861,7 @@ button.danger-text {
 }
 
 .welcome h2 {
-  font-size: 20px;
+  font-size: calc(20 * var(--text));
 }
 
 /* A way to log in (FlowButton): its name, and below it what it asks. */
@@ -822,12 +893,12 @@ button.flow:hover:not(:disabled) {
 
 .flow-description {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
 }
 
 .advanced-flows summary {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
   cursor: pointer;
 }
 
@@ -847,7 +918,7 @@ button.flow:hover:not(:disabled) {
 }
 
 .login-code {
-  font-size: 28px;
+  font-size: calc(28 * var(--text));
   letter-spacing: 0.2em;
   font-variant-numeric: tabular-nums;
 }
@@ -870,7 +941,7 @@ button.flow:hover:not(:disabled) {
   display: block;
   margin-top: 4px;
   font-family: ui-monospace, monospace;
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
   overflow-wrap: anywhere;
   user-select: all;
 }
@@ -879,7 +950,7 @@ button.flow:hover:not(:disabled) {
 .person-button {
   margin-left: auto;
   padding: 2px 10px;
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
   white-space: nowrap;
 }
 
@@ -936,12 +1007,12 @@ button.flow:hover:not(:disabled) {
 
 .merge-candidates .hint {
   flex: 1;
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
 }
 
 .merge-candidates button {
   padding: 2px 10px;
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
 }
 
 /* A file attached in the composer (API 1.10). */
@@ -1005,7 +1076,7 @@ button.flow:hover:not(:disabled) {
 /* Who can read the conversation, under the thread's header (API 1.12). */
 .privacy-note {
   padding: 0 var(--space) 4px;
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
 }
 
 .privacy-label {
@@ -1014,7 +1085,7 @@ button.flow:hover:not(:disabled) {
   border-radius: 999px;
   background: transparent;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: calc(13 * var(--text));
 }
 
 .privacy-note[data-safe="false"] .privacy-label {
@@ -1025,4 +1096,86 @@ button.flow:hover:not(:disabled) {
 .privacy-detail {
   margin: 4px 0 0;
   color: var(--color-muted);
+}
+
+/* The appearance settings (docs/ADR/0040). */
+.settings {
+  width: min(420px, calc(100vw - 32px));
+  padding: calc(var(--space) * 2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.settings::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+
+.settings fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px var(--space);
+  margin: 0 0 var(--space);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.settings-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+}
+
+.accent-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent-light);
+}
+
+/* Each swatch shows its own accent, in the theme shown. */
+.accent-swatch[data-accent="indigo"] {
+  --accent-light: #4b45c6;
+  --accent-dark: #8e89ff;
+}
+
+.accent-swatch[data-accent="teal"] {
+  --accent-light: #0f766e;
+  --accent-dark: #5eead4;
+}
+
+.accent-swatch[data-accent="rose"] {
+  --accent-light: #be123c;
+  --accent-dark: #fda4af;
+}
+
+.accent-swatch[data-accent="amber"] {
+  --accent-light: #b45309;
+  --accent-dark: #fcd34d;
+}
+
+.accent-swatch[data-accent="slate"] {
+  --accent-light: #475569;
+  --accent-dark: #cbd5e1;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .accent-swatch {
+    background: var(--accent-dark);
+  }
+}
+
+:root[data-theme="dark"] .accent-swatch {
+  background: var(--accent-dark);
+}
+
+.settings-buttons {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.app-settings {
+  margin-left: auto;
 }

@@ -4,6 +4,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app/App";
+import { applyAppearance, loadAppearance, pageStorage } from "./appearance";
 import { openConversation } from "./app/navigation";
 import { StoreContext } from "./app/state";
 import { followNotifications } from "./notifications";
@@ -26,6 +27,9 @@ async function findShell(): Promise<Shell | undefined> {
   }
   return undefined;
 }
+
+// Before anything renders: the app never shows in a theme the user did not choose.
+applyAppearance(document.documentElement, loadAppearance(pageStorage()));
 
 const root = createRoot(document.getElementById("root")!);
 
