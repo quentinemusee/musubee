@@ -1375,3 +1375,29 @@ button.flow:hover:not(:disabled) {
   color: var(--color-muted);
   font-size: calc(13 * var(--text));
 }
+
+/* Forwarding a message (docs/ADR/0054). */
+.forward-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: var(--space);
+}
+
+.forward-list {
+  max-height: min(50vh, 360px);
+  margin: 0 0 var(--space);
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.forward-list button {
+  width: 100%;
+  margin-bottom: 4px;
+  text-align: start;
+}
+
+.forward-network {
+  color: var(--color-muted);
+}

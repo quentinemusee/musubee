@@ -477,6 +477,25 @@ test("a pinned conversation stays at the top of the inbox, after a restart too",
   await app.close();
 });
 
+test("the user forwards a message to another conversation", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "forward");
+  await page.getByRole("textbox", { name: "Message" }).fill("worth sharing");
+  await page.getByRole("button", { name: "Send" }).click();
+  const sent = page.locator(".message-row").filter({ hasText: "worth sharing" }).first();
+  await expect(sent).toContainText("Sent");
+  await sent.getByRole("button", { name: "More actions" }).click();
+  await sent.getByRole("button", { name: "Forward…" }).click();
+  const dialog = page.getByRole("dialog", { name: "Forward the message" });
+  await dialog.getByRole("searchbox").fill("delayed");
+  await dialog.getByRole("button", { name: /^Delayed Echo/ }).click();
+  await expect(dialog.getByText("Forwarded to Delayed Echo.")).toBeVisible();
+  await dialog.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Delayed Echo" }).click();
+  await expect(page.locator(".message-row").filter({ hasText: "worth sharing" }).first()).toBeVisible();
+  await app.close();
+});
+
 test("the user deletes a conversation after confirming", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "delete");

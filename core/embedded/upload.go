@@ -217,6 +217,19 @@ func mediaAction(a *api.ConversationActions, kind api.MessageKind) *api.MediaAct
 }
 
 func (c *Core) messagesSendMedia(ctx context.Context, p api.MessagesSendMediaParams) (api.MessagesSendResult, error) {
+	return c.sendMedia(ctx, p, mediaSource{})
+}
+
+// mediaSource is where sendMedia takes the media from: the upload that
+// p.UploadID names, or bytes the core already holds (a forwarded message,
+// docs/ADR/0054).
+type mediaSource struct {
+	data []byte
+	// animated keeps a GIF a GIF where the network shows one.
+	animated bool
+}
+
+func (c *Core) sendMedia(ctx context.Context, p api.MessagesSendMediaParams, src mediaSource) (api.MessagesSendResult, error) {
 	msgType, ok := mediaMsgTypes[p.Kind]
 	if !ok {
 		return api.MessagesSendResult{}, newError(api.ErrorCodeInvalidParams, "kind must be image, video, audio, voice or file")
@@ -271,14 +284,21 @@ func (c *Core) messagesSendMedia(ctx context.Context, p api.MessagesSendMediaPar
 		content.RelatesTo = (&event.RelatesTo{}).SetReplyTo(target.ID)
 	}
 	// Checked last: a refused command keeps the upload, to try again.
-	if allowed.MaxSize > 0 && int64(c.uploads.size(p.UploadID)) > allowed.MaxSize {
+	size := c.uploads.size(p.UploadID)
+	if src.data != nil {
+		size = len(src.data)
+	}
+	if allowed.MaxSize > 0 && int64(size) > allowed.MaxSize {
 		return api.MessagesSendResult{}, newError(api.ErrorCodeInvalidParams, "this conversation's network takes %s messages of at most %d bytes", p.Kind, allowed.MaxSize)
 	}
-	data, err := c.uploads.take(p.UploadID)
-	if err != nil {
-		return api.MessagesSendResult{}, err
+	data := src.data
+	if data == nil {
+		if data, err = c.uploads.take(p.UploadID); err != nil {
+			return api.MessagesSendResult{}, err
+		}
 	}
 	content.Info.Size = len(data)
+	content.Info.MauGIF = src.animated
 	if content.URL, err = c.host.Matrix.UploadMedia(ctx, roomID, data, p.FileName, p.MimeType); err != nil {
 		return api.MessagesSendResult{}, err
 	}

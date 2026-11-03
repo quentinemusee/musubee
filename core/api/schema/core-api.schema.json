@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.25",
+  "x-musubee-api-version": "1.26",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -343,6 +343,16 @@
           "type": "object",
           "properties": {
             "params": { "$ref": "#/$defs/MessagesSendMediaParams" },
+            "result": { "$ref": "#/$defs/MessagesSendResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "messages.forward": {
+          "description": "Sends a copy of a message to a conversation, on any network: its latest text, or its media (from this device's storage) with its caption, when that conversation's actions take that kind. The copy is a new message of the user's, sent like messages.send or messages.sendMedia; it answers nothing and does not say where it came from. Fails for a deleted message, and for media that is not on this device. Since API 1.26.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/MessagesForwardParams" },
             "result": { "$ref": "#/$defs/MessagesSendResult" }
           },
           "required": ["params", "result"],
@@ -1496,6 +1506,15 @@
         "upload_id": { "type": "string" }
       },
       "required": ["upload_id"],
+      "additionalProperties": false
+    },
+    "MessagesForwardParams": {
+      "type": "object",
+      "properties": {
+        "message_id": { "description": "The message to copy, in any conversation.", "type": "string" },
+        "conversation_id": { "description": "Where to send the copy.", "type": "string" }
+      },
+      "required": ["message_id", "conversation_id"],
       "additionalProperties": false
     },
     "MessagesSendMediaParams": {

@@ -149,6 +149,16 @@ export function messageActions(message: Message, allowed: ConversationActions | 
   };
 }
 
+/**
+ * Whether a message can be forwarded (API 1.26): on its network, not
+ * deleted, with text or media. Where it goes decides whether its network
+ * takes it.
+ */
+export function canForward(message: Message): boolean {
+  const onNetwork = message.status === "sent" || message.status === "received";
+  return onNetwork && message.deleted !== true && (message.media !== undefined || message.text !== "");
+}
+
 /** Whether a message offers any action. */
 export function hasActions(actions: MessageActions): boolean {
   return actions.react || actions.reply || actions.edit || actions.delete;

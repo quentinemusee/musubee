@@ -8,6 +8,7 @@ import { canRecord, VoiceRecorder, type Recording } from "../recorder";
 import { accountLabel } from "../merge";
 import { replyQuote, replyTo, seenLabel, typingText } from "../message";
 import { DeleteConversation } from "./DeleteConversation";
+import { ForwardMessage } from "./ForwardMessage";
 import { MessageList } from "./MessageList";
 import { MuteButton } from "./MuteButton";
 import { VoiceRecording } from "./VoiceRecording";
@@ -73,6 +74,8 @@ export function Thread() {
   // The conversation whose person panel is open, if any: it closes when
   // another conversation is selected.
   const [panelFor, setPanelFor] = useState<string | undefined>(undefined);
+  // The message being forwarded (docs/ADR/0054).
+  const [forwarding, setForwarding] = useState<Message | undefined>(undefined);
   // The conversation whose deletion is being asked (docs/ADR/0053).
   const [deleteFor, setDeleteFor] = useState<string | undefined>(undefined);
   const panelOpen = panelFor !== undefined && panelFor === selected;
@@ -100,6 +103,7 @@ export function Thread() {
         setDraft({ mode: "edit", message });
       },
       delete: (message) => void store.deleteMessage(message),
+      forward: (message) => setForwarding(message),
     }),
     [store],
   );
@@ -174,6 +178,7 @@ export function Thread() {
           onClose={() => setDeleteFor(undefined)}
         />
       ) : null}
+      {forwarding === undefined ? null : <ForwardMessage message={forwarding} onClose={() => setForwarding(undefined)} />}
       <PrivacyNote conversation={conversation} />
       {panelOpen ? <PersonPanel conversation={conversation} onClose={() => setPanelFor(undefined)} /> : null}
       {person === undefined ? null : <Switcher personId={person.person_id} name={person.name} selected={selected} together={together !== undefined} />}

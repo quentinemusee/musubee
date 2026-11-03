@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.25"
+const APIVersion = "1.26"
 
 // Command names.
 const (
@@ -150,6 +150,13 @@ const (
 	// messages.send, the message is stored at once with status sending; its
 	// delivery is reported later by message.updated events. Since API 1.10.
 	CommandMessagesSendMedia = "messages.sendMedia"
+	// Sends a copy of a message to a conversation, on any network: its latest
+	// text, or its media (from this device's storage) with its caption, when that
+	// conversation's actions take that kind. The copy is a new message of the
+	// user's, sent like messages.send or messages.sendMedia; it answers nothing
+	// and does not say where it came from. Fails for a deleted message, and for
+	// media that is not on this device. Since API 1.26.
+	CommandMessagesForward = "messages.forward"
 	// Reads a part of a message's media (or of its thumbnail), stored on this
 	// device. Media deleted with its message, or of a conversation no longer on
 	// this device, is not_found. Since API 1.9.
@@ -249,6 +256,7 @@ var Commands = []CommandSpec{
 	{Name: CommandUploadsAppend, Params: reflect.TypeFor[UploadsAppendParams](), Result: reflect.TypeFor[UploadsAppendResult]()},
 	{Name: CommandUploadsCancel, Params: reflect.TypeFor[UploadsCancelParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandMessagesSendMedia, Params: reflect.TypeFor[MessagesSendMediaParams](), Result: reflect.TypeFor[MessagesSendResult]()},
+	{Name: CommandMessagesForward, Params: reflect.TypeFor[MessagesForwardParams](), Result: reflect.TypeFor[MessagesSendResult]()},
 	{Name: CommandMediaRead, Params: reflect.TypeFor[MediaReadParams](), Result: reflect.TypeFor[MediaReadResult]()},
 	{Name: CommandPersonsList, Params: reflect.TypeFor[Empty](), Result: reflect.TypeFor[PersonsListResult]()},
 	{Name: CommandPersonsCreate, Params: reflect.TypeFor[PersonsCreateParams](), Result: reflect.TypeFor[PersonResult]()},
@@ -1018,6 +1026,14 @@ type UploadsAppendResult struct {
 // UploadsCancelParams is $defs/UploadsCancelParams of the schema.
 type UploadsCancelParams struct {
 	UploadID string `json:"upload_id"`
+}
+
+// MessagesForwardParams is $defs/MessagesForwardParams of the schema.
+type MessagesForwardParams struct {
+	// The message to copy, in any conversation.
+	MessageID string `json:"message_id"`
+	// Where to send the copy.
+	ConversationID string `json:"conversation_id"`
 }
 
 // MessagesSendMediaParams is $defs/MessagesSendMediaParams of the schema.

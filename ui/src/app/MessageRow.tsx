@@ -9,6 +9,7 @@ import {
   DELETED_TEXT,
   hasActions,
   isReactionKey,
+  canForward,
   messageActions,
   MORE_REACTIONS,
   ownReaction,
@@ -36,6 +37,8 @@ export interface MessageHandlers {
   reply(message: Message): void;
   edit(message: Message): void;
   delete(message: Message): void;
+  /** Sends a copy elsewhere (API 1.26); absent where the thread cannot choose a conversation. */
+  forward?(message: Message): void;
 }
 
 /** The answered message, quoted above an answer. */
@@ -73,7 +76,8 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers,
   const [menu, setMenu] = useState<"closed" | "open" | "confirm-delete">("closed");
   const menuId = useId();
   const toggle = useRef<HTMLButtonElement>(null);
-  const showMenu = menu !== "closed" && hasActions(allowed) && handlers !== undefined;
+  const forwardable = handlers?.forward !== undefined && canForward(message);
+  const showMenu = menu !== "closed" && (hasActions(allowed) || forwardable) && handlers !== undefined;
 
   function close(refocus: boolean) {
     setMenu("closed");
@@ -145,7 +149,7 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers,
               {message.status === "sent" && seen !== undefined ? <span className="seen"> · {seen}</span> : null}
             </span>
           ) : null}
-          {hasActions(allowed) ? (
+          {hasActions(allowed) || forwardable ? (
             <button
               ref={toggle}
               type="button"
@@ -166,6 +170,7 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers,
           toggle={toggle}
           message={message}
           allowed={allowed}
+          forwardable={forwardable}
           handlers={handlers}
           confirmDelete={menu === "confirm-delete"}
           onConfirmDelete={() => setMenu("confirm-delete")}
@@ -182,6 +187,7 @@ interface MessageMenuProps {
   toggle: RefObject<HTMLButtonElement | null>;
   message: Message;
   allowed: MessageActions;
+  forwardable: boolean;
   handlers: MessageHandlers;
   confirmDelete: boolean;
   onConfirmDelete: () => void;
@@ -195,7 +201,7 @@ interface MessageMenuProps {
  * it, and so do moving the focus out and pressing elsewhere. Deleting asks
  * first.
  */
-function MessageMenu({ id, toggle, message, allowed, handlers, confirmDelete, onConfirmDelete, onClose }: MessageMenuProps) {
+function MessageMenu({ id, toggle, message, allowed, forwardable, handlers, confirmDelete, onConfirmDelete, onClose }: MessageMenuProps) {
   const ref = useRef<HTMLFieldSetElement>(null);
   const outside = (target: unknown) =>
     target instanceof Node && !(ref.current?.contains(target) ?? false) && !(toggle.current?.contains(target) ?? false);
@@ -341,6 +347,11 @@ function MessageMenu({ id, toggle, message, allowed, handlers, confirmDelete, on
             {allowed.edit ? (
               <button type="button" className="secondary" onClick={() => run(() => handlers.edit(message), false)}>
                 Edit
+              </button>
+            ) : null}
+            {forwardable ? (
+              <button type="button" className="secondary" aria-haspopup="dialog" onClick={() => run(() => handlers.forward?.(message), false)}>
+                Forward…
               </button>
             ) : null}
             {allowed.delete ? (

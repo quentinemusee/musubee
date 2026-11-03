@@ -176,6 +176,7 @@
     { "target": "command:uploads.cancel:params", "value": { "upload_id": "u1" } },
     { "target": "command:uploads.cancel:result", "value": {} },
     { "target": "command:messages.sendMedia:params", "value": { "conversation_id": "c1", "upload_id": "u1", "kind": "image", "mime_type": "image/png", "file_name": "photo.png", "caption": "Look", "width": 640, "height": 480, "reply_to": "m2" } },
+    { "target": "command:messages.forward:params", "value": { "message_id": "m8", "conversation_id": "c2" } },
     { "target": "command:messages.sendMedia:params", "value": { "conversation_id": "c1", "upload_id": "u2", "kind": "voice", "mime_type": "audio/ogg", "file_name": "voice.ogg", "duration_ms": 3200 } },
     { "target": "command:messages.sendMedia:result", "value": { "message": {
       "message_id": "m8", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1791496806000, "kind": "image", "text": "Look", "status": "sending",
@@ -253,6 +254,7 @@
     { "target": "command:messages.edit:params", "why": "text is required", "value": { "conversation_id": "c1", "message_id": "m3" } },
     { "target": "command:messages.delete:params", "why": "message_id is required", "value": { "conversation_id": "c1" } },
     { "target": "command:uploads.append:params", "why": "data is required", "value": { "upload_id": "u1" } },
+    { "target": "command:messages.forward:params", "why": "conversation_id is required", "value": { "message_id": "m8" } },
     { "target": "command:messages.sendMedia:params", "why": "file_name is not empty", "value": { "conversation_id": "c1", "upload_id": "u1", "kind": "file", "mime_type": "", "file_name": "" } },
     { "target": "command:messages.sendMedia:params", "why": "kind is required", "value": { "conversation_id": "c1", "upload_id": "u1", "mime_type": "", "file_name": "a" } },
     { "target": "command:conversations.list:result", "why": "max_size is at least 1", "value": { "conversations": [

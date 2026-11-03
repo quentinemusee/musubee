@@ -593,6 +593,18 @@ export class Store {
   }
 
   /**
+   * Sends a copy of a message to a conversation (API 1.26). Rejects with
+   * the core's reason, for the dialog that asked.
+   */
+  async forward(messageId: string, conversationId: string): Promise<void> {
+    const { message } = await this.client.call("messages.forward", { message_id: messageId, conversation_id: conversationId });
+    // As send: the core's events may have come first.
+    if (!this.#state.messages[message.conversation_id]?.some((m) => m.message_id === message.message_id)) {
+      this.#upsertMessage(message);
+    }
+  }
+
+  /**
    * Sends a file to the selected conversation (API 1.10), with a caption if
    * not empty, as an answer if given: as a photo, video or audio when the
    * network takes that kind, as a file otherwise. Resolves with whether it

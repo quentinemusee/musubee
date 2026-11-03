@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "vitest";
 import type { Message } from "./core-api/types.gen";
-import { hasActions, isReactionKey, seenLabel, typingText, messageActions, MORE_REACTIONS, ownReaction, reactionLabel, replyQuote, replyTo, sameEmoji } from "./message";
+import { canForward, hasActions, isReactionKey, seenLabel, typingText, messageActions, MORE_REACTIONS, ownReaction, reactionLabel, replyQuote, replyTo, sameEmoji } from "./message";
 
 describe("reactionLabel", () => {
   test("says who reacted", () => {
@@ -76,6 +76,17 @@ describe("replyTo", () => {
     expect(replyTo({ ...message, from_me: true, sender_name: "" })).toEqual({ message_id: "m1", from_me: true, text: "Hi" });
     expect(replyTo({ ...message, text: "", deleted: true })).toEqual({ message_id: "m1", sender_name: "Bob", deleted: true });
   });
+});
+
+test("canForward: a message on its network, not deleted, with text or media", () => {
+  const sent: Message = { message_id: "m1", conversation_id: "c1", from_me: true, sender_name: "", timestamp_ms: 1, kind: "text", text: "hi", status: "sent" };
+  expect(canForward(sent)).toBe(true);
+  expect(canForward({ ...sent, from_me: false, status: "received" })).toBe(true);
+  expect(canForward({ ...sent, status: "sending" })).toBe(false);
+  expect(canForward({ ...sent, status: "queued" })).toBe(false);
+  expect(canForward({ ...sent, deleted: true, text: "" })).toBe(false);
+  expect(canForward({ ...sent, text: "" })).toBe(false);
+  expect(canForward({ ...sent, kind: "image", text: "", media: { media_id: "f1", mime_type: "image/png" } })).toBe(true);
 });
 
 describe("messageActions", () => {
