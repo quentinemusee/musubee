@@ -65,3 +65,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0053](0053-deleting-conversations.md) | Deleting a conversation: bridgev2's delete chat, confirmed by the room's deletion | accepted | T2.47 |
 | [0054](0054-forwarding-messages.md) | Forwarding a message: a new message of the user's, built by the core from what the device stores | accepted | T2.48 |
 | [0055](0055-mentions.md) | Mentions: the network's own marking, shown in the thread and let through a mute | accepted | T2.50 |
+| [0056](0056-leaving-groups.md) | Leaving a group: the user's leave event to the bridge, confirmed by its status | accepted | T2.51 |

@@ -323,6 +323,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.50 — Mentions** (E2.4, E2.6)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.28 `Message.mentions_me` from Matrix's `m.mentions` (ADR 0055): outlined in the thread, let through a mute by Android and the desktop; the echo contact answers `/mention`. 🧪 `TestMentions`, `MessageNotificationsTest`, `apps/desktop/test/notification-rules.test.ts`, the desktop e2e "mentions the user stands out". Left: an "@" in the inbox; checking Signal's and Matrix's connectors.
 
+**T2.51 — Leave a group** (E2.3)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.29 `conversations.leave` and `ConversationActions.leave` (ADR 0056): the user's leave to the bridge (`BridgeMatrixLeave` on), waited for by its status; the portal and the room are deleted on success; "Leave…" in a group's header. 🧪 `TestLeave`, the desktop e2e "the user leaves a group". Left: deleting a group for everyone.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

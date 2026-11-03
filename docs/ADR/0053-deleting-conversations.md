@@ -51,7 +51,7 @@ A direct conversation is cleared for the user; the other person keeps their copy
 
 - A person keeps their link to a deleted conversation (ADR 0017); it lists only the conversations still on the device, so the link shows again if the chat comes back.
 - The echo network creates its contacts' conversations again at its next login, not at a restart.
-- Deleting groups, leaving them, and deleting for everyone are later tasks.
+- Leaving groups came in T2.51 (ADR 0056); deleting groups and deleting for everyone are later tasks.
 
 ## Verification
 

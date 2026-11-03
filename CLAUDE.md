@@ -580,3 +580,10 @@ mentions (core):    go test -tags=goolm -count=1 -run 'Mentions' -v ./core/embed
 mentions (shells):  cd apps/desktop && npx vitest run test/notification-rules.test.ts      (Android: the notification rules command of T2.17)
 mentions in app:    cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "mentions the user"
 ```
+
+To verify in the test session: T2.51 (cloud sprint, no test run; see ADR 0056):
+
+```
+leave (core):       go test -tags=goolm -count=1 -run 'Leave|DeleteChat' -v ./core/embedded/
+leave in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "leaves a group"
+```
