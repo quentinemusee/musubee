@@ -54,9 +54,15 @@ export interface ShellNotifications {
  */
 export type NotificationPreview = "name_and_text" | "name_only" | "nothing";
 
+/** Opens a link of a message outside the app (docs/ADR/0066); absent where the shell does it itself. */
+export interface ShellLinks {
+  open(url: string): Promise<void>;
+}
+
 export interface Shell {
   core: ShellCore;
   notifications?: ShellNotifications;
+  links?: ShellLinks;
 }
 
 declare global {

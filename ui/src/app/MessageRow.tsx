@@ -5,6 +5,7 @@ import { memo, useEffect, useId, useRef, useState, type RefObject } from "react"
 import type { ConversationActions, Message, MessageReply } from "../core-api/types.gen";
 import { Avatar } from "./Avatar";
 import { MessageMedia } from "./MessageMedia";
+import { MessageText } from "./MessageText";
 import { hasMedia } from "../media";
 import {
   DELETED_TEXT,
@@ -119,13 +120,13 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers,
             <MessageMedia kind={message.kind} media={message.media} caption={message.text} />
             {message.text !== "" ? (
               <span className="text" data-kind="caption">
-                {message.text}
+                <MessageText text={message.text} />
               </span>
             ) : null}
           </>
         ) : (
           <span className="text" data-kind={message.kind}>
-            {message.text}
+            <MessageText text={message.text} />
           </span>
         )}
         {message.reactions && message.reactions.length > 0 && !deleted ? (

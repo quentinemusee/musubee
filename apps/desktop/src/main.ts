@@ -14,9 +14,10 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, ipcMain, Notification, protocol, safeStorage, session, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, ipcMain, Notification, protocol, safeStorage, session, shell, type IpcMainInvokeEvent } from "electron";
 import { APP_ORIGIN, APP_SCHEME, APP_URL, serveAppFile } from "./app-protocol.js";
 import { CoreKeyError, CoreKeyLostError, loadCoreKey } from "./core-key.js";
+import { externalLink } from "./external-links.js";
 import { CoreProcess, type CoreStatus } from "./core-process.js";
 import { allowCheck, allowRequest } from "./permissions.js";
 import { announcement, deletedConversation, hide, KnownConversations, parsePreview } from "./notification-rules.js";
@@ -179,6 +180,18 @@ function main(): void {
       showBadge();
       return response;
     });
+  });
+  // A link the user clicked in a message (docs/ADR/0066) opens in the
+  // system's browser: web addresses only, never a navigation of the app.
+  ipcMain.handle("links:open", async (event, url: unknown) => {
+    if (!trusted(event)) {
+      throw new Error("refused: not a Musubee window");
+    }
+    const target = typeof url === "string" ? externalLink(url, APP_ORIGIN) : null;
+    if (target === null) {
+      throw new Error("refused: not a web address");
+    }
+    await shell.openExternal(target);
   });
   ipcMain.handle("notifications:preview", (event) => {
     if (!trusted(event)) {

@@ -53,6 +53,12 @@ contextBridge.exposeInMainWorld("musubee", {
       return ipcRenderer.invoke("core:startOver") as Promise<void>;
     },
   },
+  // Links in messages open in the system's browser (docs/ADR/0066).
+  links: {
+    open(url: string): Promise<void> {
+      return ipcRenderer.invoke("links:open", url) as Promise<void>;
+    },
+  },
   // The main process shows the notifications (docs/ADR/0047); desktop
   // systems need no permission for them.
   notifications: {

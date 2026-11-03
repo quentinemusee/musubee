@@ -578,6 +578,17 @@ test("a starred message is listed with the others, and opens its conversation", 
   await app.close();
 });
 
+test("a web address in a message is a link", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "links");
+  await page.getByRole("textbox", { name: "Message" }).fill("see https://example.org/page, thanks");
+  await page.getByRole("button", { name: "Send" }).click();
+  const link = page.locator('.message[data-from-me="true"]').getByRole("link", { name: "https://example.org/page" });
+  await expect(link).toHaveAttribute("href", "https://example.org/page");
+  // Not clicked: it would open the system's browser.
+  await app.close();
+});
+
 test("a group shows its members", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "members");
@@ -750,7 +761,7 @@ test("the interface is isolated, and the main process checks what it sends", asy
       require: typeof w["require"],
       process: typeof w["process"],
       module: typeof w["module"],
-      shell: Object.keys(window.musubee ?? {}),
+      shell: Object.keys(window.musubee ?? {}).toSorted(),
       core: Object.keys(window.musubee?.core ?? {}).toSorted(),
       notifications: Object.keys(window.musubee?.notifications ?? {}).toSorted(),
     };
@@ -759,7 +770,7 @@ test("the interface is isolated, and the main process checks what it sends", asy
     require: "undefined",
     process: "undefined",
     module: "undefined",
-    shell: ["core", "notifications"],
+    shell: ["core", "links", "notifications"],
     core: ["call", "onEvent", "onStatus", "startOver"],
     notifications: ["ask", "onOpen", "preview", "setPreview"],
   });
@@ -813,6 +824,9 @@ test("the interface is isolated, and the main process checks what it sends", asy
     return { opened: opened === null, inlineRan: (window as unknown as { inlineRan?: boolean }).inlineRan === true };
   });
   expect(blocked).toEqual({ opened: true, inlineRan: false });
+  // Links open only web addresses, outside the app (ADR 0066).
+  const link = await page.evaluate(() => window.musubee!.links!.open("file:///etc/passwd").then(() => "opened", () => "refused"));
+  expect(link).toBe("refused");
   expect(page.url()).toBe("app://musubee/index.html");
   await app.close();
 });
