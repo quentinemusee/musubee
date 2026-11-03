@@ -401,7 +401,10 @@ export interface ConversationActions {
    * network takes none. Since API 1.10.
    */
   media?: MediaActions;
-  /** conversations.delete. Since API 1.25. */
+  /**
+   * conversations.delete: direct conversations only, as networks delete groups
+   * for everyone. Since API 1.25.
+   */
   delete_chat?: boolean;
 }
 

@@ -10,6 +10,7 @@ import (
 
 	"go.mau.fi/util/variationselector"
 	"maunium.net/go/mautrix/bridgev2"
+	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
@@ -40,8 +41,9 @@ func actions(ctx context.Context, portal *bridgev2.Portal, login *bridgev2.UserL
 		Edit:   features.Edit.Partial(),
 		Delete: features.Delete.Partial(),
 		Media:  mediaActions(features),
-		// Since API 1.25 (docs/ADR/0053).
-		DeleteChat: features.DeleteChat,
+		// Since API 1.25, direct conversations only (docs/ADR/0053):
+		// networks delete groups for everyone, or let the user leave.
+		DeleteChat: features.DeleteChat && portal.RoomType == database.RoomTypeDM,
 	}
 	if *a == (api.ConversationActions{}) {
 		return nil

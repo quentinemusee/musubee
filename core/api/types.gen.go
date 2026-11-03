@@ -673,7 +673,8 @@ type ConversationActions struct {
 	// messages.sendMedia, for the kinds of media listed. Omitted when the network
 	// takes none. Since API 1.10.
 	Media *MediaActions `json:"media,omitempty"`
-	// conversations.delete. Since API 1.25.
+	// conversations.delete: direct conversations only, as networks delete groups
+	// for everyone. Since API 1.25.
 	DeleteChat bool `json:"delete_chat,omitempty"`
 }
 
