@@ -245,6 +245,7 @@ func (c *Core) conversation(ctx context.Context, activity *localmatrix.RoomActiv
 	conv.MarkedUnread = read.MarkedUnread
 	conv.MutedUntilMS = mutedUntil(read.MutedUntil, time.Now())
 	conv.Pinned = read.Pinned
+	conv.Archived = read.ArchivedAt != 0
 	if conv.Draft, err = c.host.Matrix.Draft(ctx, room.ID); err != nil {
 		return nil, err
 	}

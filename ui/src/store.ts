@@ -561,6 +561,30 @@ export class Store {
     });
   }
 
+  /** Archives or unarchives a conversation (API 1.31): at once in the store, back if the core refuses. */
+  async archive(conversationId: string, archived: boolean): Promise<void> {
+    const apply = (value: boolean) => {
+      const conversations = this.#state.conversations;
+      const index = conversations.findIndex((c) => c.conversation_id === conversationId);
+      const conversation = conversations[index];
+      if (conversation === undefined || (conversation.archived === true) === value) {
+        return false;
+      }
+      const { archived: _, ...rest } = conversation;
+      this.#set({ conversations: conversations.with(index, value ? { ...rest, archived: true } : rest) });
+      return true;
+    };
+    if (!apply(archived)) {
+      return;
+    }
+    try {
+      await this.client.call("conversations.archive", { conversation_id: conversationId, archived });
+    } catch (error) {
+      apply(!archived);
+      this.#set({ error: `Could not ${archived ? "archive" : "unarchive"} the conversation: ${describe(error)}` });
+    }
+  }
+
   /** Pins or unpins a conversation (API 1.24): at once in the store, back if the core refuses. */
   async pin(conversationId: string, pinned: boolean): Promise<void> {
     const apply = (value: boolean) => {

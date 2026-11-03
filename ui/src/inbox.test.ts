@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "vitest";
 import type { Conversation, Message, Person } from "./core-api/types.gen";
-import { activityLabel, entryOf, inboxEntries, preview, unreadBadge, type InboxEntry } from "./inbox";
+import { activityLabel, inboxEntries, type InboxEntry, isArchived, entryOf, preview, unreadBadge } from "./inbox";
 
 function conversation(id: string, name: string, activity: number, patch: Partial<Conversation> = {}): Conversation {
   return { conversation_id: id, account_id: "a1", network_id: "echo", name, kind: "direct", activity_ms: activity, ...patch };
@@ -97,6 +97,16 @@ describe("preview", () => {
     const withDraft = entry("direct", { sender_name: "Bob" });
     expect(preview({ ...withDraft, conversations: [{ ...withDraft.conversations[0]!, draft: "see you" }] })).toBe("Draft: see you");
     expect(preview({ ...withDraft, conversations: [{ ...withDraft.conversations[0]!, draft: "" }] })).toBe("Hi");
+  });
+});
+
+describe("isArchived", () => {
+  test("an entry is archived when all its conversations are", () => {
+    const one = entry("direct");
+    const archived = { ...one.conversations[0]!, archived: true };
+    expect(isArchived(one)).toBe(false);
+    expect(isArchived({ ...one, conversations: [archived] })).toBe(true);
+    expect(isArchived({ ...one, conversations: [archived, one.conversations[0]!] })).toBe(false);
   });
 });
 

@@ -320,6 +320,9 @@ func (c *Core) translate(update localmatrix.Update) ([]*api.Event, error) {
 			return nil, err
 		}
 		added := &api.Event{Type: api.EventMessageAdded, Data: api.MessageEvent{Message: msg}}
+		if err = c.unarchiveOnMessage(ctx, evt); err != nil {
+			return nil, err
+		}
 		// A message changes its conversation's last message and unread
 		// count. A room that is not a conversation yet is announced later,
 		// with its name.
@@ -636,6 +639,8 @@ func (c *Core) dispatch(ctx context.Context, command string, params json.RawMess
 		return handle(ctx, params, c.conversationsLeave)
 	case api.CommandConversationsSetDraft:
 		return handle(ctx, params, c.conversationsSetDraft)
+	case api.CommandConversationsArchive:
+		return handle(ctx, params, c.conversationsArchive)
 	case api.CommandConversationsTyping:
 		return handle(ctx, params, c.conversationsTyping)
 	case api.CommandMessagesList:

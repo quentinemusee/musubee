@@ -102,6 +102,9 @@ type ReadState struct {
 	// Pinned is set while the user keeps the room at the top of the inbox:
 	// Matrix's favourite tag (docs/ADR/0052).
 	Pinned bool
+	// ArchivedAt is when the user archived the room, in Unix milliseconds,
+	// or 0 (docs/ADR/0060).
+	ArchivedAt int64
 	// MutedUntil is when the user's mute of the room ends, in Unix
 	// milliseconds: MutedForever until unmuted, 0 when not muted. A time
 	// in the past is not muted either.
@@ -111,6 +114,11 @@ type ReadState struct {
 // MutedForever is ReadState.MutedUntil for a room muted until unmuted, as
 // com.beeper.mute says it.
 const MutedForever int64 = -1
+
+// archivedAt is the account data that keeps a room's archiving.
+type archivedAt struct {
+	At int64 `json:"at"`
+}
 
 // mutedUntil is the account data that keeps a room's mute.
 type mutedUntil struct {
@@ -1008,6 +1016,11 @@ func (s *store) readState(ctx context.Context, roomID id.RoomID, userID id.UserI
 		return nil, err
 	}
 	_, st.Pinned = tags.Tags[event.RoomTagFavourite]
+	var archived archivedAt
+	if _, err := s.getRoomAccountData(ctx, userID, roomID, accountDataArchived, &archived); err != nil {
+		return nil, err
+	}
+	st.ArchivedAt = archived.At
 	return &st, nil
 }
 

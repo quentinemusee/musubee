@@ -562,6 +562,25 @@ describe("Store", () => {
     ]);
   });
 
+  test("archives at once, and puts it back if the core refuses", async () => {
+    let refuse = false;
+    const shell = scriptedShell({
+      ...coreState([conversation("c1", "Adam", 1)]),
+      "conversations.archive": () => (refuse ? Promise.reject(new Error("no")) : {}),
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    const archived = () => store.getState().conversations[0]?.archived;
+    await store.archive("c1", true);
+    expect(archived()).toBe(true);
+    refuse = true;
+    await store.archive("c1", false);
+    expect(archived()).toBe(true);
+    expect(store.getState().error).toMatch(/^Could not unarchive the conversation/);
+  });
+
   test("reads older messages page by page, one page at a time", async () => {
     // 250 messages, m0 to m249; the core pages them from the newest.
     const all = Array.from({ length: 250 }, (_, i) => message(`m${i}`, i));

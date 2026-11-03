@@ -1021,3 +1021,25 @@ func (s *Server) Draft(ctx context.Context, roomID id.RoomID) (string, error) {
 	_, err := s.store.getRoomAccountData(ctx, s.userID, roomID, accountDataDraft, &d)
 	return d.Text, err
 }
+
+// Archive archives a room for the user at a time in Unix milliseconds, or
+// unarchives it (0), on this device only (docs/ADR/0060): no network
+// handles archiving through bridgev2. It reports whether it changed, and
+// publishes the change as the room's read state.
+func (s *Server) Archive(ctx context.Context, roomID id.RoomID, at int64) (bool, error) {
+	if _, err := s.store.getRoom(ctx, roomID); err != nil {
+		return false, err
+	}
+	var before archivedAt
+	if _, err := s.store.getRoomAccountData(ctx, s.userID, roomID, accountDataArchived, &before); err != nil {
+		return false, err
+	}
+	if (before.At == 0) == (at == 0) {
+		return false, nil
+	}
+	if err := s.store.setRoomAccountData(ctx, s.userID, roomID, accountDataArchived, &archivedAt{At: at}); err != nil {
+		return false, err
+	}
+	s.publish(Update{ReadState: roomID})
+	return true, nil
+}

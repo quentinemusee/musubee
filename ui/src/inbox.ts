@@ -73,6 +73,11 @@ export function inboxEntries(conversations: readonly Conversation[], persons: re
   return entries;
 }
 
+/** Whether an entry is archived (API 1.31): all of its conversations are. */
+export function isArchived(entry: InboxEntry): boolean {
+  return entry.conversations.every((c) => c.archived === true);
+}
+
 /** The entry that holds a conversation, if any. */
 export function entryOf(entries: readonly InboxEntry[], conversationId: string | undefined): InboxEntry | undefined {
   return conversationId === undefined ? undefined : entries.find((e) => e.conversations.some((c) => c.conversation_id === conversationId));

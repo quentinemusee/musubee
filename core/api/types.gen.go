@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.30"
+const APIVersion = "1.31"
 
 // Command names.
 const (
@@ -92,6 +92,11 @@ const (
 	// network answered; fails if it refuses or does not answer within 30 seconds.
 	// Since API 1.29.
 	CommandConversationsLeave = "conversations.leave"
+	// Archives a conversation, or brings it back, on this device only: no network
+	// learns it. An archived conversation comes back by itself when someone
+	// writes in it, unless it is muted. The conversation is then sent again in a
+	// conversation.updated event, if it changed. Since API 1.31.
+	CommandConversationsArchive = "conversations.archive"
 	// Keeps the text the user left unsent in a conversation's composer, on this
 	// device only (an empty text forgets it): the network never sees it. Sent
 	// again in Conversation.draft, but no conversation.updated event follows: the
@@ -260,6 +265,7 @@ var Commands = []CommandSpec{
 	{Name: CommandConversationsPin, Params: reflect.TypeFor[ConversationsPinParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsDelete, Params: reflect.TypeFor[ConversationsDeleteParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsLeave, Params: reflect.TypeFor[ConversationsLeaveParams](), Result: reflect.TypeFor[Empty]()},
+	{Name: CommandConversationsArchive, Params: reflect.TypeFor[ConversationsArchiveParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsSetDraft, Params: reflect.TypeFor[ConversationsSetDraftParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsMembers, Params: reflect.TypeFor[ConversationsMembersParams](), Result: reflect.TypeFor[ConversationsMembersResult]()},
 	{Name: CommandConversationsMarkRead, Params: reflect.TypeFor[ConversationsMarkReadParams](), Result: reflect.TypeFor[Empty]()},
@@ -631,6 +637,9 @@ type Conversation struct {
 	// The user marked the conversation as unread (on another device, for now);
 	// reading it clears the flag. Omitted when false. Since API 1.4.
 	MarkedUnread bool `json:"marked_unread,omitempty"`
+	// The user archived the conversation (conversations.archive). Omitted when
+	// false. Since API 1.31.
+	Archived bool `json:"archived,omitempty"`
 	// The text the user left unsent in the conversation's composer
 	// (conversations.setDraft). Omitted when none. Since API 1.30.
 	Draft string `json:"draft,omitempty"`
@@ -782,6 +791,13 @@ type ConversationsDeleteParams struct {
 // ConversationsLeaveParams is $defs/ConversationsLeaveParams of the schema.
 type ConversationsLeaveParams struct {
 	ConversationID string `json:"conversation_id"`
+}
+
+// ConversationsArchiveParams is $defs/ConversationsArchiveParams of the
+// schema.
+type ConversationsArchiveParams struct {
+	ConversationID string `json:"conversation_id"`
+	Archived       bool   `json:"archived"`
 }
 
 // ConversationsSetDraftParams is $defs/ConversationsSetDraftParams of the

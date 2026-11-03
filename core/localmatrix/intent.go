@@ -37,6 +37,7 @@ const (
 	accountDataUnread      = "m.marked_unread"
 	accountDataMutedUntil  = "com.musubee.muted_until"
 	accountDataDraft       = "app.musubee.draft"
+	accountDataArchived    = "app.musubee.archived"
 )
 
 // ErrEncryptedMediaUnsupported is returned for encrypted attachments: the

@@ -3,7 +3,7 @@
 
 import { createContext, memo, use, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Virtualizer, type CustomItemComponentProps, type VirtualizerHandle } from "virtua";
-import { activityLabel, entryOf, inboxEntries, preview, unreadBadge, type InboxEntry } from "../inbox";
+import { activityLabel, entryOf, inboxEntries, isArchived, preview, unreadBadge, type InboxEntry } from "../inbox";
 import { typingText } from "../message";
 import { isMuted } from "../mute";
 import { openConversation } from "./navigation";
@@ -25,10 +25,14 @@ export function Inbox() {
   const ref = useRef<VirtualizerHandle>(null);
   const now = useNow();
 
-  const entries = useMemo(() => inboxEntries(conversations, persons), [conversations, persons]);
+  const all = useMemo(() => inboxEntries(conversations, persons), [conversations, persons]);
+  // Archived entries (API 1.31) have a list of their own.
+  const [archiveShown, setArchiveShown] = useState(false);
+  const archived = useMemo(() => all.filter(isArchived), [all]);
+  const entries = useMemo(() => (archiveShown ? archived : all.filter((e) => !isArchived(e))), [all, archived, archiveShown]);
   const anyUnread = entries.some((e) => e.unread > 0 || e.markedUnread);
   const networkNames = useMemo(() => new Map(networks.map((n) => [n.network_id, n.name])), [networks]);
-  const current = entryOf(entries, selected)?.key;
+  const current = entryOf(all, selected)?.key;
 
   const canLoad = typeof inbox === "object";
   function loadIfNeeded() {
@@ -42,15 +46,20 @@ export function Inbox() {
   return (
     <section className="inbox" aria-labelledby="conversations-title">
       <div className="inbox-header">
-        <h2 id="conversations-title">Conversations</h2>
+        <h2 id="conversations-title">{archiveShown ? "Archived" : "Conversations"}</h2>
         {anyUnread ? (
           <button type="button" className="secondary" onClick={() => void store.markAllRead()}>
             Mark all read
           </button>
         ) : null}
       </div>
+      {archiveShown || archived.length > 0 ? (
+        <button type="button" className="secondary archive-switch" aria-pressed={archiveShown} onClick={() => setArchiveShown(!archiveShown)}>
+          {archiveShown ? "Back to conversations" : `Archived (${archived.length})`}
+        </button>
+      ) : null}
       {entries.length === 0 ? (
-        <p className="empty">No conversations yet.</p>
+        <p className="empty">{archiveShown ? "No archived conversations." : "No conversations yet."}</p>
       ) : (
         // The virtualizer renders a ul of li in its parent, which scrolls.
         <div className="inbox-list">

@@ -1433,3 +1433,8 @@ button.flow:hover:not(:disabled) {
   justify-content: space-between;
   gap: var(--space);
 }
+
+.archive-switch {
+  align-self: flex-start;
+  margin-bottom: calc(var(--space) / 2);
+}

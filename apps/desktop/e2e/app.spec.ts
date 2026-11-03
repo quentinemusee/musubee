@@ -517,6 +517,22 @@ test("keyboard shortcuts reach the search and the next conversation", async () =
   await app.close();
 });
 
+test("an archived conversation leaves the inbox for the archive", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "archive");
+  await page.getByRole("button", { name: "Delayed Echo" }).click();
+  await page.getByRole("button", { name: "Archive", exact: true }).click();
+  await expect(page.locator(".inbox-row").getByRole("button", { name: "Delayed Echo" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Archived (1)" }).click();
+  await expect(page.getByRole("heading", { name: "Archived" })).toBeVisible();
+  await expect(page.locator(".inbox-row").getByRole("button", { name: "Delayed Echo" })).toBeVisible();
+  await page.getByRole("button", { name: "Unarchive" }).click();
+  await page.getByRole("button", { name: "Back to conversations" }).click();
+  await expect(page.locator(".inbox-row").getByRole("button", { name: "Delayed Echo" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Archived \(/ })).toHaveCount(0);
+  await app.close();
+});
+
 test("a group shows its members", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "members");

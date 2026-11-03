@@ -162,6 +162,9 @@ export function Thread() {
           Pin
         </button>
         <MuteButton key={selected} conversation={conversation} />
+        <button type="button" className="secondary" onClick={() => void store.archive(selected, conversation.archived !== true)}>
+          {conversation.archived === true ? "Unarchive" : "Archive"}
+        </button>
         {conversation.kind === "group" ? (
           <button type="button" className="secondary" aria-haspopup="dialog" onClick={() => setMembersFor(selected)}>
             Members…
