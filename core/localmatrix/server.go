@@ -516,6 +516,13 @@ func (s *Server) Members(ctx context.Context, roomID id.RoomID) (map[id.UserID]*
 	return members, nil
 }
 
+// OldestMessageOrder returns the stream order of a room's oldest message
+// (not an edit), or 0 when it has none: messages before it are older
+// history (docs/ADR/0041).
+func (s *Server) OldestMessageOrder(ctx context.Context, roomID id.RoomID) (int64, error) {
+	return s.store.oldestMessageOrder(ctx, roomID)
+}
+
 // UploadMedia stores media that the user sends in a room, and returns its
 // content URI, to name in the message's content.
 func (s *Server) UploadMedia(ctx context.Context, roomID id.RoomID, data []byte, fileName, mimeType string) (id.ContentURIString, error) {

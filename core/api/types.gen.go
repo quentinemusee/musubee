@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.12"
+const APIVersion = "1.13"
 
 // Command names.
 const (
@@ -51,6 +51,12 @@ const (
 	// Returns the latest messages of a conversation, or the ones before a cursor,
 	// oldest first.
 	CommandMessagesList = "messages.list"
+	// Asks the conversation's network for the history before the oldest message
+	// on this device, waits for it, and returns it as messages.list does, oldest
+	// first: the messages older than the oldest one the device had, with a cursor
+	// when more are stored. end is set when the network has no older history, or
+	// cannot give any. Since API 1.13.
+	CommandMessagesFetchOlder = "messages.fetchOlder"
 	// Sends a text message, since API 1.8 as an answer to another message
 	// (reply_to, when the conversation's actions allow it). The message is stored
 	// at once with status sending; its delivery is reported later by
@@ -164,6 +170,7 @@ var Commands = []CommandSpec{
 	{Name: CommandConversationsList, Params: reflect.TypeFor[ConversationsListParams](), Result: reflect.TypeFor[ConversationsListResult]()},
 	{Name: CommandConversationsMarkRead, Params: reflect.TypeFor[ConversationsMarkReadParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandMessagesList, Params: reflect.TypeFor[MessagesListParams](), Result: reflect.TypeFor[MessagesListResult]()},
+	{Name: CommandMessagesFetchOlder, Params: reflect.TypeFor[MessagesFetchOlderParams](), Result: reflect.TypeFor[MessagesFetchOlderResult]()},
 	{Name: CommandMessagesSend, Params: reflect.TypeFor[MessagesSendParams](), Result: reflect.TypeFor[MessagesSendResult]()},
 	{Name: CommandMessagesReact, Params: reflect.TypeFor[MessagesReactParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandMessagesUnreact, Params: reflect.TypeFor[MessagesReactParams](), Result: reflect.TypeFor[Empty]()},
@@ -693,6 +700,26 @@ type MessagesListParams struct {
 	Before string `json:"before,omitempty"`
 	// At most this many messages (default 50, at most 200).
 	Limit int64 `json:"limit,omitempty"`
+}
+
+// MessagesFetchOlderParams is $defs/MessagesFetchOlderParams of the schema.
+type MessagesFetchOlderParams struct {
+	ConversationID string `json:"conversation_id"`
+	// At most this many messages in the result (default 50, at most 200); the
+	// network may give more, which stay on the device for messages.list.
+	Limit int64 `json:"limit,omitempty"`
+}
+
+// MessagesFetchOlderResult is $defs/MessagesFetchOlderResult of the schema.
+type MessagesFetchOlderResult struct {
+	// Oldest first; empty when the network gave nothing.
+	Messages []Message `json:"messages"`
+	// Cursor for older messages already on the device (messages.list); absent
+	// when there are none.
+	Before string `json:"before,omitempty"`
+	// The network has no older history, or cannot give history: asking again
+	// changes nothing. Omitted when false.
+	End bool `json:"end,omitempty"`
 }
 
 // MessagesListResult is $defs/MessagesListResult of the schema.

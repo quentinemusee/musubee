@@ -127,6 +127,12 @@
       { "message_id": "m7", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1791496805000, "kind": "text", "text": "Nice", "status": "sent",
         "reply_to": { "message_id": "m5", "sender_name": "Instant Echo", "text": "A sunset", "kind": "image" } }
     ] } },
+    { "target": "command:messages.fetchOlder:params", "value": { "conversation_id": "c1" } },
+    { "target": "command:messages.fetchOlder:params", "value": { "conversation_id": "c1", "limit": 20 } },
+    { "target": "command:messages.fetchOlder:result", "value": { "messages": [
+      { "message_id": "m0", "conversation_id": "c1", "from_me": false, "sender_name": "Instant Echo", "timestamp_ms": 1791400000000, "kind": "text", "text": "Old message 0", "status": "received" }
+    ], "before": "k0" } },
+    { "target": "command:messages.fetchOlder:result", "value": { "messages": [], "end": true } },
     { "target": "command:media.read:params", "value": { "media_id": "f1" } },
     { "target": "command:uploads.append:params", "value": { "data": "iVBORw0KGgo=" } },
     { "target": "command:uploads.append:params", "value": { "upload_id": "u1", "data": "AAAA" } },
@@ -216,6 +222,8 @@
     { "target": "command:conversations.list:result", "why": "max_size is at least 1", "value": { "conversations": [
       { "conversation_id": "c1", "account_id": "a1", "network_id": "echo", "name": "x", "kind": "direct", "activity_ms": 1, "actions": { "media": { "file": { "max_size": 0 } } } }
     ] } },
+    { "target": "command:messages.fetchOlder:params", "why": "limit is at most 200", "value": { "conversation_id": "c1", "limit": 500 } },
+    { "target": "command:messages.fetchOlder:result", "why": "messages is required", "value": { "end": true } },
     { "target": "command:media.read:params", "why": "length is at most 1 MiB", "value": { "media_id": "f1", "length": 1048577 } },
     { "target": "command:media.read:params", "why": "offset is not negative", "value": { "media_id": "f1", "offset": -1 } },
     { "target": "command:messages.list:result", "why": "media needs its media_id", "value": { "messages": [

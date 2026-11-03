@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.12",
+  "x-musubee-api-version": "1.13",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -174,6 +174,16 @@
           "properties": {
             "params": { "$ref": "#/$defs/MessagesListParams" },
             "result": { "$ref": "#/$defs/MessagesListResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "messages.fetchOlder": {
+          "description": "Asks the conversation's network for the history before the oldest message on this device, waits for it, and returns it as messages.list does, oldest first: the messages older than the oldest one the device had, with a cursor when more are stored. end is set when the network has no older history, or cannot give any. Since API 1.13.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/MessagesFetchOlderParams" },
+            "result": { "$ref": "#/$defs/MessagesFetchOlderResult" }
           },
           "required": ["params", "result"],
           "additionalProperties": false
@@ -1035,6 +1045,40 @@
         }
       },
       "required": ["conversation_id"],
+      "additionalProperties": false
+    },
+    "MessagesFetchOlderParams": {
+      "type": "object",
+      "properties": {
+        "conversation_id": { "type": "string" },
+        "limit": {
+          "description": "At most this many messages in the result (default 50, at most 200); the network may give more, which stay on the device for messages.list.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "required": ["conversation_id"],
+      "additionalProperties": false
+    },
+    "MessagesFetchOlderResult": {
+      "type": "object",
+      "properties": {
+        "messages": {
+          "description": "Oldest first; empty when the network gave nothing.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/Message" }
+        },
+        "before": {
+          "description": "Cursor for older messages already on the device (messages.list); absent when there are none.",
+          "type": "string"
+        },
+        "end": {
+          "description": "The network has no older history, or cannot give history: asking again changes nothing. Omitted when false.",
+          "type": "boolean"
+        }
+      },
+      "required": ["messages"],
       "additionalProperties": false
     },
     "MessagesListResult": {

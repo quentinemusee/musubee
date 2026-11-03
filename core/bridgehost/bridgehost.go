@@ -115,6 +115,23 @@ func (h *Host) AddNetwork(bridgeID networkid.BridgeID, network bridgev2.NetworkC
 				SharedHasUsers: bridgeconfig.CleanupActionNothing,
 			},
 		},
+		// History (docs/ADR/0041): the latest messages of a new
+		// conversation, and what a reconnection missed, come at once;
+		// older history only when the user scrolls to it
+		// (messages.fetchOlder), never in the background, so that a login
+		// does not walk every conversation's history on the network.
+		// Messages older than a day come read.
+		Backfill: bridgeconfig.BackfillConfig{
+			Enabled:              true,
+			MaxInitialMessages:   50,
+			MaxCatchupMessages:   500,
+			UnreadHoursThreshold: 24,
+			Queue: bridgeconfig.BackfillQueueConfig{
+				Enabled:    false,
+				BatchSize:  100,
+				MaxBatches: -1,
+			},
+		},
 		Permissions: bridgeconfig.PermissionConfig{
 			h.Matrix.UserID().String(): &bridgeconfig.Permissions{
 				SendEvents:   true,

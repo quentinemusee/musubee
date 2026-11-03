@@ -33,10 +33,6 @@ var (
 	_ bridgev2.MatrixConnectorWithArbitraryRoomState = (*Connector)(nil)
 )
 
-// ErrBatchSendUnsupported is returned by BatchSend: the connector does not
-// advertise batch sending, so bridgev2 sends backfilled messages one by one.
-var ErrBatchSendUnsupported = errors.New("batch sending is not supported by the local Matrix connector")
-
 // Init is called by bridgev2.NewBridge.
 func (c *Connector) Init(br *bridgev2.Bridge) {
 	c.br = br
@@ -54,9 +50,10 @@ func (c *Connector) PreStop() {}
 func (c *Connector) Stop() {}
 
 // GetCapabilities tells bridgev2 that invited users join immediately (there is
-// no other client to accept invites) and that batch sending is unavailable.
+// no other client to accept invites) and that history comes in batches
+// (BatchSend), which can go before the stored messages.
 func (c *Connector) GetCapabilities() *bridgev2.MatrixCapabilities {
-	return &bridgev2.MatrixCapabilities{AutoJoinInvites: true}
+	return &bridgev2.MatrixCapabilities{AutoJoinInvites: true, BatchSending: true}
 }
 
 func (c *Connector) ghostPrefix() string {
@@ -181,9 +178,103 @@ func (c *Connector) GetStateEvent(ctx context.Context, roomID id.RoomID, eventTy
 	return c.server.store.getState(ctx, roomID, eventType, stateKey)
 }
 
-// BatchSend is not supported (see GetCapabilities).
-func (c *Connector) BatchSend(context.Context, id.RoomID, *mautrix.ReqBeeperBatchSend, []*bridgev2.MatrixSendExtra) (*mautrix.RespBeeperBatchSend, error) {
-	return nil, ErrBatchSendUnsupported
+// BatchSend stores a batch of history (docs/ADR/0041), as Beeper's batch
+// send API does on a homeserver: after the stored events (forward), or
+// before every stored message (backward), as bridgev2 asks; a backward
+// batch goes forward in a room without messages when asked to
+// (ForwardIfNoMessages). The senders join first. An event already stored
+// (by its deterministic ID) is skipped.
+//
+// A forward batch is published like any event, so that the core tells the
+// interface. A backward batch is not: it is history that the interface
+// asked for (messages.fetchOlder) and reads back; it is never unread
+// either, since the read position moves past it when the room has none.
+func (c *Connector) BatchSend(ctx context.Context, roomID id.RoomID, req *mautrix.ReqBeeperBatchSend, _ []*bridgev2.MatrixSendExtra) (*mautrix.RespBeeperBatchSend, error) {
+	s := c.server
+	resp := &mautrix.RespBeeperBatchSend{EventIDs: make([]id.EventID, len(req.Events))}
+	var readChanged bool
+	err := s.transact(ctx, func(ctx context.Context, store func(*event.Event) error) error {
+		if _, err := s.store.getRoom(ctx, roomID); err != nil {
+			return err
+		}
+		forward := req.Forward
+		if !forward && req.ForwardIfNoMessages {
+			has, err := s.store.hasMessages(ctx, roomID)
+			if err != nil {
+				return err
+			}
+			forward = !has
+		}
+		joined := make(map[id.UserID]bool)
+		for _, evt := range req.Events {
+			if joined[evt.Sender] {
+				continue
+			}
+			joined[evt.Sender] = true
+			sender := &Intent{server: s, conn: c, mxid: evt.Sender, doublePuppet: evt.Sender == s.userID}
+			if err := sender.ensureJoined(ctx, roomID, store); err != nil {
+				return err
+			}
+		}
+		var next int64
+		if !forward {
+			var err error
+			if next, err = s.store.backwardOrders(ctx, len(req.Events)); err != nil {
+				return err
+			}
+		}
+		var last *event.Event
+		for i, original := range req.Events {
+			evt := *original
+			evt.RoomID = roomID
+			if evt.ID == "" {
+				evt.ID = newEventID(s.serverName)
+			}
+			if evt.Type.Class == event.UnknownEventType {
+				evt.Type.Class = event.MessageEventType
+			}
+			if evt.Timestamp == 0 {
+				evt.Timestamp = time.Now().UnixMilli()
+			}
+			resp.EventIDs[i] = evt.ID
+			exists, err := s.store.eventExists(ctx, evt.ID)
+			if err != nil {
+				return err
+			} else if exists {
+				continue
+			}
+			if forward {
+				err = store(&evt)
+			} else {
+				err = s.store.insertEventAt(ctx, &evt, next)
+				next++
+			}
+			if err != nil {
+				return err
+			}
+			last = &evt
+		}
+		if last == nil {
+			return nil
+		}
+		// Read as bridgev2 asks, and older history is never news, even when
+		// it goes forward in an empty room: without a read position, the
+		// room gets one past it (an existing one is already above, and only
+		// moves forward).
+		if req.MarkReadBy == s.userID || !req.Forward {
+			var err error
+			readChanged, err = s.store.advanceReadMarker(ctx, roomID, last.Unsigned.BeeperHSOrder, time.Now())
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if readChanged {
+		s.publish(Update{ReadState: roomID})
+	}
+	return resp, nil
 }
 
 // GenerateDeterministicRoomID returns the room ID of a portal, which is the

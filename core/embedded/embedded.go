@@ -602,6 +602,8 @@ func (c *Core) dispatch(ctx context.Context, command string, params json.RawMess
 		return handle(ctx, params, c.messagesList)
 	case api.CommandMessagesSend:
 		return handle(ctx, params, c.messagesSend)
+	case api.CommandMessagesFetchOlder:
+		return handle(ctx, params, c.messagesFetchOlder)
 	case api.CommandMessagesReact:
 		return handle(ctx, params, c.messagesReact)
 	case api.CommandMessagesUnreact:

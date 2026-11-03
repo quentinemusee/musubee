@@ -195,8 +195,9 @@ func (c *client) IsThisUser(_ context.Context, userID networkid.UserID) bool {
 
 func (c *client) chatInfo(contact Contact) *bridgev2.ChatInfo {
 	return &bridgev2.ChatInfo{
-		Name: ptr.Ptr(contact.Name),
-		Type: ptr.Ptr(database.RoomTypeDM),
+		Name:        ptr.Ptr(contact.Name),
+		Type:        ptr.Ptr(database.RoomTypeDM),
+		CanBackfill: true,
 		Members: &bridgev2.ChatMemberList{
 			IsFull:      true,
 			OtherUserID: contact.ID,

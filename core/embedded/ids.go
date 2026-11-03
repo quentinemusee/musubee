@@ -107,7 +107,8 @@ func parseCursor(value string) (int64, error) {
 	if err == nil {
 		order, err = strconv.ParseInt(parts[0], 10, 64)
 	}
-	if err != nil || order <= 0 {
+	// Orders below 0 are older history (docs/ADR/0041); 0 is no order.
+	if err != nil || order == 0 {
 		return 0, newError(api.ErrorCodeInvalidParams, "invalid cursor %q", value)
 	}
 	return order, nil

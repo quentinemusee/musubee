@@ -312,6 +312,13 @@ func relationOf(evt *event.Event, content []byte) (relType, target sql.NullStrin
 // insertEvent stores an event and, for state events, makes it the current
 // state. It fills evt.Unsigned.BeeperHSOrder.
 func (s *store) insertEvent(ctx context.Context, evt *event.Event) error {
+	return s.insertEventAt(ctx, evt, 0)
+}
+
+// insertEventAt stores an event at a given stream order, or after every
+// other one when order is 0. Older history goes below the lowest order
+// (backwardOrders, docs/ADR/0041): orders may be negative, never 0.
+func (s *store) insertEventAt(ctx context.Context, evt *event.Event, order int64) error {
 	content, err := json.Marshal(&evt.Content)
 	if err != nil {
 		return fmt.Errorf("encoding event content: %w", err)
@@ -319,9 +326,9 @@ func (s *store) insertEvent(ctx context.Context, evt *event.Event) error {
 	relType, target := relationOf(evt, content)
 	return s.db.DoTxn(ctx, nil, func(ctx context.Context) error {
 		res, err := s.db.Exec(ctx,
-			`INSERT INTO local_event (event_id, room_id, sender, event_type, state_key, content, timestamp, rel_type, relates_to)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-			evt.ID, evt.RoomID, evt.Sender, evt.Type.Type, evt.StateKey, string(content), evt.Timestamp, relType, target)
+			`INSERT INTO local_event (stream_order, event_id, room_id, sender, event_type, state_key, content, timestamp, rel_type, relates_to)
+			 VALUES (CASE WHEN $10=0 THEN NULL ELSE $10 END, $1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			evt.ID, evt.RoomID, evt.Sender, evt.Type.Type, evt.StateKey, string(content), evt.Timestamp, relType, target, order)
 		if err != nil {
 			return err
 		}
@@ -455,11 +462,43 @@ func (s *store) getEvent(ctx context.Context, roomID id.RoomID, eventID id.Event
 	return evt, err
 }
 
-// timeline returns the events of a room stored after the given stream order,
-// oldest first.
+// backwardOrders returns the first of n stream orders below every stored
+// event's, for history older than everything stored: below the lowest
+// order of all rooms, so that each room's older batch goes below its
+// earlier ones, and below 0, which means "no order".
+func (s *store) backwardOrders(ctx context.Context, n int) (int64, error) {
+	var lowest int64
+	err := s.db.QueryRow(ctx, `SELECT COALESCE(MIN(stream_order), 0) FROM local_event`).Scan(&lowest)
+	return min(lowest, 0) - int64(n), err
+}
+
+// hasMessages tells whether a room has any message (not counting edits).
+func (s *store) hasMessages(ctx context.Context, roomID id.RoomID) (bool, error) {
+	var has bool
+	err := s.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM local_event WHERE room_id=$1 AND `+messageFilter+`)`, roomID).Scan(&has)
+	return has, err
+}
+
+// oldestMessageOrder returns the stream order of a room's oldest message,
+// or 0 when it has none.
+func (s *store) oldestMessageOrder(ctx context.Context, roomID id.RoomID) (int64, error) {
+	var order int64
+	err := s.db.QueryRow(ctx, `SELECT COALESCE(MIN(stream_order), 0) FROM local_event WHERE room_id=$1 AND `+messageFilter, roomID).Scan(&order)
+	return order, err
+}
+
+// eventExists tells whether an event is stored.
+func (s *store) eventExists(ctx context.Context, eventID id.EventID) (bool, error) {
+	var exists bool
+	err := s.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM local_event WHERE event_id=$1)`, eventID).Scan(&exists)
+	return exists, err
+}
+
+// timeline returns the events of a room stored after the given stream order
+// (0 for the start), oldest first.
 func (s *store) timeline(ctx context.Context, roomID id.RoomID, after int64, limit int) ([]*event.Event, error) {
 	rows, err := s.db.Query(ctx,
-		`SELECT `+eventColumns+` FROM local_event WHERE room_id=$1 AND stream_order>$2 ORDER BY stream_order LIMIT $3`,
+		`SELECT `+eventColumns+` FROM local_event WHERE room_id=$1 AND ($2=0 OR stream_order>$2) ORDER BY stream_order LIMIT $3`,
 		roomID, after, limit)
 	if err != nil {
 		return nil, err
