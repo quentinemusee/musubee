@@ -276,9 +276,19 @@ func (in *Intent) DownloadMediaToFile(ctx context.Context, uri id.ContentURIStri
 
 // UploadMedia stores media and returns its mxc:// URI. Media is never
 // encrypted, so the returned file info is always nil.
-func (in *Intent) UploadMedia(ctx context.Context, _ id.RoomID, data []byte, fileName, mimeType string) (id.ContentURIString, *event.EncryptedFileInfo, error) {
+//
+// Media uploaded for a room is deleted with the room.
+func (in *Intent) UploadMedia(ctx context.Context, roomID id.RoomID, data []byte, fileName, mimeType string) (id.ContentURIString, *event.EncryptedFileInfo, error) {
 	mediaID := newMediaID()
-	if err := in.server.store.putMedia(ctx, mediaID, mimeType, fileName, data); err != nil {
+	if roomID != "" {
+		// The room may not be stored (yet): the media then has no room.
+		if _, err := in.server.store.getRoom(ctx, roomID); errors.Is(err, ErrNotFound) {
+			roomID = ""
+		} else if err != nil {
+			return "", nil, err
+		}
+	}
+	if err := in.server.store.putMedia(ctx, mediaID, roomID, mimeType, fileName, data); err != nil {
 		return "", nil, err
 	}
 	return id.ContentURI{Homeserver: in.server.serverName, FileID: mediaID}.CUString(), nil, nil

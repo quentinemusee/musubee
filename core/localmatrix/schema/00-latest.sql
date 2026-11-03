@@ -1,4 +1,4 @@
--- v0 -> v4 (compatible with v1+): Latest revision
+-- v0 -> v5 (compatible with v1+): Latest revision
 -- SPDX-FileCopyrightText: 2026 Quentin Raimbaud
 -- SPDX-License-Identifier: AGPL-3.0-or-later
 --
@@ -97,5 +97,9 @@ CREATE TABLE local_media (
     mime_type  TEXT   NOT NULL,
     file_name  TEXT   NOT NULL,
     data       BLOB   NOT NULL,
-    created_at BIGINT NOT NULL
+    created_at BIGINT NOT NULL,
+    -- The room the media was uploaded for (v5), NULL for media of no room
+    -- (avatars): deleting the room deletes its media.
+    room_id    TEXT   REFERENCES local_room (room_id) ON DELETE CASCADE
 );
+CREATE INDEX local_media_room_idx ON local_media (room_id);

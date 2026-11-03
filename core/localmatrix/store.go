@@ -348,6 +348,9 @@ func (s *store) redact(ctx context.Context, roomID id.RoomID, redaction, eventID
 	if eventID == "" {
 		return nil
 	}
+	if err := s.redactMedia(ctx, roomID, eventID); err != nil {
+		return err
+	}
 	_, err := s.db.Exec(ctx,
 		`UPDATE local_event
 		 SET content=CASE WHEN rel_type IS NULL THEN '{}'
@@ -357,6 +360,61 @@ func (s *store) redact(ctx context.Context, roomID id.RoomID, redaction, eventID
 		   AND (event_id=$2 OR (relates_to=$2 AND rel_type='m.replace'))`,
 		roomID, eventID, redaction)
 	return err
+}
+
+// redactMedia deletes the media of a redacted message and of its edits
+// (the file, its thumbnail), which its content names, before the content
+// is erased: a deleted photo does not stay on the device either.
+func (s *store) redactMedia(ctx context.Context, roomID id.RoomID, eventID id.EventID) error {
+	rows, err := s.db.Query(ctx,
+		`SELECT content FROM local_event
+		 WHERE room_id=$1 AND state_key IS NULL AND redacted_by IS NULL
+		   AND (event_id=$2 OR (relates_to=$2 AND rel_type='m.replace'))`,
+		roomID, eventID)
+	if err != nil {
+		return err
+	}
+	var mediaIDs []string
+	for rows.Next() {
+		var content string
+		if err = rows.Scan(&content); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		mediaIDs = append(mediaIDs, mediaOfContent([]byte(content))...)
+	}
+	if err = rows.Close(); err != nil {
+		return err
+	}
+	if err = rows.Err(); err != nil {
+		return err
+	}
+	return s.deleteMedia(ctx, mediaIDs)
+}
+
+// mediaOfContent returns the IDs of the media that a message's content
+// names: its file and thumbnail, and those of its new content (an edit).
+func mediaOfContent(raw []byte) []string {
+	var content event.MessageEventContent
+	if json.Unmarshal(raw, &content) != nil {
+		return nil
+	}
+	var ids []string
+	add := func(uri id.ContentURIString) {
+		if parsed, err := uri.Parse(); err == nil && parsed.FileID != "" {
+			ids = append(ids, parsed.FileID)
+		}
+	}
+	for _, c := range []*event.MessageEventContent{&content, content.NewContent} {
+		if c == nil {
+			continue
+		}
+		add(c.URL)
+		if c.Info != nil {
+			add(c.Info.ThumbnailURL)
+		}
+	}
+	return ids
 }
 
 const eventColumns = `stream_order, event_id, room_id, sender, event_type, state_key, content, timestamp, redacted_by`
@@ -715,10 +773,11 @@ func (s *store) readState(ctx context.Context, roomID id.RoomID, userID id.UserI
 	return &st, nil
 }
 
-func (s *store) putMedia(ctx context.Context, mediaID, mimeType, fileName string, data []byte) error {
+func (s *store) putMedia(ctx context.Context, mediaID string, roomID id.RoomID, mimeType, fileName string, data []byte) error {
+	room := sql.NullString{String: string(roomID), Valid: roomID != ""}
 	_, err := s.db.Exec(ctx,
-		`INSERT INTO local_media (media_id, mime_type, file_name, data, created_at) VALUES ($1, $2, $3, $4, $5)`,
-		mediaID, mimeType, fileName, data, time.Now().UnixMilli())
+		`INSERT INTO local_media (media_id, room_id, mime_type, file_name, data, created_at) VALUES ($1, $2, $3, $4, $5, $6)`,
+		mediaID, room, mimeType, fileName, data, time.Now().UnixMilli())
 	return err
 }
 
@@ -729,4 +788,38 @@ func (s *store) getMedia(ctx context.Context, mediaID string) ([]byte, error) {
 		return nil, fmt.Errorf("media %s: %w", mediaID, ErrNotFound)
 	}
 	return data, err
+}
+
+// MediaPart is a part of stored media, read by ReadMedia.
+type MediaPart struct {
+	MimeType string
+	FileName string
+	// Size is the size of the whole media, in bytes.
+	Size int64
+	// Data holds the bytes from the asked offset, at most the asked length:
+	// fewer at the end of the media, none from its end on.
+	Data []byte
+}
+
+// readMedia reads a part of stored media, without loading the rest:
+// SQLite's substr works on blobs, in bytes.
+func (s *store) readMedia(ctx context.Context, mediaID string, offset, length int64) (*MediaPart, error) {
+	var part MediaPart
+	err := s.db.QueryRow(ctx,
+		`SELECT mime_type, file_name, length(data), substr(data, $2, $3) FROM local_media WHERE media_id=$1`,
+		mediaID, offset+1, length).Scan(&part.MimeType, &part.FileName, &part.Size, &part.Data)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("media %s: %w", mediaID, ErrNotFound)
+	}
+	return &part, err
+}
+
+// deleteMedia deletes stored media; media that is not stored is skipped.
+func (s *store) deleteMedia(ctx context.Context, mediaIDs []string) error {
+	for _, mediaID := range mediaIDs {
+		if _, err := s.db.Exec(ctx, `DELETE FROM local_media WHERE media_id=$1`, mediaID); err != nil {
+			return err
+		}
+	}
+	return nil
 }

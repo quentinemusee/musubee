@@ -516,6 +516,20 @@ func (s *Server) Members(ctx context.Context, roomID id.RoomID) (map[id.UserID]*
 	return members, nil
 }
 
+// ReadMedia reads up to length bytes of stored media from offset, with its
+// type, name and whole size. Media of another server, or not stored (for
+// example deleted with its message), is ErrNotFound.
+func (s *Server) ReadMedia(ctx context.Context, uri id.ContentURIString, offset, length int64) (*MediaPart, error) {
+	parsed, err := uri.Parse()
+	if err != nil || parsed.Homeserver != s.serverName {
+		return nil, fmt.Errorf("media %s: %w", uri, ErrNotFound)
+	}
+	if offset < 0 || length < 0 {
+		return nil, fmt.Errorf("media %s: negative offset or length", uri)
+	}
+	return s.store.readMedia(ctx, parsed.FileID, offset, length)
+}
+
 // Profile returns the global profile of a user.
 func (s *Server) Profile(ctx context.Context, userID id.UserID) (*Profile, error) {
 	return s.store.getProfile(ctx, userID)
