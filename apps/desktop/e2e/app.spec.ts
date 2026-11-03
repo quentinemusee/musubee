@@ -605,6 +605,21 @@ test("the thread marks where the unread messages start", async () => {
   await app.close();
 });
 
+test("a message keeps its line breaks: Shift+Enter starts a line, Enter sends", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "lines");
+  const composer = page.getByRole("textbox", { name: "Message" });
+  await composer.pressSequentially("first line");
+  await page.keyboard.press("Shift+Enter");
+  await composer.pressSequentially("second line");
+  await expect(composer).toHaveValue("first line\nsecond line");
+  await page.keyboard.press("Enter");
+  await expect(composer).toHaveValue("");
+  const sent = page.locator('.message[data-from-me="true"]').filter({ hasText: "second line" }).first();
+  await expect(sent.locator(".text")).toHaveText("first line\nsecond line");
+  await app.close();
+});
+
 test("a group shows its members", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "members");

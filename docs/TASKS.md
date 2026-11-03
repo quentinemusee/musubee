@@ -380,6 +380,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.70 — Voice messages at 1.5× and 2×** (E2.4)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). A button next to a voice message's player changes its speed in turn (1×, 1.5×, 2×). 🧪 `ui/src/playback.test.ts` (`cd ui && npx vitest run src/playback.test.ts`); by hand: play an echo voice message (`/voice`) faster.
 
+**T2.71 — Messages of several lines** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). The composer is a text area: Enter sends and Shift+Enter starts a line with a keyboard; on a touch screen Enter starts a line and the button sends; never during an input method's composition. Messages show their line breaks. 🧪 `ui/src/message.test.ts` (`sendsOnEnter`), the desktop e2e "a message keeps its line breaks".
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

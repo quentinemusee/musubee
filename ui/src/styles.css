@@ -751,8 +751,19 @@ ol {
   gap: var(--space);
 }
 
-.composer-form input {
+.composer-form input,
+.composer-form textarea {
   flex: 1;
+}
+
+/* Several lines (T2.71): grows with its text where the engine can
+   (field-sizing), up to about eight lines, then scrolls. */
+.composer-form textarea {
+  min-height: 2.4em;
+  max-height: 10em;
+  resize: none;
+  font: inherit;
+  field-sizing: content;
 }
 
 /* The message the composer answers or edits, above it. */
@@ -1601,4 +1612,10 @@ kbd {
   min-width: 3em;
   padding: 2px 8px;
   font-size: calc(12 * var(--text));
+}
+
+/* A message's own line breaks (T2.71). */
+.message .text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

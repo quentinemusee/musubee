@@ -6,7 +6,7 @@ import type { ConversationActions, MediaActions, Message } from "../core-api/typ
 import { accepts, formatSize } from "../media";
 import { canRecord, VoiceRecorder, type Recording } from "../recorder";
 import { accountLabel } from "../merge";
-import { firstUnread, replyQuote, replyTo, seenLabel, typingText } from "../message";
+import { firstUnread, replyQuote, replyTo, seenLabel, sendsOnEnter, typingText } from "../message";
 import { accentKey } from "../conversation-accent";
 import { AccentButton } from "./AccentButton";
 import { SEARCH_FIELD_ID } from "./Shortcuts";
@@ -430,7 +430,7 @@ function Composer({ draft, onDraftDone, media, writingWith }: ComposerProps) {
       store.keepDraft(draftIn, value);
     }
   }
-  const input = useRef<HTMLInputElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   // The file the user attached, sent with the text as its caption.
   const [file, setFile] = useState<File>();
@@ -537,7 +537,7 @@ function Composer({ draft, onDraftDone, media, writingWith }: ComposerProps) {
   }
 
   // A pasted image or file is attached, as chat apps do.
-  function onPaste(event: ClipboardEvent<HTMLInputElement>) {
+  function onPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
     const pasted = event.clipboardData.files[0];
     if (pasted !== undefined && canAttach) {
       event.preventDefault();
@@ -545,10 +545,18 @@ function Composer({ draft, onDraftDone, media, writingWith }: ComposerProps) {
     }
   }
 
-  function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Escape" && draft !== undefined) {
       event.preventDefault();
       cancel();
+      return;
+    }
+    // Enter sends, Shift+Enter starts a new line (T2.71); on a touch
+    // screen Enter is a new line, and the Send button sends. Never while
+    // an input method composes a word.
+    if (sendsOnEnter(event.nativeEvent, window.matchMedia("(pointer: coarse)").matches)) {
+      event.preventDefault();
+      event.currentTarget.form?.requestSubmit();
     }
   }
 
@@ -615,10 +623,10 @@ function Composer({ draft, onDraftDone, media, writingWith }: ComposerProps) {
           <label htmlFor="composer-text" className="visually-hidden">
             {draft?.mode === "edit" ? "New text of your message" : "Message"}
           </label>
-          <input
+          <textarea
             ref={input}
             id="composer-text"
-            type="text"
+            rows={1}
             autoComplete="off"
             placeholder={file !== undefined ? "Add a caption…" : writingWith === undefined ? "Write a message…" : `Write with ${writingWith}…`}
             value={text}

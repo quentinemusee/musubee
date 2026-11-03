@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "vitest";
 import type { Message } from "./core-api/types.gen";
-import { canForward, firstUnread, hasActions, isReactionKey, seenLabel, typingText, messageActions, MORE_REACTIONS, ownReaction, reactionLabel, replyQuote, replyTo, sameEmoji } from "./message";
+import { canForward, firstUnread, hasActions, sendsOnEnter, isReactionKey, seenLabel, typingText, messageActions, MORE_REACTIONS, ownReaction, reactionLabel, replyQuote, replyTo, sameEmoji } from "./message";
 
 describe("reactionLabel", () => {
   test("says who reacted", () => {
@@ -172,4 +172,23 @@ test("firstUnread: the count-th last message of others, deleted ones not counted
   expect(firstUnread(messages, 3)).toBe("a");
   expect(firstUnread(messages, 4)).toBeUndefined();
   expect(firstUnread(messages, 0)).toBeUndefined();
+});
+
+const key = (k: string, mods: Partial<{ shiftKey: boolean; isComposing: boolean; ctrlKey: boolean }> = {}) => ({
+  key: k,
+  shiftKey: false,
+  ctrlKey: false,
+  altKey: false,
+  metaKey: false,
+  isComposing: false,
+  ...mods,
+});
+
+test("sendsOnEnter: Enter alone sends, with a keyboard, outside a composition", () => {
+  expect(sendsOnEnter(key("Enter"), false)).toBe(true);
+  expect(sendsOnEnter(key("Enter", { shiftKey: true }), false)).toBe(false);
+  expect(sendsOnEnter(key("Enter", { isComposing: true }), false)).toBe(false);
+  expect(sendsOnEnter(key("Enter", { ctrlKey: true }), false)).toBe(false);
+  expect(sendsOnEnter(key("Enter"), true)).toBe(false);
+  expect(sendsOnEnter(key("a"), false)).toBe(false);
 });

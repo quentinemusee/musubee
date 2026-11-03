@@ -213,3 +213,12 @@ export function firstUnread(messages: readonly Message[], count: number): string
   }
   return undefined;
 }
+
+/**
+ * Whether Enter sends the composer's text (T2.71): Enter alone, with a
+ * physical keyboard, and not while an input method composes a word.
+ * Shift+Enter, and Enter on a touch screen, start a new line.
+ */
+export function sendsOnEnter(event: Pick<KeyboardEvent, "key" | "shiftKey" | "ctrlKey" | "altKey" | "metaKey" | "isComposing">, touch: boolean): boolean {
+  return event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !event.isComposing && !touch;
+}
