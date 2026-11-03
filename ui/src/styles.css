@@ -1596,3 +1596,9 @@ kbd {
   border-top: 1px solid var(--color-accent);
   content: "";
 }
+
+.playback-rate {
+  min-width: 3em;
+  padding: 2px 8px;
+  font-size: calc(12 * var(--text));
+}

@@ -377,6 +377,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.69 — "New messages" in the thread** (E2.4)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). Opening a conversation with unread messages shows "New messages" above the first of them: the thread keeps the unread count it opened with, and counts back over others' messages that are not deleted, as the core does (ADR 0023). 🧪 `ui/src/message.test.ts` (`firstUnread`), the desktop e2e "the thread marks where the unread messages start".
 
+**T2.70 — Voice messages at 1.5× and 2×** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). A button next to a voice message's player changes its speed in turn (1×, 1.5×, 2×). 🧪 `ui/src/playback.test.ts` (`cd ui && npx vitest run src/playback.test.ts`); by hand: play an echo voice message (`/voice`) faster.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

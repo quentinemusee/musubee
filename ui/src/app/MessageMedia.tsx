@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Quentin Raimbaud
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { use, useEffect, useState, type CSSProperties } from "react";
+import { use, useEffect, useRef, useState, type CSSProperties } from "react";
 import type { MessageKind, MessageMedia as Media } from "../core-api/types.gen";
 import { autoload, formatDuration, formatSize, inlineType, mediaLabel, SAVE_TYPE, type MediaCache } from "../media";
 import { StoreContext } from "./state";
@@ -80,6 +80,9 @@ export function MessageMedia({ kind, media, caption }: MessageMediaProps) {
   const thumbnail = useMediaURL(cache, media.thumbnail_id, "image/jpeg", media.thumbnail_id !== undefined && loaded.state !== "ready");
   const label = mediaLabel(kind, media.animated === true);
   const size = media.size === undefined ? "" : formatSize(media.size);
+  // A voice message's playback speed (T2.70); the audio element keeps it while it plays.
+  const audio = useRef<HTMLAudioElement>(null);
+  const [rate, setRate] = useState<number>(1);
 
   if (type === null || loaded.state === "failed") {
     return <SaveFile kind={kind} media={media} cache={cache} unreadable={loaded.state === "failed"} />;
@@ -125,11 +128,42 @@ export function MessageMedia({ kind, media, caption }: MessageMediaProps) {
       return (
         <div className="media" data-kind={kind}>
           {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- no captions come with audio */}
-          <audio src={loaded.url} controls preload="metadata" aria-label={describeAudio(kind, media)} />
+          <audio ref={audio} src={loaded.url} controls preload="metadata" aria-label={describeAudio(kind, media)} />
           {media.duration_ms !== undefined ? <span className="media-duration">{formatDuration(media.duration_ms)}</span> : null}
+          {kind === "voice" ? (
+            // Voice messages are often long: they play faster on request (T2.70).
+            <button
+              type="button"
+              className="secondary playback-rate"
+              aria-label={`Playback speed: ${rateLabel(rate)}. Change`}
+              onClick={() => {
+                const next = nextRate(rate);
+                setRate(next);
+                if (audio.current !== null) {
+                  // The default too: loading the media again resets the rate to it.
+                  audio.current.defaultPlaybackRate = next;
+                  audio.current.playbackRate = next;
+                }
+              }}
+            >
+              {rateLabel(rate)}
+            </button>
+          ) : null}
         </div>
       );
   }
+}
+
+/** The playback speeds of voice messages, in turn. */
+export const PLAYBACK_RATES = [1, 1.5, 2] as const;
+
+export function nextRate(rate: number): number {
+  const index = PLAYBACK_RATES.indexOf(rate as (typeof PLAYBACK_RATES)[number]);
+  return PLAYBACK_RATES[(index + 1) % PLAYBACK_RATES.length]!;
+}
+
+export function rateLabel(rate: number): string {
+  return `${rate}×`;
 }
 
 function describeAudio(kind: MessageKind, media: Media): string {
