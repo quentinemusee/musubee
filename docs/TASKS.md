@@ -275,6 +275,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.34 — Mark a conversation unread** (E2.3)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.18 `conversations.markUnread`, on this device; "Mark unread" in the thread's header leaves the conversation (ADR 0023's consequences). 🧪 `TestMarkUnread`. Left: telling the networks (bridgev2's marked-unread handling).
 
+**T2.35 — Who reacted** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.19 `MessageReaction.names` (ADR 0034's consequences); reaction chips say "you, Alice and 2 others" to screen readers and on hover. 🧪 `TestMessageChanges`, `ui/src/message.test.ts`, the Synapse journey.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

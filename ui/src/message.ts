@@ -10,17 +10,23 @@ import { summary } from "./media";
 /** What a deleted message shows instead of its text. */
 export const DELETED_TEXT = "Message deleted";
 
-/** How a reaction is read out: who reacted, as the chip only shows a count. */
+/**
+ * How a reaction is read out and shown on hover: who reacted, by name when
+ * the core gives them (API 1.19), as the chip only shows a count.
+ */
 export function reactionLabel(reaction: MessageReaction): string {
   const others = reaction.from_me ? reaction.count - 1 : reaction.count;
-  let who: string;
-  if (!reaction.from_me) {
-    who = others === 1 ? "1 person" : `${others} people`;
-  } else if (others === 0) {
-    who = "you";
-  } else {
-    who = `you and ${others === 1 ? "1 other" : `${others} others`}`;
+  const names = (reaction.names ?? []).slice(0, Math.max(others, 0));
+  const people: string[] = [...(reaction.from_me ? ["you"] : []), ...names];
+  const unnamed = others - names.length;
+  if (unnamed > 0) {
+    if (people.length === 0) {
+      people.push(unnamed === 1 ? "1 person" : `${unnamed} people`);
+    } else {
+      people.push(unnamed === 1 ? "1 other" : `${unnamed} others`);
+    }
   }
+  const who = people.length <= 1 ? (people[0] ?? "") : `${people.slice(0, -1).join(", ")} and ${people.at(-1)}`;
   return `${reaction.key}: ${who}`;
 }
 

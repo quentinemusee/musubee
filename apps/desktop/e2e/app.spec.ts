@@ -116,7 +116,7 @@ test("a network's reactions, edits, deletions and replies change the messages th
   };
 
   await send("/react 🎉");
-  await expect(mine("/react 🎉").getByRole("button", { name: "🎉: 1 person" })).toBeVisible();
+  await expect(mine("/react 🎉").getByRole("button", { name: "🎉: Instant Echo" })).toBeVisible();
 
   await send("/edit first try");
   await expect(theirs("first try (edited)")).toContainText("Edited");
@@ -137,7 +137,7 @@ test("a network's reactions, edits, deletions and replies change the messages th
   ({ app, page } = await launch(dataDir));
   await page.getByRole("button", { name: "Instant Echo" }).click();
   log = page.getByRole("log");
-  await expect(mine("/react 🎉").getByRole("button", { name: "🎉: 1 person" })).toBeVisible();
+  await expect(mine("/react 🎉").getByRole("button", { name: "🎉: Instant Echo" })).toBeVisible();
   await expect(theirs("first try (edited)")).toContainText("Edited");
   await expect(log.locator('.message[data-deleted="true"]')).toHaveCount(1);
   await expect(theirs("an answer").locator("blockquote")).toContainText("/reply an answer");

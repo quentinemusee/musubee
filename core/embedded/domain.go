@@ -449,7 +449,9 @@ func (c *Core) message(ctx context.Context, evt *event.Event, rel *localmatrix.R
 		msg.Kind, msg.Text, msg.Media = messageContent(evt.Content.AsMessage(), content)
 		msg.Edited = edited
 		if rel != nil {
-			msg.Reactions = c.reactions(rel.Reactions)
+			if msg.Reactions, err = c.reactions(ctx, evt.RoomID, rel.Reactions); err != nil {
+				return msg, err
+			}
 		}
 		// The reply is the original's: an edit's new content has none.
 		if replyTo := evt.Content.AsMessage().RelatesTo.GetNonFallbackReplyTo(); replyTo != "" {
@@ -481,16 +483,41 @@ func (c *Core) message(ctx context.Context, evt *event.Event, rel *localmatrix.R
 	return msg, nil
 }
 
-func (c *Core) reactions(reactions []localmatrix.Reaction) []api.MessageReaction {
+// maxReactionNames bounds the names given per reaction (API 1.19).
+const maxReactionNames = 10
+
+func (c *Core) reactions(ctx context.Context, roomID id.RoomID, reactions []localmatrix.Reaction) ([]api.MessageReaction, error) {
 	var out []api.MessageReaction
 	for _, r := range reactions {
-		out = append(out, api.MessageReaction{
+		reaction := api.MessageReaction{
 			Key:    r.Key,
 			Count:  int64(len(r.Senders)),
 			FromMe: slices.Contains(r.Senders, c.host.Matrix.UserID()),
-		})
+		}
+		for _, sender := range r.Senders {
+			if sender == c.host.Matrix.UserID() || len(reaction.Names) == maxReactionNames {
+				continue
+			}
+			name, err := c.memberName(ctx, roomID, sender)
+			if err != nil {
+				return nil, err
+			}
+			if name != "" {
+				reaction.Names = append(reaction.Names, name)
+			}
+		}
+		out = append(out, reaction)
 	}
-	return out
+	return out, nil
+}
+
+// memberName returns a room member's display name, or "".
+func (c *Core) memberName(ctx context.Context, roomID id.RoomID, userID id.UserID) (string, error) {
+	member, err := c.host.Matrix.State(ctx, roomID, event.StateMember, string(userID))
+	if err != nil || member == nil {
+		return "", err
+	}
+	return member.Content.AsMember().Displayname, nil
 }
 
 // reply describes the message that another answers, which may not be

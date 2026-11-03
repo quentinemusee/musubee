@@ -4,6 +4,7 @@
 package embedded
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -40,7 +41,8 @@ func TestMessageChanges(t *testing.T) {
 
 	reacted := send(echo.CommandReact + " 🎉")
 	msg := waitChange("the reaction", func(m api.Message) bool { return m.MessageID == reacted.MessageID && len(m.Reactions) > 0 })
-	if want := []api.MessageReaction{{Key: "🎉", Count: 1}}; !slices.Equal(msg.Reactions, want) {
+	// The contact's name says who reacted (API 1.19).
+	if want := []api.MessageReaction{{Key: "🎉", Count: 1, Names: []string{"Instant Echo"}}}; !reflect.DeepEqual(msg.Reactions, want) {
 		t.Errorf("reactions = %+v, want %+v", msg.Reactions, want)
 	}
 
@@ -123,7 +125,7 @@ func TestUserChanges(t *testing.T) {
 
 	call[api.Empty](t, c, api.CommandMessagesReact, reactParams)
 	msg := updated("the reaction", echoed.MessageID, func(m api.Message) bool { return len(m.Reactions) > 0 })
-	if want := []api.MessageReaction{{Key: "👍️", Count: 1, FromMe: true}}; !slices.Equal(msg.Reactions, want) {
+	if want := []api.MessageReaction{{Key: "👍️", Count: 1, FromMe: true}}; !reflect.DeepEqual(msg.Reactions, want) {
 		t.Errorf("reactions = %+v, want %+v", msg.Reactions, want)
 	}
 	// The same reaction again changes nothing.

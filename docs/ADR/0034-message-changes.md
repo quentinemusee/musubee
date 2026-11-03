@@ -74,6 +74,8 @@ A redaction empties the content of the event it names (as before T2.18) and of e
 
 ## Consequences
 
+- Since T2.35 (API 1.19), `MessageReaction.names` gives the display names of the others who reacted (at most 10); the interface says them ("you, Alice and 2 others") to screen readers and on hover.
+
 - Telegram and Signal already send these changes through bridgev2: they now show without connector work. Telegram's and Signal's own message formats (Telegram's custom emoji reactions, Signal's "edit by another device") follow their connectors' conversion.
 - The interface shows reactions without saying who reacted beyond "you": `Reaction.Senders` is in the local server, and a later task can expose it.
 - A message deleted on the network is erased from the core's local server, but the text may remain where it was copied before the deletion: a notification already dismissed, the system's backup of the app, or a copy of the database. The core does not log message content (`CLAUDE.md` §6.8), so the logs hold none.

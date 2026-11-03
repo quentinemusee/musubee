@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -502,7 +503,7 @@ func changes(t *testing.T, ctx context.Context, events coretest.Events, bob *pee
 	// bridgev2 gives the network's reaction keys the emoji variation
 	// selector (U+FE0F).
 	changed("the reaction", func(m api.Message) bool {
-		return slices.Equal(m.Reactions, []api.MessageReaction{{Key: "👍️", Count: 1}})
+		return reflect.DeepEqual(m.Reactions, []api.MessageReaction{{Key: "👍️", Count: 1, Names: []string{bobName}}})
 	})
 	if _, err := bob.cli.RedactEvent(ctx, room, reaction); err != nil {
 		t.Fatal(err)

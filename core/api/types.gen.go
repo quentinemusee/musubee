@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.18"
+const APIVersion = "1.19"
 
 // Command names.
 const (
@@ -669,6 +669,10 @@ type MessageReaction struct {
 	Count int64 `json:"count"`
 	// The user is one of them. Omitted when false.
 	FromMe bool `json:"from_me,omitempty"`
+	// The display names of the others who reacted, in the order they reacted, at
+	// most 10 (count says how many in all); a name the core does not know is left
+	// out. Omitted when there are none. Since API 1.19.
+	Names []string `json:"names,omitempty"`
 }
 
 // MessageReply: The message that another one answers, to quote it above the

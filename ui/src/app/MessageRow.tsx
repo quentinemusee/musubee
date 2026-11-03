@@ -97,6 +97,7 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers,
                 key={r.key}
                 className="reaction"
                 data-from-me={r.from_me === true}
+                title={reactionLabel(r)}
                 aria-label={allowed.react && handlers !== undefined ? undefined : reactionLabel(r)}
               >
                 {allowed.react && handlers !== undefined ? (

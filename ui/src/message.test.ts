@@ -16,6 +16,13 @@ describe("reactionLabel", () => {
 });
 
 describe("replyQuote", () => {
+  test("names who reacted when the core says (API 1.19)", () => {
+    expect(reactionLabel({ key: "🎉", count: 1, names: ["Alice"] })).toBe("🎉: Alice");
+    expect(reactionLabel({ key: "🎉", count: 2, from_me: true, names: ["Alice"] })).toBe("🎉: you and Alice");
+    expect(reactionLabel({ key: "🎉", count: 4, from_me: true, names: ["Alice", "Bob"] })).toBe("🎉: you, Alice, Bob and 1 other");
+    expect(reactionLabel({ key: "🎉", count: 12, names: ["Alice"] })).toBe("🎉: Alice and 11 others");
+  });
+
   test("quotes the sender and the text", () => {
     expect(replyQuote({ message_id: "m1", sender_name: "Bob", text: "Hi" })).toEqual({ sender: "Bob", text: "Hi" });
     expect(replyQuote({ message_id: "m1", from_me: true, sender_name: "Me", text: "Hi" })).toEqual({ sender: "You", text: "Hi" });
