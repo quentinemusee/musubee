@@ -539,6 +539,32 @@ export class Store {
    * persons are read again too: those left without a conversation here are
    * no longer listed.
    */
+  /**
+   * Verifies this device for a Matrix account with its recovery key (API
+   * 1.15, docs/ADR/0044). Resolves with what to tell the user; the key is
+   * kept nowhere.
+   */
+  async verifyAccount(accountId: string, recoveryKey: string): Promise<{ ok: true; backupRestored: boolean } | { ok: false; reason: string }> {
+    try {
+      const result = await this.client.call("accounts.verify", { account_id: accountId, recovery_key: recoveryKey });
+      const accounts = this.#state.accounts;
+      const index = accounts.findIndex((a) => a.account_id === accountId);
+      const account = accounts[index];
+      if (account !== undefined) {
+        this.#set({ accounts: accounts.with(index, { ...account, verification: "verified" }) });
+      }
+      return { ok: true, backupRestored: result.backup_restored };
+    } catch (error) {
+      if (error instanceof CoreApiError && error.code === "invalid_params") {
+        return { ok: false, reason: "This is not the recovery key of this account. Check it and try again." };
+      }
+      if (error instanceof CoreApiError && error.code === "unsupported") {
+        return { ok: false, reason: "This account has no secure backup yet. Set it up in another Matrix app, such as Element, then come back." };
+      }
+      return { ok: false, reason: `Could not verify this device: ${describe(error)}` };
+    }
+  }
+
   async logout(accountId: string): Promise<void> {
     try {
       await this.client.call("accounts.logout", { account_id: accountId });

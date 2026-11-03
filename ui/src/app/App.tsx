@@ -6,6 +6,7 @@ import type { Account } from "../core-api/types.gen";
 import type { CoreStatus } from "../shell";
 import { AddAccount } from "./AddAccount";
 import { AppearanceSettings } from "./AppearanceSettings";
+import { VerifyDevice } from "./VerifyDevice";
 import { Inbox } from "./Inbox";
 import { useBackToInbox } from "./navigation";
 import { useAppState, useStore } from "./state";
@@ -196,6 +197,7 @@ function AccountItem({ account, label, onLogInAgain }: { account: Account; label
   const store = useStore();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   async function logout() {
     setBusy(true);
@@ -209,7 +211,9 @@ function AccountItem({ account, label, onLogInAgain }: { account: Account; label
       <span className="account-name">{label}</span>
       <span className="account-state" data-state={account.state}>
         {account.error || (STATE_LABELS[account.state] ?? account.state)}
+        {account.verification === "verified" ? <span className="account-verified"> · Verified device</span> : null}
       </span>
+      {verifying ? <VerifyDevice accountId={account.account_id} label={label} onClose={() => setVerifying(false)} /> : null}
       {confirming ? (
         <fieldset className="account-actions">
           <legend className="hint">Log out? Its conversations will be removed from this device.</legend>
@@ -225,6 +229,11 @@ function AccountItem({ account, label, onLogInAgain }: { account: Account; label
           {account.state === "bad_credentials" ? (
             <button type="button" aria-label={`Log in again to ${label}`} onClick={onLogInAgain}>
               Log in again
+            </button>
+          ) : null}
+          {account.verification === "unverified" ? (
+            <button type="button" className="link" aria-label={`Verify this device for ${label}`} aria-haspopup="dialog" onClick={() => setVerifying(true)}>
+              Verify this device…
             </button>
           ) : null}
           <button type="button" className="link" aria-label={`Log out of ${label}`} onClick={() => setConfirming(true)}>

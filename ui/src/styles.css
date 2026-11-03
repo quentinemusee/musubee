@@ -1198,3 +1198,18 @@ button.flow:hover:not(:disabled) {
 .via {
   color: var(--color-muted);
 }
+
+/* Verifying a Matrix account's device (docs/ADR/0044). */
+.settings input[type="password"] {
+  width: 100%;
+  margin: 4px 0 var(--space);
+  font-family: ui-monospace, monospace;
+}
+
+.error-text {
+  color: var(--color-error);
+}
+
+.account-verified {
+  color: var(--color-muted);
+}

@@ -496,6 +496,30 @@ describe("Store", () => {
     expect(store.getState().together).toBeUndefined();
   });
 
+  test("verifies a Matrix account's device, and says why it cannot (API 1.15)", async () => {
+    const keys: unknown[] = [];
+    const shell = scriptedShell({
+      ...coreState(),
+      "accounts.list": () => ({ accounts: [{ account_id: "a.m", network_id: "matrix", name: "alice", state: "connected", verification: "unverified" }] }),
+      "accounts.verify": (params) => {
+        keys.push(params);
+        if ((params as { recovery_key: string }).recovery_key !== "right") {
+          throw new Error("never here");
+        }
+        return { backup_restored: true };
+      },
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    expect(await store.verifyAccount("a.m", "right")).toEqual({ ok: true, backupRestored: true });
+    expect(store.getState().accounts[0]?.verification).toBe("verified");
+    expect(keys).toEqual([{ account_id: "a.m", recovery_key: "right" }]);
+    // The key never lands in the store's state.
+    expect(JSON.stringify(store.getState())).not.toContain("right\"");
+  });
+
   test("asks the network for older history once the device's is read (API 1.13)", async () => {
     const fetched: unknown[] = [];
     let pages = [
