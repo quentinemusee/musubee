@@ -400,3 +400,14 @@ user changes:       go test -tags=goolm -count=1 -run 'UserChanges|RefusedChange
 message actions:    cd ui && npx vitest run src/message.test.ts src/store.test.ts
 actions in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "reacts to a message"
 ```
+
+To verify in the test session: T2.20 (implemented in the cloud sprint without running tests; see ADR 0036):
+
+```
+media storage:      go test -tags=goolm -count=1 -run 'Media|Redaction' -v ./core/localmatrix/     (-tags=goolm,musubee_cgo_sqlite: the Android driver)
+receive media:      go test -tags=goolm -count=1 -run 'ReceiveMedia|MessageContent' -v ./core/embedded/
+matrix media:       go test -tags=goolm -count=1 -run 'Incoming|TextMessage' ./core/connector/matrix/      (and the Synapse journey of T2.2)
+ui media:           cd ui && npx vitest run src/media.test.ts src/message.test.ts src/inbox.test.ts
+media in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "photos, GIFs"
+media notification: ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.musubee.core.MessageNotificationsTest
+```
