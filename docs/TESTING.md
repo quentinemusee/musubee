@@ -70,7 +70,7 @@ In place since T0.3 ([ADR 0004](ADR/0004-integration-test-environment.md), usage
 
 The cloud sprint (T2.20 to T2.70) ran no tests; `CLAUDE.md` §9 lists the automated commands of each task. These need a person, in this order:
 
-1. **Android build**: `cd apps/mobile/android && ./gradlew :app:assembleDebug`. The app's Kotlin of T2.64 and T2.68 compiled in the cloud session without the Go core (`:app:compileDebugKotlin -x buildCore-x86_64`); the full build and the instrumented tests have not run.
+1. **Android build**: `cd apps/mobile/android && ./gradlew :app:assembleDebug`. The app's Kotlin of T2.64 and T2.68 compiled in the cloud session without the Go core (`:app:compileDebugKotlin :app:compileDebugAndroidTestKotlin -x buildCore-x86_64`, the instrumented tests included); the full build has not run, and no test has.
 2. **Desktop, background notification** (T2.33, T2.45, T2.50, T2.68): with the window unfocused, a message from an echo contact shows a notification that opens it. Then check each preview choice, a mute with and without a mention (`/mention text`), and a pause.
 3. **Desktop, icon count** (T2.56, macOS): the Dock shows the unread count, without muted conversations.
 4. **Desktop, link** (T2.67): a click on a link in a message opens the system's browser, and the app does not navigate.
