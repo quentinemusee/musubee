@@ -8,6 +8,7 @@
 // replaced on every change; components select the part they show.
 
 import { CoreClient, parseEvent } from "./core-api/client";
+import { MediaCache } from "./media";
 import type { Account, Conversation, Event, Message, Network, Person } from "./core-api/types.gen";
 import { mergePlan } from "./merge";
 import { replyTo } from "./message";
@@ -72,6 +73,8 @@ const initialState: State = {
 
 export class Store {
   readonly client: CoreClient;
+  /** The media of messages, read from the core (API 1.9). */
+  readonly media: MediaCache;
   readonly #core: ShellCore;
   #state = initialState;
   readonly #listeners = new Set<() => void>();
@@ -88,6 +91,7 @@ export class Store {
   constructor(core: ShellCore) {
     this.#core = core;
     this.client = new CoreClient({ call: (request) => core.call(request) });
+    this.media = new MediaCache((params) => this.client.call("media.read", params));
   }
 
   /** Listens to the shell; returns a function that stops listening. */
@@ -397,6 +401,7 @@ export class Store {
     this.#generation++;
     this.#replay = undefined;
     this.#replace({ ...initialState, status: this.#state.status });
+    this.media.clear();
     try {
       await this.#core.startOver();
       return true;

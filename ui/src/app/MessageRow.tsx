@@ -3,6 +3,8 @@
 
 import { memo, useEffect, useId, useRef, useState, type RefObject } from "react";
 import type { ConversationActions, Message, MessageReply } from "../core-api/types.gen";
+import { MessageMedia } from "./MessageMedia";
+import { hasMedia } from "../media";
 import { DELETED_TEXT, hasActions, messageActions, ownReaction, QUICK_REACTIONS, reactionLabel, replyQuote, type MessageActions } from "../message";
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
@@ -70,6 +72,15 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers 
           <span className="text" data-kind="deleted">
             {DELETED_TEXT}
           </span>
+        ) : hasMedia(message) ? (
+          <>
+            <MessageMedia kind={message.kind} media={message.media} caption={message.text} />
+            {message.text !== "" ? (
+              <span className="text" data-kind="caption">
+                {message.text}
+              </span>
+            ) : null}
+          </>
         ) : (
           <span className="text" data-kind={message.kind}>
             {message.text}

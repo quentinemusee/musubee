@@ -20,7 +20,7 @@ export const APP_URL = `${APP_ORIGIN}/index.html`;
 
 /** The same policy as ui/index.html, which the header makes binding. */
 export const CONTENT_SECURITY_POLICY =
-  "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+  "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src blob:; font-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",

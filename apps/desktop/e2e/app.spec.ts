@@ -224,6 +224,48 @@ test("the user reacts to a message, answers it, edits and deletes their own, fro
   await app.close();
 });
 
+test("the thread shows photos, GIFs and voice messages, and saves files", async () => {
+  const dataDir = newDataDir();
+  const { app, page } = await launch(dataDir);
+  await addEchoAccount(page, "media");
+  const log = page.getByRole("log");
+  const composer = page.getByRole("textbox", { name: "Message" });
+  const ask = async (command: string) => {
+    await composer.fill(command);
+    await page.getByRole("button", { name: "Send" }).click();
+  };
+  const theirs = (kind: string) => log.locator('.message[data-from-me="false"]').filter({ has: page.locator(`.media[data-kind="${kind}"]`) });
+
+  await ask("/image a sunset");
+  const photo = theirs("image").first().getByRole("img", { name: "a sunset" });
+  await expect(photo).toBeVisible();
+  // The photo is decoded: the PNG the echo network made, 96 by 64.
+  await expect.poll(() => photo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBe(96);
+  await expect(photo).toHaveAttribute("src", /^blob:/);
+
+  await ask("/gif");
+  await expect(theirs("image").getByRole("img", { name: "GIF" })).toBeVisible();
+
+  await ask("/voice");
+  const voice = theirs("voice").locator("audio");
+  await expect(voice).toHaveAttribute("aria-label", "Voice message, 0:01");
+  await expect.poll(() => voice.evaluate((audio: HTMLAudioElement) => audio.readyState)).toBeGreaterThan(0);
+
+  // The inbox says what the last message is.
+  await expect(page.getByRole("button", { name: "Instant Echo" })).toContainText("Voice message");
+
+  // A file is saved, never shown.
+  await ask("/file");
+  const file = theirs("file");
+  await expect(file).toContainText("echo.txt");
+  const download = page.waitForEvent("download");
+  await file.getByRole("button", { name: "Save echo.txt" }).click();
+  const saved = await download;
+  expect(saved.suggestedFilename()).toBe("echo.txt");
+  expect(readFileSync(await saved.path(), "utf8")).toBe("A file from the echo network.\n");
+  await app.close();
+});
+
 test("log out of an account: it goes away with its conversations", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "leaving");

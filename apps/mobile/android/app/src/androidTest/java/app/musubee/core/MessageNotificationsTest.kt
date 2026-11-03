@@ -161,6 +161,17 @@ class MessageNotificationsTest {
     }
 
     @Test
+    fun saysWhatMediaIs() {
+        fun media(kind: String, text: String = "", media: JSONObject = JSONObject()) =
+            MessageNotifications.summary(JSONObject().put("kind", kind).put("text", text).put("media", media.put("media_id", "f1")))
+        assertEquals("Photo: a sunset", media("image", "a sunset"))
+        assertEquals("GIF", media("video", media = JSONObject().put("animated", true)))
+        assertEquals("Voice message", media("voice"))
+        assertEquals("File: plan.pdf", media("file", media = JSONObject().put("file_name", "plan.pdf")))
+        assertEquals("hello", MessageNotifications.summary(JSONObject().put("kind", "text").put("text", "hello")))
+    }
+
+    @Test
     fun anEditChangesItsLineSilently() {
         account()
         message("helo", now + 1, id = "m1")

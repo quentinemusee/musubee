@@ -175,7 +175,27 @@ class MessageNotifications(
         /**
          * What a notification says of a message: its text (for a kind this
          * version cannot show, the core's fallback text), or "New message".
+         * Media (API 1.9) says what it is, then its caption or file name,
+         * as the interface's inbox does (ui/src/media.ts).
          */
-        fun summary(message: JSONObject): String = message.optString("text").ifEmpty { "New message" }
+        fun summary(message: JSONObject): String {
+            val text = message.optString("text")
+            val media = message.optJSONObject("media")
+            val animated = media?.optBoolean("animated") == true
+            val label = when (message.optString("kind")) {
+                "image" -> if (animated) "GIF" else "Photo"
+                "video" -> if (animated) "GIF" else "Video"
+                "audio" -> "Audio"
+                "voice" -> "Voice message"
+                "file" -> "File"
+                else -> return text.ifEmpty { "New message" }
+            }
+            val fileName = media?.optString("file_name").orEmpty()
+            return when {
+                text.isNotEmpty() -> "$label: $text"
+                message.optString("kind") == "file" && fileName.isNotEmpty() -> "$label: $fileName"
+                else -> label
+            }
+        }
     }
 }

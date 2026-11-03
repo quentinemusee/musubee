@@ -4,6 +4,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { VList, type VListHandle } from "virtua";
 import type { ConversationActions, Message } from "../core-api/types.gen";
+import { summary } from "../media";
 import type { HistoryState } from "../store";
 import { MessageRow, type MessageHandlers } from "./MessageRow";
 
@@ -120,7 +121,7 @@ export function MessageList({ messages, history, onOlder, labelledBy, onBottomCh
         {(message) => <MessageRow key={message.message_id} message={message} actions={actions} handlers={handlers} />}
       </VList>
       <output className="visually-hidden">
-        {current.news ? `${current.news.sender_name || "New message"}: ${current.news.text}` : ""}
+        {current.news ? `${current.news.sender_name || "New message"}: ${summary(current.news)}` : ""}
       </output>
     </div>
   );

@@ -5,6 +5,7 @@
 // the message it answers, and what replaced it once deleted.
 
 import type { ConversationActions, Message, MessageReaction, MessageReply } from "./core-api/types.gen";
+import { summary } from "./media";
 
 /** What a deleted message shows instead of its text. */
 export const DELETED_TEXT = "Message deleted";
@@ -33,7 +34,7 @@ export function replyQuote(reply: MessageReply): { sender: string; text: string 
     // Not on this device: older than the history it keeps.
     return { sender: "", text: "An earlier message" };
   }
-  return { sender, text: reply.text ?? "" };
+  return { sender, text: summary({ kind: reply.kind ?? "text", text: reply.text ?? "" }) };
 }
 
 /** The reply_to of a message that answers this one, as this one is now. */
@@ -43,6 +44,7 @@ export function replyTo(message: Message): MessageReply {
     ...(message.from_me ? { from_me: true } : {}),
     ...(message.sender_name !== "" ? { sender_name: message.sender_name } : {}),
     ...(message.deleted ? { deleted: true } : message.text !== "" ? { text: message.text } : {}),
+    ...(!message.deleted && message.kind !== "text" ? { kind: message.kind } : {}),
   };
 }
 
