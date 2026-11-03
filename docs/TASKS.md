@@ -332,6 +332,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.53 — Typing in the inbox** (E2.3)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). The inbox's preview says "Alice is typing…" while someone types (ADR 0048's events). 🧪 the desktop e2e "typing shows the echo contact typing back" (`cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "typing shows"`).
 
+**T2.54 — Keyboard shortcuts** (E2.3)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). Ctrl+K (Cmd+K) focuses the search; Alt+Up and Alt+Down move between conversations (ADR 0058). 🧪 `ui/src/shortcuts.test.ts`, the desktop e2e "keyboard shortcuts". Left: a list of the shortcuts in the app.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

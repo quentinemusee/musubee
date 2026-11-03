@@ -594,3 +594,10 @@ To verify in the test session: T2.52 (cloud sprint, no test run; see ADR 0057):
 drafts (core):      go test -tags=goolm -count=1 -run 'Draft' -v ./core/localmatrix/ ./core/embedded/
 drafts in the app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "unsent text waits"      (ui: npx vitest run src/store.test.ts)
 ```
+
+To verify in the test session: T2.54 (cloud sprint, no test run; see ADR 0058):
+
+```
+shortcuts (ui):     cd ui && npx vitest run src/shortcuts.test.ts
+shortcuts in app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "keyboard shortcuts"
+```
