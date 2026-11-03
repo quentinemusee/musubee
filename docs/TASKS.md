@@ -249,6 +249,10 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 - 🧪 Test: the core's journey of an echo account going away and coming back; the offline account's journeys in the core and the desktop app.
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.14 adds the status `queued` (ADR 0043): the local server holds the message (a pending status with a reason of its own) instead of handing it to the bridge, and the core releases the held messages when an account turns connected, oldest first, each once. The interface says "Waiting for the network". Left: cancelling a waiting message; reactions, edits and deletions still need the network.
 
+**T2.28 — Key backup and recovery** (E2.8)
+- Deliverable: a Matrix account's recovery key verifies Musubee's device and brings back its encrypted history; Musubee's new room keys go to the account's backup.
+- Status: **proposed, waiting for the maintainer** (ADR 0044: scope, setting recovery up for accounts without it, uploading by default, where in the interface). No code yet. Telegram and Signal need no key backup: Telegram keeps the history on its servers, and Signal never gives it to a linked device.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).
