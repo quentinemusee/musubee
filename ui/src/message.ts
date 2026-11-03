@@ -165,3 +165,19 @@ export function typingText(names: readonly string[]): string {
   }
   return names.length === 1 ? `${named[0]} is typing…` : `${named[0]} and ${named[1]} are typing…`;
 }
+
+/**
+ * What the user's latest read message says after "Sent" (API 1.21):
+ * "Seen" in a direct conversation, "Seen by Alice and Bob" in a group.
+ */
+export function seenLabel(names: readonly string[], group: boolean): string {
+  if (!group || names.length === 0) {
+    return "Seen";
+  }
+  const named = names.filter((n) => n !== "");
+  if (named.length < names.length || names.length > 3) {
+    return `Seen by ${names.length} ${names.length === 1 ? "person" : "people"}`;
+  }
+  return `Seen by ${named.length === 1 ? named[0] : `${named.slice(0, -1).join(", ")} and ${named.at(-1)}`}`;
+}
+

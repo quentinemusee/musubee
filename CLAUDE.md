@@ -514,3 +514,9 @@ reactions, typing:  go test -tags=goolm -count=1 -run 'MessageChanges|Typing' -v
 ui wording:         cd ui && npx vitest run src/message.test.ts src/core-api/contract.test.ts
 typing in the app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "typing shows|reactions, edits"
 ```
+
+To verify in the test session: T2.38 (cloud sprint, no test run; see ADR 0023):
+
+```
+seen:               go test -tags=goolm -count=1 -run 'Seen|ReadState' -v ./core/embedded/       (ui: npx vitest run src/message.test.ts)
+```

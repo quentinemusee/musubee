@@ -57,13 +57,15 @@ export interface MessageRowProps {
   handlers?: MessageHandlers | undefined;
   /** In a person's thread: the network the message came through, said on it (docs/ADR/0042). */
   via?: string | undefined;
+  /** For the user's latest message that others read: "Seen…", after "Sent" (API 1.21). */
+  seen?: string | undefined;
 }
 
 /**
  * One message of a thread: a full-width row holding the bubble. The row has
  * no margin, so that a virtualized list can measure it whole.
  */
-export const MessageRow = memo(function MessageRow({ message, actions, handlers, via }: MessageRowProps) {
+export const MessageRow = memo(function MessageRow({ message, actions, handlers, via, seen }: MessageRowProps) {
   const deleted = message.deleted === true;
   const allowed = messageActions(message, handlers === undefined ? undefined : actions);
   const [menu, setMenu] = useState<"closed" | "open" | "confirm-delete">("closed");
@@ -135,7 +137,12 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers,
           {via !== undefined ? <span className="via">via {via}</span> : null}
           {message.edited && !deleted ? <span className="edited">Edited</span> : null}
           <time dateTime={new Date(message.timestamp_ms).toISOString()}>{timeFormat.format(message.timestamp_ms)}</time>
-          {message.from_me ? <span className="delivery">{message.error || STATUS_LABELS[message.status]}</span> : null}
+          {message.from_me ? (
+            <span className="delivery" data-seen={seen !== undefined}>
+              {message.error || STATUS_LABELS[message.status]}
+              {message.status === "sent" && seen !== undefined ? <span className="seen"> · {seen}</span> : null}
+            </span>
+          ) : null}
           {hasActions(allowed) ? (
             <button
               ref={toggle}

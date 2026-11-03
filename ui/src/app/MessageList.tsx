@@ -28,6 +28,8 @@ export interface MessageListProps {
    * through, said on it.
    */
   together?: { actions: Readonly<Record<string, ConversationActions | undefined>>; via: Readonly<Record<string, string>> } | undefined;
+  /** By message ID: what the user's read messages say instead of "Sent" (API 1.21). */
+  seen?: Readonly<Record<string, string>> | undefined;
 }
 
 /**
@@ -59,7 +61,7 @@ function shownOf(messages: readonly Message[], shift: boolean, news: Message | u
  * the top, and keeps the message being read in place when they arrive.
  * Render one per conversation (key it by conversation ID).
  */
-export function MessageList({ messages, history, onOlder, labelledBy, onBottomChange, actions, handlers, together }: MessageListProps) {
+export function MessageList({ messages, history, onOlder, labelledBy, onBottomChange, actions, handlers, together, seen }: MessageListProps) {
   const ref = useRef<VListHandle>(null);
   const atBottom = useRef(true);
 
@@ -127,7 +129,7 @@ export function MessageList({ messages, history, onOlder, labelledBy, onBottomCh
       >
         {(message) =>
           together === undefined ? (
-            <MessageRow key={message.message_id} message={message} actions={actions} handlers={handlers} />
+            <MessageRow key={message.message_id} message={message} actions={actions} handlers={handlers} seen={seen?.[message.message_id]} />
           ) : (
             <MessageRow
               key={message.message_id}
@@ -135,6 +137,7 @@ export function MessageList({ messages, history, onOlder, labelledBy, onBottomCh
               actions={together.actions[message.conversation_id]}
               handlers={handlers}
               via={together.via[message.conversation_id]}
+              seen={seen?.[message.message_id]}
             />
           )
         }

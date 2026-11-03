@@ -196,10 +196,15 @@ func (in *Intent) MarkRead(ctx context.Context, roomID id.RoomID, eventID id.Eve
 		ts = time.Now()
 	}
 	if in.mxid != in.server.userID {
-		return in.server.store.setRoomAccountData(ctx, in.mxid, roomID, accountDataReadReceipt, map[string]any{
+		err := in.server.store.setRoomAccountData(ctx, in.mxid, roomID, accountDataReadReceipt, map[string]any{
 			"event_id": eventID,
 			"ts":       ts.UnixMilli(),
 		})
+		if err == nil {
+			// Who saw the user's messages changed (Server.Seen).
+			in.server.publish(Update{ReadState: roomID})
+		}
+		return err
 	}
 	changed, err := in.server.markRead(ctx, roomID, eventID, ts)
 	if err == nil && changed {

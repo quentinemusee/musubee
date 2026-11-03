@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.20"
+const APIVersion = "1.21"
 
 // Command names.
 const (
@@ -519,6 +519,19 @@ type Conversation struct {
 	// Who can read the conversation's messages besides its members. Omitted by
 	// cores before API 1.12. Since API 1.12.
 	Privacy *ConversationPrivacy `json:"privacy,omitempty"`
+	// The user's latest message that others read, as their networks report, and
+	// who. Omitted when nobody read any, or the network does not report it. Since
+	// API 1.21.
+	Seen *ConversationSeen `json:"seen,omitempty"`
+}
+
+// ConversationSeen is $defs/ConversationSeen of the schema.
+type ConversationSeen struct {
+	// The user's message that they read, or a later one.
+	MessageID string `json:"message_id"`
+	// The display names of those who read it, sorted by their IDs; "" for someone
+	// unnamed.
+	Names []string `json:"names"`
 }
 
 // ConversationPrivacy: Who can read a conversation's messages besides the

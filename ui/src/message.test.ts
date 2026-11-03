@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "vitest";
 import type { Message } from "./core-api/types.gen";
-import { hasActions, isReactionKey, typingText, messageActions, MORE_REACTIONS, ownReaction, reactionLabel, replyQuote, replyTo, sameEmoji } from "./message";
+import { hasActions, isReactionKey, seenLabel, typingText, messageActions, MORE_REACTIONS, ownReaction, reactionLabel, replyQuote, replyTo, sameEmoji } from "./message";
 
 describe("reactionLabel", () => {
   test("says who reacted", () => {
@@ -16,6 +16,14 @@ describe("reactionLabel", () => {
 });
 
 describe("replyQuote", () => {
+  test("says who saw the user's message (API 1.21)", () => {
+    expect(seenLabel(["Alice"], false)).toBe("Seen");
+    expect(seenLabel(["Alice"], true)).toBe("Seen by Alice");
+    expect(seenLabel(["Alice", "Bob", "Carol"], true)).toBe("Seen by Alice, Bob and Carol");
+    expect(seenLabel(["Alice", "", "Bob"], true)).toBe("Seen by 3 people");
+    expect(seenLabel(["a", "b", "c", "d"], true)).toBe("Seen by 4 people");
+  });
+
   test("says who is typing (API 1.20)", () => {
     expect(typingText([])).toBe("");
     expect(typingText(["Alice"])).toBe("Alice is typing…");

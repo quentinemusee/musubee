@@ -112,3 +112,18 @@ func TestMarkUnread(t *testing.T) {
 	waitConversationUpdate(t, c, "read again", conv.ConversationID, func(cv api.Conversation) bool { return !cv.MarkedUnread })
 	callFails(t, c, api.CommandConversationsMarkUnread, api.ConversationsMarkUnreadParams{ConversationID: "c.nope"}, api.ErrorCodeNotFound)
 }
+
+// TestSeen: the echo contact reads the user's message before answering
+// (API 1.21): the conversation says which message, and who.
+func TestSeen(t *testing.T) {
+	c := open(t)
+	login(t, c)
+	conv := conversationNamed(t, c, "Instant Echo")
+	if conv.Seen != nil {
+		t.Errorf("seen before any message = %+v", conv.Seen)
+	}
+	sent := call[api.MessagesSendResult](t, c, api.CommandMessagesSend, api.MessagesSendParams{ConversationID: conv.ConversationID, Text: "did you see this?"}).Message
+	waitConversationUpdate(t, c, "seen by the contact", conv.ConversationID, func(cv api.Conversation) bool {
+		return cv.Seen != nil && cv.Seen.MessageID == sent.MessageID && len(cv.Seen.Names) == 1 && cv.Seen.Names[0] == "Instant Echo"
+	})
+}

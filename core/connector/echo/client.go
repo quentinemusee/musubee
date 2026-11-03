@@ -419,6 +419,14 @@ func (c *client) answer(portal networkid.PortalID, contact Contact, sent network
 			Timestamp: time.Now(),
 		}
 	}
+	// The contact reads the message before answering.
+	read := &simplevent.Receipt{EventMeta: meta(bridgev2.RemoteEventReadReceipt), LastTarget: sent}
+	events := c.answerEvents(meta, contact, sent, received)
+	return append([]bridgev2.RemoteEvent{read}, events...)
+}
+
+// answerEvents is what the contact does after reading the user's message.
+func (c *client) answerEvents(meta func(bridgev2.RemoteEventType) simplevent.EventMeta, contact Contact, sent networkid.MessageID, received *event.MessageEventContent) []bridgev2.RemoteEvent {
 	cmd, text := command(received.Body)
 	if cmd == CommandReact {
 		if text == "" {

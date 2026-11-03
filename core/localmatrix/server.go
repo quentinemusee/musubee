@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"slices"
 	"sync"
 	"time"
 
@@ -598,6 +599,39 @@ func (s *Server) Members(ctx context.Context, roomID id.RoomID) (map[id.UserID]*
 		members[id.UserID(*evt.StateKey)] = evt.Content.AsMember()
 	}
 	return members, nil
+}
+
+// SeenBy is the device user's latest message that others read, and who.
+type SeenBy struct {
+	Message *event.Event
+	// Readers read up to the message or later.
+	Readers []id.UserID
+}
+
+// Seen returns the device user's latest message of a room that someone else
+// read (their read receipt is at or after it), and who; nil when nobody
+// read any.
+func (s *Server) Seen(ctx context.Context, roomID id.RoomID) (*SeenBy, error) {
+	orders, err := s.store.othersReadOrders(ctx, roomID, s.userID)
+	if err != nil || len(orders) == 0 {
+		return nil, err
+	}
+	var furthest int64
+	for _, order := range orders {
+		furthest = max(furthest, order)
+	}
+	msg, err := s.store.lastOwnMessageUpTo(ctx, roomID, s.userID, furthest)
+	if err != nil || msg == nil {
+		return nil, err
+	}
+	seen := &SeenBy{Message: msg}
+	for user, order := range orders {
+		if order >= msg.Unsigned.BeeperHSOrder {
+			seen.Readers = append(seen.Readers, user)
+		}
+	}
+	slices.Sort(seen.Readers)
+	return seen, nil
 }
 
 // SearchMessages returns, newest first, up to limit messages of a room (or

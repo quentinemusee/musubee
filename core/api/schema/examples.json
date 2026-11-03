@@ -137,6 +137,9 @@
       { "message_id": "m10", "conversation_id": "c2", "from_me": false, "sender_name": "Bob", "timestamp_ms": 1791496808000, "kind": "text", "text": "Dinner?", "status": "received",
         "reactions": [ { "key": "👍", "count": 3, "from_me": true, "names": ["Alice", "Carol"] } ] }
     ] } },
+    { "target": "command:conversations.list:result", "value": { "conversations": [
+      { "conversation_id": "c1", "account_id": "a1", "network_id": "echo", "name": "Instant Echo", "kind": "direct", "seen": { "message_id": "m3", "names": ["Instant Echo"] } }
+    ] } },
     { "target": "command:conversations.typing:params", "value": { "conversation_id": "c1", "typing": true } },
     { "target": "command:conversations.typing:result", "value": {} },
     { "target": "event:conversation.typing", "value": { "conversation_id": "c1", "names": ["Instant Echo"] } },

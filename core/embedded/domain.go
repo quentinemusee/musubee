@@ -238,7 +238,27 @@ func (c *Core) conversation(ctx context.Context, activity *localmatrix.RoomActiv
 	}
 	conv.UnreadCount = int64(read.Unread)
 	conv.MarkedUnread = read.MarkedUnread
+	if conv.Seen, err = c.seen(ctx, room.ID); err != nil {
+		return nil, err
+	}
 	return conv, nil
+}
+
+// seen says which of the user's messages others read, and who (API 1.21).
+func (c *Core) seen(ctx context.Context, roomID id.RoomID) (*api.ConversationSeen, error) {
+	seen, err := c.host.Matrix.Seen(ctx, roomID)
+	if err != nil || seen == nil {
+		return nil, err
+	}
+	result := &api.ConversationSeen{MessageID: messageID(roomID, seen.Message.ID), Names: []string{}}
+	for _, reader := range seen.Readers {
+		name, err := c.memberName(ctx, roomID, reader)
+		if err != nil {
+			return nil, err
+		}
+		result.Names = append(result.Names, name)
+	}
+	return result, nil
 }
 
 // portalLogin returns the ID of the user's login that a portal belongs to,

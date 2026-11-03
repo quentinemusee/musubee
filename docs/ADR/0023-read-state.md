@@ -88,6 +88,8 @@ Not decided here, and not built: marking a conversation unread from the interfac
 
 ## Consequences
 
+- Since T2.38 (API 1.21), others' read receipts, which the local server kept, say which of the user's messages they read: `Conversation.seen` (the user's latest message read by someone, and who). The thread says "Sent · Seen", or "Seen by Alice and Bob" in a group. A receipt publishes a read-state update, so the conversation is sent again.
+
 - Since T2.34 (API 1.18), `conversations.markUnread` sets the "marked unread" flag from the interface: "Mark unread" in the thread's header sets it and leaves the conversation, since a shown conversation is read at once. On this device only: the networks are not told.
 
 - Every connector that handles read receipts gets them without code in the core; Signal (T2.6) will too.

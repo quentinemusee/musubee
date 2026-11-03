@@ -518,6 +518,67 @@ func (s *store) timeline(ctx context.Context, roomID id.RoomID, after int64, lim
 // messagesBefore returns the message events (m.room.message, without the
 // edits) of a room stored before the given stream order, or the latest ones
 // when before is 0, newest first.
+// othersReadOrders returns, for each other user who read a room, the stream
+// order up to which they read it (their receipt's event, or the last event
+// stored at its time).
+func (s *store) othersReadOrders(ctx context.Context, roomID id.RoomID, self id.UserID) (map[id.UserID]int64, error) {
+	rows, err := s.db.Query(ctx,
+		`SELECT user_id, content FROM local_room_account_data WHERE room_id=$1 AND data_type=$2 AND user_id<>$3`,
+		roomID, accountDataReadReceipt, self)
+	if err != nil {
+		return nil, err
+	}
+	type receipt struct {
+		user    id.UserID
+		eventID id.EventID
+		ts      int64
+	}
+	var receipts []receipt
+	for rows.Next() {
+		var user id.UserID
+		var content string
+		if err = rows.Scan(&user, &content); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		var data struct {
+			EventID id.EventID `json:"event_id"`
+			TS      int64      `json:"ts"`
+		}
+		if json.Unmarshal([]byte(content), &data) == nil {
+			receipts = append(receipts, receipt{user, data.EventID, data.TS})
+		}
+	}
+	if err = rows.Close(); err != nil {
+		return nil, err
+	}
+	orders := make(map[id.UserID]int64, len(receipts))
+	for _, r := range receipts {
+		order, err := s.readOrder(ctx, roomID, r.eventID, time.UnixMilli(r.ts))
+		if err != nil {
+			return nil, err
+		}
+		if order != 0 {
+			orders[r.user] = order
+		}
+	}
+	return orders, nil
+}
+
+// lastOwnMessageUpTo returns a user's latest message (not an edit, not
+// deleted) of a room stored at or before a stream order, or nil.
+func (s *store) lastOwnMessageUpTo(ctx context.Context, roomID id.RoomID, sender id.UserID, order int64) (*event.Event, error) {
+	evt, err := scanEvent(s.db.QueryRow(ctx,
+		`SELECT `+eventColumns+` FROM local_event
+		 WHERE room_id=$1 AND sender=$2 AND `+messageFilter+` AND redacted_by IS NULL AND stream_order<=$3
+		 ORDER BY stream_order DESC LIMIT 1`,
+		roomID, sender, order))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return evt, err
+}
+
 // likePattern escapes a search's text for LIKE: % and _ match themselves.
 func likePattern(text string) string {
 	return "%" + strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(text) + "%"

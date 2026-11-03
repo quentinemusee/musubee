@@ -6,7 +6,7 @@ import type { ConversationActions, MediaActions, Message } from "../core-api/typ
 import { accepts, formatSize } from "../media";
 import { canRecord, VoiceRecorder, type Recording } from "../recorder";
 import { accountLabel } from "../merge";
-import { replyQuote, replyTo, typingText } from "../message";
+import { replyQuote, replyTo, seenLabel, typingText } from "../message";
 import { MessageList } from "./MessageList";
 import { VoiceRecording } from "./VoiceRecording";
 import type { MessageHandlers } from "./MessageRow";
@@ -33,6 +33,17 @@ export function Thread() {
   const allHistory = useAppState((s) => s.history);
   const networks = useAppState((s) => s.networks);
   const accounts = useAppState((s) => s.accounts);
+  // What each conversation's latest read message says (API 1.21).
+  const seenLabels = useMemo(() => {
+    const shown = allConversations.filter((c) => (together === undefined ? c.conversation_id === selected : c.person_id === together));
+    const labels: Record<string, string> = {};
+    for (const c of shown) {
+      if (c.seen !== undefined) {
+        labels[c.seen.message_id] = seenLabel(c.seen.names, c.kind === "group");
+      }
+    }
+    return labels;
+  }, [allConversations, together, selected]);
   const view = useMemo(() => {
     if (together === undefined) {
       return undefined;
@@ -153,6 +164,7 @@ export function Thread() {
         actions={conversation.actions}
         handlers={handlers}
         together={view?.list}
+        seen={seenLabels}
       />
       <TypingLine conversationId={selected} />
       <Composer
