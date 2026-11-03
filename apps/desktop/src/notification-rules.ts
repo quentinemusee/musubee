@@ -55,6 +55,7 @@ interface AnnouncedMessage {
   deleted?: unknown;
   sender_name?: unknown;
   timestamp_ms?: unknown;
+  mentions_me?: unknown;
   kind?: unknown;
   text?: unknown;
   media?: { animated?: unknown; file_name?: unknown };
@@ -162,7 +163,8 @@ export function deletedConversation(eventJson: string): string | null {
 /**
  * The announcement of one of the core's events (JSON), or null: only a
  * message.added from someone else, not deleted, at most MAX_AGE_MS old,
- * in a conversation not muted, while no window is focused.
+ * in a conversation not muted (unless it mentions the user), while no
+ * window is focused.
  */
 export function announcement(eventJson: string, now: number, focused: boolean, conversations?: KnownConversations): Announcement | null {
   if (focused) {
@@ -176,7 +178,8 @@ export function announcement(eventJson: string, now: number, focused: boolean, c
   if (typeof message.conversation_id !== "string" || typeof message.timestamp_ms !== "number" || now - message.timestamp_ms > MAX_AGE_MS) {
     return null;
   }
-  if (conversations?.muted(message.conversation_id, now) === true) {
+  // A mention of the user gets through a mute (docs/ADR/0055).
+  if (conversations?.muted(message.conversation_id, now) === true && message.mentions_me !== true) {
     return null;
   }
   const sender = typeof message.sender_name === "string" && message.sender_name !== "" ? message.sender_name : "New message";

@@ -44,6 +44,8 @@ describe("desktop notifications", () => {
     expect(announcement(added({}), now, false, known)).toBeNull();
     known.learnEvent(updated({ muted_until_ms: now + 1000 }));
     expect(announcement(added({}), now, false, known)).toBeNull();
+    // A mention gets through (ADR 0055).
+    expect(announcement(added({ mentions_me: true }), now, false, known)?.body).toBe("hi");
     // A mute that ended.
     known.learnEvent(updated({ muted_until_ms: now - 1000 }));
     expect(announcement(added({}), now, false, known)).not.toBeNull();

@@ -465,6 +465,16 @@ func (c *Core) messagesSend(ctx context.Context, p api.MessagesSendParams) (api.
 	return api.MessagesSendResult{Message: msg}, err
 }
 
+// mentions says whether a message's content mentions a user, as its
+// network marked it (Matrix's m.mentions, docs/ADR/0055): by ID, or the
+// whole room.
+func mentions(content *event.MessageEventContent, userID id.UserID) bool {
+	if content == nil || content.Mentions == nil {
+		return false
+	}
+	return content.Mentions.Room || slices.Contains(content.Mentions.UserIDs, userID)
+}
+
 var messageKinds = map[event.MessageType]api.MessageKind{
 	event.MsgText:   api.MessageKindText,
 	event.MsgNotice: api.MessageKindNotice,
@@ -538,6 +548,7 @@ func (c *Core) message(ctx context.Context, evt *event.Event, rel *localmatrix.R
 		content, edited := latestContent(evt, rel)
 		msg.Kind, msg.Text, msg.Media = messageContent(evt.Content.AsMessage(), content)
 		msg.Edited = edited
+		msg.MentionsMe = !msg.FromMe && mentions(content, c.host.Matrix.UserID())
 		if rel != nil {
 			if msg.Reactions, err = c.reactions(ctx, evt.RoomID, rel.Reactions); err != nil {
 				return msg, err

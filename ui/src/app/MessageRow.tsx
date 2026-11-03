@@ -88,8 +88,10 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers,
 
   return (
     <div className="message-row" data-message-id={message.message_id} data-highlighted={highlighted}>
-      <div className="message" data-from-me={message.from_me} data-status={message.status} data-deleted={deleted}>
+      <div className="message" data-from-me={message.from_me} data-status={message.status} data-deleted={deleted} data-mentions-me={message.mentions_me === true}>
         {!message.from_me && message.sender_name ? <span className="sender">{message.sender_name}</span> : null}
+        {/* Said first to a screen reader; the outline shows it (docs/ADR/0055). */}
+        {message.mentions_me === true ? <span className="visually-hidden">Mentions you. </span> : null}
         {message.reply_to && !deleted ? <ReplyQuote reply={message.reply_to} /> : null}
         {deleted ? (
           <span className="text" data-kind="deleted">

@@ -20,6 +20,7 @@ import (
 	"maunium.net/go/mautrix/bridgev2/simplevent"
 	"maunium.net/go/mautrix/bridgev2/status"
 	"maunium.net/go/mautrix/event"
+	"maunium.net/go/mautrix/id"
 )
 
 // ErrUnreachable is the reason why sending to ContactUnreachable fails.
@@ -401,6 +402,8 @@ const (
 	CommandGIF    = "/gif"
 	CommandFile   = "/file"
 	CommandVoice  = "/voice"
+	// CommandMention echoes the text, mentioning the user (docs/ADR/0055).
+	CommandMention = "/mention"
 )
 
 // EditedSuffix ends the text of an echo that CommandEdit edited.
@@ -409,7 +412,7 @@ const EditedSuffix = " (edited)"
 // command splits a message's text into a command and the rest, or returns
 // no command.
 func command(body string) (string, string) {
-	for _, cmd := range []string{CommandReact, CommandEdit, CommandDelete, CommandReply, CommandImage, CommandGIF, CommandFile, CommandVoice} {
+	for _, cmd := range []string{CommandReact, CommandEdit, CommandDelete, CommandReply, CommandImage, CommandGIF, CommandFile, CommandVoice, CommandMention} {
 		if rest, ok := strings.CutPrefix(body, cmd); ok && (rest == "" || rest[0] == ' ') {
 			return cmd, strings.TrimSpace(rest)
 		}
@@ -465,6 +468,9 @@ func (c *client) answerEvents(meta func(bridgev2.RemoteEventType) simplevent.Eve
 		echo.ConvertMessageFunc = convertMediaEcho
 	}
 	switch cmd {
+	case CommandMention:
+		// As mautrix-telegram does for a mention of the logged-in user.
+		content.Mentions = &event.Mentions{UserIDs: []id.UserID{c.login.UserMXID}}
 	case CommandImage, CommandGIF, CommandFile, CommandVoice:
 		echo.ConvertMessageFunc = convertMedia(cmd)
 	case CommandReply:

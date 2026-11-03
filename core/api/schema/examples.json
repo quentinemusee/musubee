@@ -215,6 +215,9 @@
     { "target": "event:message.added", "value": { "message": {
       "message_id": "m4", "conversation_id": "c1", "from_me": false, "sender_name": "Bot", "timestamp_ms": 1791496802000, "kind": "unsupported", "text": "A sticker", "status": "received"
     } } },
+    { "target": "event:message.added", "value": { "message": {
+      "message_id": "m9", "conversation_id": "c4", "from_me": false, "sender_name": "Alice", "timestamp_ms": 1791496803000, "kind": "text", "text": "@Ada look", "status": "received", "mentions_me": true
+    } } },
     { "target": "event:message.updated", "value": { "message": {
       "message_id": "m3", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1791496801000, "kind": "text", "text": "Hello 👋", "status": "failed", "error": "The contact refused the message"
     } } },

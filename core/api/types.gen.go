@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.27"
+const APIVersion = "1.28"
 
 // Command names.
 const (
@@ -822,6 +822,10 @@ type ConversationEvent struct {
 
 // Message is $defs/Message of the schema.
 type Message struct {
+	// The message mentions the user (by name, or everyone in the room), as its
+	// network marked it, in its latest version. Omitted when false. Since API
+	// 1.28.
+	MentionsMe bool `json:"mentions_me,omitempty"`
 	// Opaque: user interfaces must not parse it.
 	MessageID      string `json:"message_id"`
 	ConversationID string `json:"conversation_id"`

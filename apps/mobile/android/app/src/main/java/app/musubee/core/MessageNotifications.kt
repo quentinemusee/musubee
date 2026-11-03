@@ -21,7 +21,8 @@ import org.json.JSONObject
  *   enough;
  * - the app is on screen ([visible]): the inbox shows it;
  * - the user muted its conversation (`muted_until_ms`, API 1.23,
- *   docs/ADR/0050): muting also removes the conversation's notification.
+ *   docs/ADR/0050), unless it mentions the user (`mentions_me`, API 1.28,
+ *   docs/ADR/0055): muting also removes the conversation's notification.
  *
  * A conversation that is read again (unread count 0 and not marked unread)
  * loses its notification, wherever it was read, and so does a deleted one
@@ -49,7 +50,14 @@ class MessageNotifications(
     }
 
     /** One line of a notification: which message, who wrote it, and what. */
-    data class Line(val messageId: String, val sender: String, val text: String, val timestampMs: Long)
+    data class Line(
+        val messageId: String,
+        val sender: String,
+        val text: String,
+        val timestampMs: Long,
+        /** The message mentions the user (API 1.28): it gets through a mute. */
+        val mentionsMe: Boolean = false,
+    )
 
     sealed interface Action {
         val conversationId: String
@@ -114,6 +122,7 @@ class MessageNotifications(
                 sender = message.optString("sender_name"),
                 text = summary(message),
                 timestampMs = message.optLong("timestamp_ms"),
+                mentionsMe = message.optBoolean("mentions_me"),
             ),
         )
     }
@@ -123,13 +132,16 @@ class MessageNotifications(
         if (conversationId.isEmpty()) return emptyList()
         val arrived = waiting.remove(conversationId).orEmpty()
         val unread = conversation.optInt("unread_count") > 0 || conversation.optBoolean("marked_unread")
-        if (!unread || muted(conversation, now())) {
+        val muted = muted(conversation, now())
+        // In a muted conversation, only a mention of the user gets through
+        // (docs/ADR/0055).
+        if (!unread || muted && arrived.none { it.mentionsMe }) {
             return if (shown.remove(conversationId) != null) listOf(Action.Cancel(conversationId)) else emptyList()
         }
         val accountId = conversation.optString("account_id")
         val now = now()
         val since = maxOf(watermarks.since(accountId, now), now - MAX_AGE_MILLIS)
-        val news = arrived.filter { it.timestampMs >= since }
+        val news = arrived.filter { it.timestampMs >= since && (!muted || it.mentionsMe) }
         if (news.isEmpty() || visible()) return emptyList()
         val lines = (shown[conversationId]?.lines.orEmpty() + news).takeLast(MAX_LINES)
         val updated = Shown(accountId, conversation.optString("name"), conversation.optString("kind") == "group", lines)

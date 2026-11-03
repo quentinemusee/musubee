@@ -477,6 +477,17 @@ test("a pinned conversation stays at the top of the inbox, after a restart too",
   await app.close();
 });
 
+test("a message that mentions the user stands out", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "mention");
+  await page.getByRole("textbox", { name: "Message" }).fill("/mention look at this");
+  await page.getByRole("button", { name: "Send" }).click();
+  const mention = page.locator('.message[data-mentions-me="true"]');
+  await expect(mention).toContainText("look at this");
+  await expect(mention).toContainText("Mentions you.");
+  await app.close();
+});
+
 test("a group shows its members", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "members");

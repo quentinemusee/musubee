@@ -1416,3 +1416,8 @@ button.flow:hover:not(:disabled) {
   padding-inline-start: 1.2em;
   overflow-y: auto;
 }
+
+/* A message that mentions the user (docs/ADR/0055). */
+.message[data-mentions-me="true"] {
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}

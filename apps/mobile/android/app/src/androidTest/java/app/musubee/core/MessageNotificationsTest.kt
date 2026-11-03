@@ -36,12 +36,13 @@ class MessageNotificationsTest {
     private fun account(state: String = "connected") =
         rules.onEvent(event("account.updated", "account", JSONObject().put("account_id", "a1").put("state", state)))
 
-    private fun message(text: String, timestamp: Long, fromMe: Boolean = false, id: String = text) = rules.onEvent(
+    private fun message(text: String, timestamp: Long, fromMe: Boolean = false, id: String = text, mentionsMe: Boolean = false) = rules.onEvent(
         event(
             "message.added",
             "message",
             JSONObject().put("conversation_id", "c1").put("message_id", id).put("from_me", fromMe)
-                .put("sender_name", "Bob").put("timestamp_ms", timestamp).put("kind", "text").put("text", text),
+                .put("sender_name", "Bob").put("timestamp_ms", timestamp).put("kind", "text").put("text", text)
+                .put("mentions_me", mentionsMe),
         ),
     )
 
@@ -143,9 +144,13 @@ class MessageNotificationsTest {
         assertEquals(emptyList<String>(), texts(conversation(2, mutedUntil = -1)))
         message("for an hour", now + 3)
         assertEquals(emptyList<String>(), texts(conversation(3, mutedUntil = now + 3_600_000L)))
+        // A mention gets through, alone (ADR 0055).
+        message("chatter", now + 4)
+        message("@you look", now + 5, mentionsMe = true)
+        assertEquals(listOf("post:@you look"), texts(conversation(5, mutedUntil = -1)))
         // A mute that ended.
-        message("back", now + 4)
-        assertEquals(listOf("post:back"), texts(conversation(4, mutedUntil = now - 1)))
+        message("back", now + 6)
+        assertEquals(listOf("post:@you look|back"), texts(conversation(6, mutedUntil = now - 1)))
     }
 
     @Test
