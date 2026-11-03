@@ -58,3 +58,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0046](0046-searching-messages.md) | Searching messages: LIKE over the local storage, checked against the latest text | accepted | T2.32 |
 | [0047](0047-desktop-notifications.md) | Desktop notifications: the main process announces recent messages while the app is in the background | accepted | T2.33 |
 | [0048](0048-typing-notifications.md) | Typing notifications: in memory, both ways, renewed by the interface | accepted | T2.37 |
+| [0049](0049-interactive-verification.md) | Interactive verification: comparing emoji with another of the user's devices | accepted | T2.43 |

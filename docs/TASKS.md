@@ -299,6 +299,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.42 — Edits and reactions in a Matrix room's history** (E2.4)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). A history page's edits and reactions apply to its messages (ADR 0045's consequences). 🧪 `core/connector/matrix` `TestHistoryChanges`.
 
+**T2.43 — Verify by comparing emoji** (E2.8)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.22 `accounts.verification` and `account.verification` (ADR 0049): a Matrix account verifies Musubee from another of the user's devices with emoji (SAS, mautrix-go's verification helper); "Compare emoji…" and the incoming request in the accounts list. 🧪 `TestMatrixInteractiveVerification` (CI only), `TestVerifyNeedsAMatrixAccount`. Left: QR codes; verifying other people.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

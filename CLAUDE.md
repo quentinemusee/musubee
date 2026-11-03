@@ -520,3 +520,10 @@ To verify in the test session: T2.38 (cloud sprint, no test run; see ADR 0023):
 ```
 seen:               go test -tags=goolm -count=1 -run 'Seen|ReadState' -v ./core/embedded/       (ui: npx vitest run src/message.test.ts)
 ```
+
+To verify in the test session: T2.43 (cloud sprint, no test run; see ADR 0049). The Synapse journey runs on CI only:
+
+```
+emoji (core):       go test -tags=goolm -count=1 -run 'VerifyNeedsAMatrixAccount' -v ./core/embedded/
+emoji journey:      go test -tags=goolm,integration -count=1 -run 'InteractiveVerification' -v ./infra/matrixtest/     (needs Docker)
+```
