@@ -302,6 +302,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.43 — Verify by comparing emoji** (E2.8)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.22 `accounts.verification` and `account.verification` (ADR 0049): a Matrix account verifies Musubee from another of the user's devices with emoji (SAS, mautrix-go's verification helper); "Compare emoji…" and the incoming request in the accounts list. 🧪 `TestMatrixInteractiveVerification` (CI only), `TestVerifyNeedsAMatrixAccount`. Left: QR codes; verifying other people.
 
+**T2.44 — Mute a conversation** (E2.6)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.23 `conversations.mute` and `Conversation.muted_until_ms` (ADR 0050): kept as the user's room account data, told to the network through `com.beeper.mute` (Telegram handles it) and taken from it; Android and the desktop skip muted conversations; "Mute…" in the thread; a group's desktop notification names the group. 🧪 `TestMute` (localmatrix and embedded), `apps/desktop/test/notification-rules.test.ts`, `MessageNotificationsTest`, `ui/src/mute.test.ts`, the desktop e2e "the user mutes a conversation".
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

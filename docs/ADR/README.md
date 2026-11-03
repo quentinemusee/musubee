@@ -59,3 +59,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0047](0047-desktop-notifications.md) | Desktop notifications: the main process announces recent messages while the app is in the background | accepted | T2.33 |
 | [0048](0048-typing-notifications.md) | Typing notifications: in memory, both ways, renewed by the interface | accepted | T2.37 |
 | [0049](0049-interactive-verification.md) | Interactive verification: comparing emoji with another of the user's devices | accepted | T2.43 |
+| [0050](0050-muting-conversations.md) | Muting a conversation: kept by the local server, told to the network, followed by every notifier | accepted | T2.44 |

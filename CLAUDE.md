@@ -527,3 +527,12 @@ To verify in the test session: T2.43 (cloud sprint, no test run; see ADR 0049). 
 emoji (core):       go test -tags=goolm -count=1 -run 'VerifyNeedsAMatrixAccount' -v ./core/embedded/
 emoji journey:      go test -tags=goolm,integration -count=1 -run 'InteractiveVerification' -v ./infra/matrixtest/     (needs Docker)
 ```
+
+To verify in the test session: T2.44 (cloud sprint, no test run; see ADR 0050):
+
+```
+mute (core):        go test -tags=goolm -count=1 -run 'Mute' -v ./core/localmatrix/ ./core/embedded/
+mute (shells):      cd apps/desktop && npx vitest run test/notification-rules.test.ts      (ui: npx vitest run src/mute.test.ts src/store.test.ts)
+mute in the app:    cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "mutes a conversation"
+mute on android:    ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.musubee.core.MessageNotificationsTest
+```

@@ -32,6 +32,7 @@ The main process already receives every event of the core to pass it to the wind
 
 - No notification while a window is focused, even on another conversation: the inbox's unread badges say it.
 - On Linux, notifications need a notification daemon; without one, nothing shows (Electron's `isSupported`).
+- Since T2.44 (ADR 0050), the main process learns the conversations' names, kinds and mutes from the core's events and answers. Muted conversations are skipped, and a group's title is "Alice in Book club".
 
 ## Verification
 
