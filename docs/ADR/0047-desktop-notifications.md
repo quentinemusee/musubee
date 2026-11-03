@@ -26,7 +26,7 @@ The main process already receives every event of the core to pass it to the wind
 **Option A.** `apps/desktop/src/notification-rules.ts` holds the rules (no Electron import, tested under Node); `main.ts` shows the notifications; the preload exposes `notifications` (`ask` resolves true: desktop systems need no permission; `onOpen` passes only strings).
 
 - Five minutes, not a day as on Android: history that comes in batches (ADR 0041) is published as new messages, and a login's latest messages must not each make a notification.
-- The text is shown as on Android (sender, then the text or "Photo: caption"); a setting to hide it is left for later.
+- The text is shown as on Android (sender, then the text or "Photo: caption"); since T2.45, the user can hide it, or the names too (ADR 0051).
 
 ## Consequences
 

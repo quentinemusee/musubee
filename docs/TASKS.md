@@ -305,6 +305,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.44 — Mute a conversation** (E2.6)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.23 `conversations.mute` and `Conversation.muted_until_ms` (ADR 0050): kept as the user's room account data, told to the network through `com.beeper.mute` (Telegram handles it) and taken from it; Android and the desktop skip muted conversations; "Mute…" in the thread; a group's desktop notification names the group. 🧪 `TestMute` (localmatrix and embedded), `apps/desktop/test/notification-rules.test.ts`, `MessageNotificationsTest`, `ui/src/mute.test.ts`, the desktop e2e "the user mutes a conversation".
 
+**T2.45 — What notifications show** (E2.6)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). "Notifications" in the header: "Name and message", "Name only" or "No name or message" (ADR 0051), kept by the shell that posts them (Android preferences, the desktop's `notifications.json`). Also fixes the desktop isolation test, stale since T2.33. 🧪 `MessageNotificationsTest`, `apps/desktop/test/notification-rules.test.ts` and `notification-settings.test.ts`, `ui/src/capacitor.test.ts`, the desktop e2e "the user chooses what notifications show". By hand: the Android app's notifications.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

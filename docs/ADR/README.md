@@ -60,3 +60,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0048](0048-typing-notifications.md) | Typing notifications: in memory, both ways, renewed by the interface | accepted | T2.37 |
 | [0049](0049-interactive-verification.md) | Interactive verification: comparing emoji with another of the user's devices | accepted | T2.43 |
 | [0050](0050-muting-conversations.md) | Muting a conversation: kept by the local server, told to the network, followed by every notifier | accepted | T2.44 |
+| [0051](0051-notification-preview.md) | What notifications show: the user chooses, the shell that posts them keeps it | accepted | T2.45 |

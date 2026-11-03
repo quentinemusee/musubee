@@ -536,3 +536,11 @@ mute (shells):      cd apps/desktop && npx vitest run test/notification-rules.te
 mute in the app:    cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "mutes a conversation"
 mute on android:    ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.musubee.core.MessageNotificationsTest
 ```
+
+To verify in the test session: T2.45 (cloud sprint, no test run; see ADR 0051). Also by hand on the Pixel 8 Pro: each choice, with a message from an echo contact while the app is in the background.
+
+```
+preview (desktop):  cd apps/desktop && npx vitest run test/notification-rules.test.ts test/notification-settings.test.ts     (ui: npx vitest run src/capacitor.test.ts src/notification-preview.test.ts)
+preview in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "what notifications show|isolated"
+preview (android):  ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.musubee.core.MessageNotificationsTest
+```
