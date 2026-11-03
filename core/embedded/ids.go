@@ -27,6 +27,7 @@ const (
 	messagePrefix      = "m."
 	cursorPrefix       = "k."
 	processPrefix      = "p."
+	mediaPrefix        = "f."
 )
 
 func encodeID(prefix string, parts ...string) string {
@@ -78,6 +79,20 @@ func parseMessageID(value string) (id.RoomID, id.EventID, error) {
 		return "", "", err
 	}
 	return id.RoomID(parts[0]), id.EventID(parts[1]), nil
+}
+
+// mediaID encodes the content URI of stored media: the room is not needed
+// to read it.
+func mediaID(uri id.ContentURIString) string {
+	return encodeID(mediaPrefix, string(uri))
+}
+
+func parseMediaID(value string) (id.ContentURIString, error) {
+	parts, err := decodeID(mediaPrefix, value, 1, "media")
+	if err != nil {
+		return "", err
+	}
+	return id.ContentURIString(parts[0]), nil
 }
 
 func cursor(streamOrder int64) string {

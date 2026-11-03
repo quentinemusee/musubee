@@ -371,6 +371,10 @@ const (
 	CommandEdit   = "/edit"
 	CommandDelete = "/delete"
 	CommandReply  = "/reply"
+	CommandImage  = "/image"
+	CommandGIF    = "/gif"
+	CommandFile   = "/file"
+	CommandVoice  = "/voice"
 )
 
 // EditedSuffix ends the text of an echo that CommandEdit edited.
@@ -379,7 +383,7 @@ const EditedSuffix = " (edited)"
 // command splits a message's text into a command and the rest, or returns
 // no command.
 func command(body string) (string, string) {
-	for _, cmd := range []string{CommandReact, CommandEdit, CommandDelete, CommandReply} {
+	for _, cmd := range []string{CommandReact, CommandEdit, CommandDelete, CommandReply, CommandImage, CommandGIF, CommandFile, CommandVoice} {
 		if rest, ok := strings.CutPrefix(body, cmd); ok && (rest == "" || rest[0] == ' ') {
 			return cmd, strings.TrimSpace(rest)
 		}
@@ -422,6 +426,8 @@ func (c *client) answer(portal networkid.PortalID, contact Contact, sent network
 		ConvertMessageFunc: convertEcho,
 	}
 	switch cmd {
+	case CommandImage, CommandGIF, CommandFile, CommandVoice:
+		echo.ConvertMessageFunc = convertMedia(cmd)
 	case CommandReply:
 		echo.ConvertMessageFunc = func(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI, content *event.MessageEventContent) (*bridgev2.ConvertedMessage, error) {
 			converted, err := convertEcho(ctx, portal, intent, content)

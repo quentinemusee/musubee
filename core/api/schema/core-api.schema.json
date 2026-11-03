@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.8",
+  "x-musubee-api-version": "1.9",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -224,6 +224,16 @@
           "properties": {
             "params": { "$ref": "#/$defs/MessagesDeleteParams" },
             "result": { "$ref": "#/$defs/Empty" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "media.read": {
+          "description": "Reads a part of a message's media (or of its thumbnail), stored on this device. Media deleted with its message, or of a conversation no longer on this device, is not_found. Since API 1.9.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/MediaReadParams" },
+            "result": { "$ref": "#/$defs/MediaReadResult" }
           },
           "required": ["params", "result"],
           "additionalProperties": false
@@ -770,7 +780,7 @@
         },
         "kind": { "$ref": "#/$defs/MessageKind" },
         "text": {
-          "description": "The text of the message; for unsupported kinds, a fallback description.",
+          "description": "The text of the message; for media kinds, the caption, often empty; for unsupported kinds, a fallback description.",
           "type": "string"
         },
         "status": { "$ref": "#/$defs/MessageStatus" },
@@ -794,6 +804,10 @@
         "reply_to": {
           "description": "The message this one answers, if it answers one. Since API 1.7.",
           "$ref": "#/$defs/MessageReply"
+        },
+        "media": {
+          "description": "The media of an image, video, audio, voice or file message. Omitted for other kinds, and for a deleted message. Since API 1.9.",
+          "$ref": "#/$defs/MessageMedia"
         }
       },
       "required": ["message_id", "conversation_id", "from_me", "sender_name", "timestamp_ms", "kind", "text", "status"],
@@ -843,15 +857,67 @@
         "deleted": {
           "description": "It was deleted. Omitted when false.",
           "type": "boolean"
+        },
+        "kind": {
+          "description": "Its kind, when it is not text: an answered photo may have no text to quote. Omitted for text. Since API 1.9.",
+          "$ref": "#/$defs/MessageKind"
         }
       },
       "required": ["message_id"],
       "additionalProperties": false
     },
+    "MessageMedia": {
+      "description": "The media of a message. Its bytes are read with media.read. Since API 1.9.",
+      "type": "object",
+      "properties": {
+        "media_id": {
+          "description": "Opaque: user interfaces must not parse it.",
+          "type": "string"
+        },
+        "mime_type": {
+          "description": "The media type the network gave, such as image/jpeg; may be empty. It comes from the sender: user interfaces must never render active content (HTML, SVG, scripts) because of it.",
+          "type": "string"
+        },
+        "file_name": {
+          "description": "The file's name. Omitted when unknown.",
+          "type": "string"
+        },
+        "size": {
+          "description": "The size in bytes, when the network gave it.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "width": {
+          "description": "In pixels, for images and videos, when known.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "height": {
+          "description": "In pixels, for images and videos, when known.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "duration_ms": {
+          "description": "For videos, audio and voice messages, when known.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "animated": {
+          "description": "An animation (a GIF, or the short silent video that networks send for one): played on a loop, without sound nor controls. Omitted when false.",
+          "type": "boolean"
+        },
+        "thumbnail_id": {
+          "description": "A smaller image to show until the media is read, to read with media.read. Omitted when there is none.",
+          "type": "string"
+        }
+      },
+      "required": ["media_id", "mime_type"],
+      "additionalProperties": false
+    },
     "MessageKind": {
-      "description": "text: a normal message. notice: an automated message. emote: an action (\"/me waves\"). unsupported: a kind this version cannot show; text holds a fallback.",
+      "description": "text: a normal message. notice: an automated message. emote: an action (\"/me waves\"). image, video, audio, voice (a recorded voice message) and file: a message with media, described by its media field, whose text is the caption (since API 1.9). unsupported: a kind this version cannot show; text holds a fallback.",
       "type": "string",
-      "enum": ["text", "notice", "emote", "unsupported"]
+      "enum": ["text", "notice", "emote", "image", "video", "audio", "voice", "file", "unsupported"]
     },
     "MessageStatus": {
       "description": "received: from someone else. sending, sent and failed: the delivery of a message from the user.",
@@ -958,6 +1024,48 @@
         "message": { "$ref": "#/$defs/Message" }
       },
       "required": ["message"],
+      "additionalProperties": false
+    },
+    "MediaReadParams": {
+      "type": "object",
+      "properties": {
+        "media_id": {
+          "description": "A media_id or thumbnail_id of a message.",
+          "type": "string"
+        },
+        "offset": {
+          "description": "The first byte to read (default 0).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "length": {
+          "description": "How many bytes to read at most (default and maximum 1048576, 1 MiB): larger media is read in several calls.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576
+        }
+      },
+      "required": ["media_id"],
+      "additionalProperties": false
+    },
+    "MediaReadResult": {
+      "type": "object",
+      "properties": {
+        "mime_type": {
+          "description": "As stored; may be empty.",
+          "type": "string"
+        },
+        "size": {
+          "description": "The size of the whole media, in bytes.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "data": {
+          "description": "The bytes read, in base64 (RFC 4648, with padding): fewer than asked at the end of the media, none from its end on.",
+          "type": "string"
+        }
+      },
+      "required": ["mime_type", "size", "data"],
       "additionalProperties": false
     },
 

@@ -39,6 +39,9 @@
 //   - CommandDelete ("/delete text") echoes the text, then deletes the echo;
 //   - CommandReply ("/reply text") echoes the text as an answer to the
 //     message.
+//   - CommandImage, CommandGIF, CommandFile and CommandVoice ("/image a
+//     caption") send a small generated photo, animated GIF, text file or
+//     voice message, with the rest of the text as its caption.
 //
 // It replaces Beeper's dummybridge, which has no license (docs/ADR/0004).
 package echo

@@ -111,6 +111,18 @@
     { "target": "command:messages.delete:params", "value": { "conversation_id": "c1", "message_id": "m3" } },
     { "target": "command:messages.delete:result", "value": {} },
 
+    { "target": "command:messages.list:result", "value": { "messages": [
+      { "message_id": "m5", "conversation_id": "c1", "from_me": false, "sender_name": "Instant Echo", "timestamp_ms": 1791496803000, "kind": "image", "text": "A sunset", "status": "received",
+        "media": { "media_id": "f1", "mime_type": "image/jpeg", "file_name": "sunset.jpg", "size": 48213, "width": 1280, "height": 960, "thumbnail_id": "f2" } },
+      { "message_id": "m6", "conversation_id": "c1", "from_me": false, "sender_name": "Instant Echo", "timestamp_ms": 1791496804000, "kind": "voice", "text": "", "status": "received",
+        "media": { "media_id": "f3", "mime_type": "audio/ogg", "duration_ms": 4200 } },
+      { "message_id": "m7", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1791496805000, "kind": "text", "text": "Nice", "status": "sent",
+        "reply_to": { "message_id": "m5", "sender_name": "Instant Echo", "text": "A sunset", "kind": "image" } }
+    ] } },
+    { "target": "command:media.read:params", "value": { "media_id": "f1" } },
+    { "target": "command:media.read:params", "value": { "media_id": "f1", "offset": 1048576, "length": 65536 } },
+    { "target": "command:media.read:result", "value": { "mime_type": "image/jpeg", "size": 48213, "data": "/9j/4AAQ" } },
+
     { "target": "command:persons.list:params", "value": {} },
     { "target": "command:persons.list:result", "value": { "persons": [ { "person_id": "h1", "name": "Alice", "conversation_ids": ["c1", "c4"] } ] } },
     { "target": "command:persons.list:result", "value": { "persons": [] } },
@@ -172,6 +184,11 @@
     { "target": "command:messages.react:params", "why": "key is not empty", "value": { "conversation_id": "c1", "message_id": "m2", "key": "" } },
     { "target": "command:messages.edit:params", "why": "text is required", "value": { "conversation_id": "c1", "message_id": "m3" } },
     { "target": "command:messages.delete:params", "why": "message_id is required", "value": { "conversation_id": "c1" } },
+    { "target": "command:media.read:params", "why": "length is at most 1 MiB", "value": { "media_id": "f1", "length": 1048577 } },
+    { "target": "command:media.read:params", "why": "offset is not negative", "value": { "media_id": "f1", "offset": -1 } },
+    { "target": "command:messages.list:result", "why": "media needs its media_id", "value": { "messages": [
+      { "message_id": "m5", "conversation_id": "c1", "from_me": false, "sender_name": "", "timestamp_ms": 1, "kind": "image", "text": "", "status": "received", "media": { "mime_type": "image/png" } }
+    ] } },
     { "target": "command:messages.send:result", "why": "status is required", "value": { "message": {
       "message_id": "m3", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1, "kind": "text", "text": "x"
     } } },

@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.8"
+const APIVersion = "1.9"
 
 // Command names.
 const (
@@ -76,6 +76,10 @@ const (
 	// the command fails with network, and the message stays on the network. Since
 	// API 1.8.
 	CommandMessagesDelete = "messages.delete"
+	// Reads a part of a message's media (or of its thumbnail), stored on this
+	// device. Media deleted with its message, or of a conversation no longer on
+	// this device, is not_found. Since API 1.9.
+	CommandMediaRead = "media.read"
 	// Lists the persons the user merged conversations into, with their
 	// conversations on this device. A person whose conversations are all absent
 	// from this device (an account not added here) is not listed. Since API 1.2.
@@ -150,6 +154,7 @@ var Commands = []CommandSpec{
 	{Name: CommandMessagesUnreact, Params: reflect.TypeFor[MessagesReactParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandMessagesEdit, Params: reflect.TypeFor[MessagesEditParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandMessagesDelete, Params: reflect.TypeFor[MessagesDeleteParams](), Result: reflect.TypeFor[Empty]()},
+	{Name: CommandMediaRead, Params: reflect.TypeFor[MediaReadParams](), Result: reflect.TypeFor[MediaReadResult]()},
 	{Name: CommandPersonsList, Params: reflect.TypeFor[Empty](), Result: reflect.TypeFor[PersonsListResult]()},
 	{Name: CommandPersonsCreate, Params: reflect.TypeFor[PersonsCreateParams](), Result: reflect.TypeFor[PersonResult]()},
 	{Name: CommandPersonsRename, Params: reflect.TypeFor[PersonsRenameParams](), Result: reflect.TypeFor[PersonResult]()},
@@ -483,7 +488,8 @@ type Message struct {
 	// When the message was sent, in milliseconds since the Unix epoch.
 	TimestampMS int64       `json:"timestamp_ms"`
 	Kind        MessageKind `json:"kind"`
-	// The text of the message; for unsupported kinds, a fallback description.
+	// The text of the message; for media kinds, the caption, often empty; for
+	// unsupported kinds, a fallback description.
 	Text   string        `json:"text"`
 	Status MessageStatus `json:"status"`
 	// For failed messages: why, for the user, when the network said.
@@ -500,6 +506,9 @@ type Message struct {
 	Reactions []MessageReaction `json:"reactions,omitempty"`
 	// The message this one answers, if it answers one. Since API 1.7.
 	ReplyTo *MessageReply `json:"reply_to,omitempty"`
+	// The media of an image, video, audio, voice or file message. Omitted for
+	// other kinds, and for a deleted message. Since API 1.9.
+	Media *MessageMedia `json:"media,omitempty"`
 }
 
 // MessageReaction: People who reacted to a message with the same key. Since
@@ -528,17 +537,54 @@ type MessageReply struct {
 	Text string `json:"text,omitempty"`
 	// It was deleted. Omitted when false.
 	Deleted bool `json:"deleted,omitempty"`
+	// Its kind, when it is not text: an answered photo may have no text to quote.
+	// Omitted for text. Since API 1.9.
+	Kind MessageKind `json:"kind,omitempty"`
+}
+
+// MessageMedia: The media of a message. Its bytes are read with media.read.
+// Since API 1.9.
+type MessageMedia struct {
+	// Opaque: user interfaces must not parse it.
+	MediaID string `json:"media_id"`
+	// The media type the network gave, such as image/jpeg; may be empty. It comes
+	// from the sender: user interfaces must never render active content (HTML,
+	// SVG, scripts) because of it.
+	MimeType string `json:"mime_type"`
+	// The file's name. Omitted when unknown.
+	FileName string `json:"file_name,omitempty"`
+	// The size in bytes, when the network gave it.
+	Size int64 `json:"size,omitempty"`
+	// In pixels, for images and videos, when known.
+	Width int64 `json:"width,omitempty"`
+	// In pixels, for images and videos, when known.
+	Height int64 `json:"height,omitempty"`
+	// For videos, audio and voice messages, when known.
+	DurationMS int64 `json:"duration_ms,omitempty"`
+	// An animation (a GIF, or the short silent video that networks send for one):
+	// played on a loop, without sound nor controls. Omitted when false.
+	Animated bool `json:"animated,omitempty"`
+	// A smaller image to show until the media is read, to read with media.read.
+	// Omitted when there is none.
+	ThumbnailID string `json:"thumbnail_id,omitempty"`
 }
 
 // MessageKind: text: a normal message. notice: an automated message. emote: an
-// action ("/me waves"). unsupported: a kind this version cannot show; text
-// holds a fallback.
+// action ("/me waves"). image, video, audio, voice (a recorded voice message)
+// and file: a message with media, described by its media field, whose text is
+// the caption (since API 1.9). unsupported: a kind this version cannot show;
+// text holds a fallback.
 type MessageKind string
 
 const (
 	MessageKindText        MessageKind = "text"
 	MessageKindNotice      MessageKind = "notice"
 	MessageKindEmote       MessageKind = "emote"
+	MessageKindImage       MessageKind = "image"
+	MessageKindVideo       MessageKind = "video"
+	MessageKindAudio       MessageKind = "audio"
+	MessageKindVoice       MessageKind = "voice"
+	MessageKindFile        MessageKind = "file"
 	MessageKindUnsupported MessageKind = "unsupported"
 )
 
@@ -608,6 +654,28 @@ type MessagesSendResult struct {
 // MessageEvent is $defs/MessageEvent of the schema.
 type MessageEvent struct {
 	Message Message `json:"message"`
+}
+
+// MediaReadParams is $defs/MediaReadParams of the schema.
+type MediaReadParams struct {
+	// A media_id or thumbnail_id of a message.
+	MediaID string `json:"media_id"`
+	// The first byte to read (default 0).
+	Offset int64 `json:"offset,omitempty"`
+	// How many bytes to read at most (default and maximum 1048576, 1 MiB): larger
+	// media is read in several calls.
+	Length int64 `json:"length,omitempty"`
+}
+
+// MediaReadResult is $defs/MediaReadResult of the schema.
+type MediaReadResult struct {
+	// As stored; may be empty.
+	MimeType string `json:"mime_type"`
+	// The size of the whole media, in bytes.
+	Size int64 `json:"size"`
+	// The bytes read, in base64 (RFC 4648, with padding): fewer than asked at the
+	// end of the media, none from its end on.
+	Data string `json:"data"`
 }
 
 // Person: A person of the user's, and the conversations with them that the

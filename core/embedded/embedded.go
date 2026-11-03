@@ -608,6 +608,8 @@ func (c *Core) dispatch(ctx context.Context, command string, params json.RawMess
 		return handle(ctx, params, c.messagesEdit)
 	case api.CommandMessagesDelete:
 		return handle(ctx, params, c.messagesDelete)
+	case api.CommandMediaRead:
+		return handle(ctx, params, c.mediaRead)
 	case api.CommandPersonsList:
 		return handle(ctx, params, c.personsList)
 	case api.CommandPersonsCreate:

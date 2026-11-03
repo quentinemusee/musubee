@@ -400,13 +400,6 @@ func latestContent(evt *event.Event, rel *localmatrix.Relations) (*event.Message
 	return evt.Content.AsMessage(), false
 }
 
-func messageKind(content *event.MessageEventContent) api.MessageKind {
-	if kind, ok := messageKinds[content.MsgType]; ok {
-		return kind
-	}
-	return api.MessageKindUnsupported
-}
-
 func (c *Core) senderName(ctx context.Context, evt *event.Event) (string, error) {
 	member, err := c.host.Matrix.State(ctx, evt.RoomID, event.StateMember, string(evt.Sender))
 	if err != nil || member == nil {
@@ -434,7 +427,8 @@ func (c *Core) message(ctx context.Context, evt *event.Event, rel *localmatrix.R
 		msg.Deleted = true
 	} else {
 		content, edited := latestContent(evt, rel)
-		msg.Kind, msg.Text, msg.Edited = messageKind(content), content.Body, edited
+		msg.Kind, msg.Text, msg.Media = messageContent(evt.Content.AsMessage(), content)
+		msg.Edited = edited
 		if rel != nil {
 			msg.Reactions = c.reactions(rel.Reactions)
 		}
@@ -500,7 +494,11 @@ func (c *Core) reply(ctx context.Context, roomID id.RoomID, eventID id.EventID) 
 		return nil, err
 	}
 	content, _ := latestContent(evt, relations[eventID])
-	reply.Text = content.Body
+	if kind, text, _ := messageContent(evt.Content.AsMessage(), content); kind != api.MessageKindText {
+		reply.Kind, reply.Text = kind, text
+	} else {
+		reply.Text = text
+	}
 	return reply, nil
 }
 
