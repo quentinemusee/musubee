@@ -30,3 +30,23 @@ func TestAvatar(t *testing.T) {
 		t.Errorf("the avatar is not the contact's picture: %v", err)
 	}
 }
+
+// TestSenderAvatar: the echo contact's answer carries its picture; the
+// user's own message does not (API 1.33).
+func TestSenderAvatar(t *testing.T) {
+	c := open(t)
+	login(t, c)
+	conv := conversationNamed(t, c, "Instant Echo")
+	sent := call[api.MessagesSendResult](t, c, api.CommandMessagesSend, api.MessagesSendParams{ConversationID: conv.ConversationID, Text: "smile"}).Message
+	if sent.SenderAvatarID != "" {
+		t.Errorf("the user's own message has a sender picture: %q", sent.SenderAvatarID)
+	}
+	e := waitEvent(t, c, "the echo", messageEvent(t, api.EventMessageAdded, func(m api.Message) bool { return !m.FromMe && m.Text == "smile" }))
+	answer := decode[api.MessageEvent](t, e.Data).Message
+	if answer.SenderAvatarID == "" {
+		t.Fatalf("the echo has no sender picture: %+v", answer)
+	}
+	if mimeType, _ := readAll(t, c, answer.SenderAvatarID, 100); mimeType != "image/png" {
+		t.Errorf("sender picture type = %q", mimeType)
+	}
+}

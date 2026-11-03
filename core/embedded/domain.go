@@ -574,6 +574,17 @@ func (c *Core) message(ctx context.Context, evt *event.Event, rel *localmatrix.R
 	if msg.SenderName, err = c.senderName(ctx, evt); err != nil {
 		return msg, err
 	}
+	if !msg.FromMe {
+		// The sender's current picture (API 1.33): profiles are global and
+		// kept up to date, member events are not rewritten.
+		profile, err := c.host.Matrix.Profile(ctx, evt.Sender)
+		if err != nil {
+			return msg, err
+		}
+		if profile.AvatarURL != "" {
+			msg.SenderAvatarID = mediaID(profile.AvatarURL)
+		}
+	}
 	if evt.Unsigned.RedactedBecause != nil {
 		msg.Deleted = true
 	} else {

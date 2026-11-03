@@ -348,7 +348,7 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.31 `conversations.archive` and `Conversation.archived` (ADR 0060): on the device, brought back by a new message unless muted; "Archived (n)" in the inbox. 🧪 `TestArchive`, `ui/src/store.test.ts`, `ui/src/inbox.test.ts`, the desktop e2e "an archived conversation leaves the inbox".
 
 **T2.59 — Avatars** (E2.3, E2.7)
-- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.32 `Conversation.avatar_id` from the room's `m.room.avatar` (ADR 0061); the inbox and the thread show the picture, or initials on the name's hue; the echo contacts have a generated picture. 🧪 `TestAvatar`, `ui/src/avatar.test.ts`. Left: senders' pictures in groups.
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.32 `Conversation.avatar_id` from the room's `m.room.avatar` (ADR 0061); the inbox and the thread show the picture, or initials on the name's hue; the echo contacts have a generated picture. API 1.33 `Message.sender_avatar_id`, shown before the sender's name. 🧪 `TestAvatar`, `TestSenderAvatar`, `ui/src/avatar.test.ts`.
 
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.

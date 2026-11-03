@@ -1478,3 +1478,11 @@ button.flow:hover:not(:disabled) {
 .conversation > :not(.avatar) {
   grid-column: 2;
 }
+
+.avatar[data-size="tiny"] {
+  width: 20px;
+  height: 20px;
+  margin-inline-end: 6px;
+  font-size: calc(9 * var(--text));
+  vertical-align: middle;
+}

@@ -3,6 +3,7 @@
 
 import { memo, useEffect, useId, useRef, useState, type RefObject } from "react";
 import type { ConversationActions, Message, MessageReply } from "../core-api/types.gen";
+import { Avatar } from "./Avatar";
 import { MessageMedia } from "./MessageMedia";
 import { hasMedia } from "../media";
 import {
@@ -97,7 +98,12 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers,
         data-deleted={deleted}
         data-mentions-me={message.mentions_me === true}
       >
-        {!message.from_me && message.sender_name ? <span className="sender">{message.sender_name}</span> : null}
+        {!message.from_me && message.sender_name ? (
+          <span className="sender">
+            <Avatar mediaId={message.sender_avatar_id} name={message.sender_name} size="tiny" />
+            {message.sender_name}
+          </span>
+        ) : null}
         {/* Said first to a screen reader; the outline shows it (docs/ADR/0055). */}
         {message.mentions_me === true ? <span className="visually-hidden">Mentions you. </span> : null}
         {message.reply_to && !deleted ? <ReplyQuote reply={message.reply_to} /> : null}

@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.32"
+const APIVersion = "1.33"
 
 // Command names.
 const (
@@ -871,6 +871,9 @@ type ConversationEvent struct {
 
 // Message is $defs/Message of the schema.
 type Message struct {
+	// The sender's picture, to read with media.read; for messages of others only.
+	// Omitted when they have none. Since API 1.33.
+	SenderAvatarID string `json:"sender_avatar_id,omitempty"`
 	// The message mentions the user (by name, or everyone in the room), as its
 	// network marked it, in its latest version. Omitted when false. Since API
 	// 1.28.

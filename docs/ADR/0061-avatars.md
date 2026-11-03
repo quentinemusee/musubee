@@ -39,7 +39,7 @@ The interface reads the picture through the media cache, shown at 40 pixels in t
 ## Consequences
 
 - A person's entry shows the picture of its most recently active conversation.
-- Senders' pictures in groups are a later task (the members' profiles, API 1.27, have no pictures yet).
+- Since API 1.33, `Message.sender_avatar_id` is the sender's current picture, from their global profile (the local server does not rewrite member events), shown small before the sender's name. The members' list (API 1.27) has no pictures yet.
 - Pictures are read whole, as message media are; the cache's limit (64 MiB) bounds them.
 
 ## Verification
@@ -47,5 +47,6 @@ The interface reads the picture through the media cache, shown at 40 pixels in t
 | Claim | Status | Evidence |
 |---|---|---|
 | A direct echo conversation has its contact's picture, readable as PNG | **implemented, unverified** | `core/embedded/avatar_test.go` |
+| The echo's answer carries its sender's picture; the user's own message does not | **implemented, unverified** | `core/embedded/avatar_test.go`, `TestSenderAvatar` |
 | Initials and hues | **implemented, unverified** | `ui/src/avatar.test.ts` |
 | Telegram's pictures show | **assumed** (bridgev2's path; needs a Telegram account) | |

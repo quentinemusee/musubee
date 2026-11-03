@@ -10,7 +10,7 @@ import { StoreContext } from "./state";
  * A conversation's picture (API 1.32, docs/ADR/0061), or its initials on
  * the name's hue. Decorative: the name is always written next to it.
  */
-export function Avatar({ mediaId, name, size = "normal" }: { mediaId: string | undefined; name: string; size?: "normal" | "small" }) {
+export function Avatar({ mediaId, name, size = "normal" }: { mediaId: string | undefined; name: string; size?: "normal" | "small" | "tiny" }) {
   const cache = use(StoreContext)?.media;
   // No type: the picture's own (PNG, JPEG, WebP…) is sniffed by the image.
   const loaded = useMediaURL(cache, mediaId, "", mediaId !== undefined);
