@@ -27,13 +27,18 @@ export function Inbox() {
   const now = useNow();
 
   const all = useMemo(() => inboxEntries(conversations, persons), [conversations, persons]);
+  const current = entryOf(all, selected)?.key;
   // Archived entries (API 1.31) have a list of their own.
   const [archiveShown, setArchiveShown] = useState(false);
   const archived = useMemo(() => all.filter(isArchived), [all]);
-  const entries = useMemo(() => (archiveShown ? archived : all.filter((e) => !isArchived(e))), [all, archived, archiveShown]);
+  // "Unread only" (T2.74): the entries with unread messages or marked unread.
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const entries = useMemo(() => {
+    const listed = archiveShown ? archived : all.filter((e) => !isArchived(e));
+    return unreadOnly ? listed.filter((e) => e.unread > 0 || e.markedUnread || e.key === current) : listed;
+  }, [all, archived, archiveShown, unreadOnly, current]);
   const anyUnread = entries.some((e) => e.unread > 0 || e.markedUnread);
   const networkNames = useMemo(() => new Map(networks.map((n) => [n.network_id, n.name])), [networks]);
-  const current = entryOf(all, selected)?.key;
 
   const canLoad = typeof inbox === "object";
   function loadIfNeeded() {
@@ -48,6 +53,9 @@ export function Inbox() {
     <section className="inbox" aria-labelledby="conversations-title">
       <div className="inbox-header">
         <h2 id="conversations-title">{archiveShown ? "Archived" : "Conversations"}</h2>
+        <button type="button" className="secondary" aria-pressed={unreadOnly} onClick={() => setUnreadOnly(!unreadOnly)}>
+          Unread only
+        </button>
         <button type="button" className="secondary" onClick={() => void store.showStarred()}>
           Starred
         </button>
@@ -63,7 +71,7 @@ export function Inbox() {
         </button>
       ) : null}
       {entries.length === 0 ? (
-        <p className="empty">{archiveShown ? "No archived conversations." : "No conversations yet."}</p>
+        <p className="empty">{unreadOnly ? "Nothing unread." : archiveShown ? "No archived conversations." : "No conversations yet."}</p>
       ) : (
         // The virtualizer renders a ul of li in its parent, which scrolls.
         <div className="inbox-list">

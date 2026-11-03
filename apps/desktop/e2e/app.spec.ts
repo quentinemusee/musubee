@@ -625,6 +625,24 @@ test("a message keeps its line breaks: Shift+Enter starts a line, Enter sends", 
   await app.close();
 });
 
+test("the inbox shows only unread conversations on request", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "unread-only");
+  await page.getByRole("button", { name: "Delayed Echo" }).click();
+  await page.getByRole("textbox", { name: "Message" }).fill("ping");
+  await page.getByRole("button", { name: "Send" }).click();
+  await page.getByRole("button", { name: "Instant Echo" }).click();
+  await expect(page.getByRole("button", { name: "Delayed Echo" })).toHaveAccessibleDescription(/1 unread message/, { timeout: 10_000 });
+  await page.getByRole("button", { name: "Unread only" }).click();
+  const rows = page.locator(".inbox-row button.conversation");
+  // The unread one, and the one open.
+  await expect(rows).toHaveCount(2);
+  await expect(page.locator(".inbox-row").getByRole("button", { name: "Echo Group" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Unread only" }).click();
+  await expect(page.locator(".inbox-row").getByRole("button", { name: "Echo Group" })).toBeVisible();
+  await app.close();
+});
+
 test("a group shows its members", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "members");

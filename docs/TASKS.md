@@ -389,6 +389,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.73 — Conversations in the search** (E2.4)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). Searching lists, above the messages, up to five conversations whose name matches (ignoring case and accents, as the merge panel does); a click opens one. 🧪 the desktop e2e "search finds".
 
+**T2.74 — Unread only** (E2.3)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). "Unread only" above the inbox keeps the entries with unread messages or marked unread, and the one open. 🧪 the desktop e2e "the inbox shows only unread conversations" (`npx playwright test app.spec.ts -g "only unread"`).
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).
