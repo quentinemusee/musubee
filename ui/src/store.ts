@@ -421,6 +421,22 @@ export class Store {
    * count: the thread calls this again while it is shown, and the core
    * changes nothing the second time.
    */
+  /** Marks a conversation as unread (API 1.18), at once in the store. */
+  async markUnread(conversationId: string): Promise<void> {
+    const conversations = this.#state.conversations;
+    const index = conversations.findIndex((c) => c.conversation_id === conversationId);
+    const conversation = conversations[index];
+    if (conversation === undefined) {
+      return;
+    }
+    this.#set({ conversations: conversations.with(index, { ...conversation, marked_unread: true }) });
+    try {
+      await this.client.call("conversations.markUnread", { conversation_id: conversationId });
+    } catch (error) {
+      this.#set({ error: `Could not mark the conversation as unread: ${describe(error)}` });
+    }
+  }
+
   async markRead(conversationId: string): Promise<void> {
     const conversations = this.#state.conversations;
     const index = conversations.findIndex((c) => c.conversation_id === conversationId);

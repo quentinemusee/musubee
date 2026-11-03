@@ -99,3 +99,16 @@ func TestReadState(t *testing.T) {
 	// A conversation without messages has nothing to read.
 	call[api.Empty](t, c, api.CommandConversationsMarkRead, api.ConversationsMarkReadParams{ConversationID: other.ConversationID})
 }
+
+// TestMarkUnread marks a read conversation unread (API 1.18), which reading
+// clears again.
+func TestMarkUnread(t *testing.T) {
+	c := open(t)
+	login(t, c)
+	conv := conversationNamed(t, c, "Delayed Echo")
+	call[api.Empty](t, c, api.CommandConversationsMarkUnread, api.ConversationsMarkUnreadParams{ConversationID: conv.ConversationID})
+	waitConversationUpdate(t, c, "marked unread", conv.ConversationID, func(cv api.Conversation) bool { return cv.MarkedUnread })
+	call[api.Empty](t, c, api.CommandConversationsMarkRead, api.ConversationsMarkReadParams{ConversationID: conv.ConversationID})
+	waitConversationUpdate(t, c, "read again", conv.ConversationID, func(cv api.Conversation) bool { return !cv.MarkedUnread })
+	callFails(t, c, api.CommandConversationsMarkUnread, api.ConversationsMarkUnreadParams{ConversationID: "c.nope"}, api.ErrorCodeNotFound)
+}

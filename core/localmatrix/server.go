@@ -740,6 +740,16 @@ func (s *Server) setMarkedUnread(ctx context.Context, roomID id.RoomID, unread b
 }
 
 // ClearMarkedUnread clears the user's "marked as unread" flag of a room.
+// MarkUnread sets the user's "marked as unread" flag of a room, on this
+// device (docs/ADR/0023): the conversation shows unread until it is read.
+func (s *Server) MarkUnread(ctx context.Context, roomID id.RoomID) error {
+	was, err := s.setMarkedUnread(ctx, roomID, true)
+	if err == nil && !was {
+		s.publish(Update{ReadState: roomID})
+	}
+	return err
+}
+
 func (s *Server) ClearMarkedUnread(ctx context.Context, roomID id.RoomID) error {
 	was, err := s.setMarkedUnread(ctx, roomID, false)
 	if err == nil && was {

@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.17"
+const APIVersion = "1.18"
 
 // Command names.
 const (
@@ -49,6 +49,10 @@ const (
 	// recently active first. Without a limit, returns them all; with one, returns
 	// a page and a cursor to the next. Ordered by activity since API 1.3.
 	CommandConversationsList = "conversations.list"
+	// Marks a conversation as unread (marked_unread), on this device, until it is
+	// read again. The conversation is then sent again in a conversation.updated
+	// event, if it was not marked already. Since API 1.18.
+	CommandConversationsMarkUnread = "conversations.markUnread"
 	// Records that the user read a conversation up to a message (by default its
 	// last one), and clears its marked_unread flag. The network is told when it
 	// supports read receipts. Reading never moves back: a message before the
@@ -185,6 +189,7 @@ var Commands = []CommandSpec{
 	{Name: CommandLoginWait, Params: reflect.TypeFor[LoginProcessParams](), Result: reflect.TypeFor[LoginStep]()},
 	{Name: CommandLoginCancel, Params: reflect.TypeFor[LoginProcessParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsList, Params: reflect.TypeFor[ConversationsListParams](), Result: reflect.TypeFor[ConversationsListResult]()},
+	{Name: CommandConversationsMarkUnread, Params: reflect.TypeFor[ConversationsMarkUnreadParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsMarkRead, Params: reflect.TypeFor[ConversationsMarkReadParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandMessagesList, Params: reflect.TypeFor[MessagesListParams](), Result: reflect.TypeFor[MessagesListResult]()},
 	{Name: CommandMessagesSearch, Params: reflect.TypeFor[MessagesSearchParams](), Result: reflect.TypeFor[MessagesSearchResult]()},
@@ -579,6 +584,12 @@ const (
 	ConversationKindDirect ConversationKind = "direct"
 	ConversationKindGroup  ConversationKind = "group"
 )
+
+// ConversationsMarkUnreadParams is $defs/ConversationsMarkUnreadParams of the
+// schema.
+type ConversationsMarkUnreadParams struct {
+	ConversationID string `json:"conversation_id"`
+}
 
 // ConversationsMarkReadParams is $defs/ConversationsMarkReadParams of the
 // schema.

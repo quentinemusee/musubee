@@ -120,6 +120,17 @@ export function Thread() {
           ‹
         </button>
         <h2 id="thread-title">{person?.name ?? (conversation.name || "Unnamed conversation")}</h2>
+        {/* Leaves the conversation: shown, it would be read again at once. */}
+        <button
+          type="button"
+          className="secondary"
+          onClick={() => {
+            void store.markUnread(selected);
+            closeConversation(store);
+          }}
+        >
+          Mark unread
+        </button>
         {conversation.kind === "direct" ? (
           <button type="button" className="secondary person-button" aria-expanded={panelOpen} onClick={() => setPanelFor(panelOpen ? undefined : selected)}>
             {person === undefined ? "Same person…" : "Person…"}
