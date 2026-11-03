@@ -65,3 +65,22 @@ In place since T0.3 ([ADR 0004](ADR/0004-integration-test-environment.md), usage
 3. Licenses checked, `NOTICE` up to date.
 4. Documentation / ADR updated if a decision changed.
 5. Explicit distinction between what is **verified**, **assumed** and **unknown**.
+
+## Checks by hand after the cloud sprint
+
+The cloud sprint (T2.20 to T2.70) ran no tests; `CLAUDE.md` §9 lists the automated commands of each task. These need a person, in this order:
+
+1. **Android build**: `cd apps/mobile/android && ./gradlew :app:assembleDebug`. T2.64 and T2.68 changed Kotlin that was never compiled.
+2. **Desktop, background notification** (T2.33, T2.45, T2.50, T2.68): with the window unfocused, a message from an echo contact shows a notification that opens it. Then check each preview choice, a mute with and without a mention (`/mention text`), and a pause.
+3. **Desktop, icon count** (T2.56, macOS): the Dock shows the unread count, without muted conversations.
+4. **Desktop, link** (T2.67): a click on a link in a message opens the system's browser, and the app does not navigate.
+5. **Desktop, copy** (T2.57): "Copy text" puts the message's text on the clipboard.
+6. **Android, on the Pixel 8 Pro**:
+   - a voice message recorded and sent (T2.22);
+   - a voice message played at 1.5× and 2× (T2.70);
+   - each notification preview (T2.45);
+   - a pause (T2.68);
+   - "Reply" and "Mark as read" from a notification, with the phone locked (it must ask to unlock) and unlocked (T2.64);
+   - a link opened in the browser (T2.67).
+7. **Look**: avatars and initials (T2.59), a conversation's color in light and dark themes (T2.61), the thread's header and "More…" on a narrow window (T2.62), "New messages" (T2.69).
+
