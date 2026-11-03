@@ -57,4 +57,3 @@ func TestContacts(t *testing.T) {
 	callFails(t, c, api.CommandConversationsStart, api.ConversationsStartParams{AccountID: conv.AccountID, ContactID: instant.ContactID, Identifier: "x"}, api.ErrorCodeInvalidParams)
 	callFails(t, c, api.CommandConversationsStart, api.ConversationsStartParams{AccountID: conv.AccountID}, api.ErrorCodeInvalidParams)
 }
-
