@@ -1670,3 +1670,15 @@ kbd {
   margin-bottom: 4px;
   text-align: start;
 }
+
+/* An answered message's quote that goes to it (T2.78). */
+.reply-link {
+  width: 100%;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}

@@ -1081,7 +1081,7 @@ export class Store {
    * thread to show it. A message older than that opens the conversation at
    * its newest message.
    */
-  async reveal(message: Message): Promise<void> {
+  async reveal(message: Pick<Message, "conversation_id" | "message_id">): Promise<void> {
     await this.select(message.conversation_id);
     for (let page = 0; page < REVEAL_PAGES; page++) {
       if (this.#state.messages[message.conversation_id]?.some((m) => m.message_id === message.message_id)) {

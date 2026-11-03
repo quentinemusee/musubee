@@ -128,9 +128,12 @@ test("a network's reactions, edits, deletions and replies change the messages th
   await expect(theirs("a secret")).toHaveCount(0);
 
   await send("/reply an answer");
-  const quote = theirs("an answer").locator("blockquote");
+  const quote = theirs("an answer").locator(".reply");
   await expect(quote).toContainText("You");
   await expect(quote).toContainText("/reply an answer");
+  // The quote goes to the message answered (T2.78).
+  await quote.click();
+  await expect(page.locator('.message-row[data-highlighted="true"]')).toContainText("/reply an answer");
 
   // Read again from the core after a restart: the same changes.
   await app.close();
@@ -140,7 +143,7 @@ test("a network's reactions, edits, deletions and replies change the messages th
   await expect(mine("/react 🎉").getByRole("button", { name: "🎉: Instant Echo" })).toBeVisible();
   await expect(theirs("first try (edited)")).toContainText("Edited");
   await expect(log.locator('.message[data-deleted="true"]')).toHaveCount(1);
-  await expect(theirs("an answer").locator("blockquote")).toContainText("/reply an answer");
+  await expect(theirs("an answer").locator(".reply")).toContainText("/reply an answer");
   await app.close();
 });
 
@@ -188,7 +191,7 @@ test("the user reacts to a message, answers it, edits and deletes their own, fro
   await page.keyboard.type("an answer");
   await page.keyboard.press("Enter");
   await expect(mine("an answer")).toContainText("Sent");
-  await expect(mine("an answer").locator("blockquote")).toContainText("Instant Echo");
+  await expect(mine("an answer").locator(".reply")).toContainText("Instant Echo");
   await expect(page.getByText("Replying to Instant Echo")).toHaveCount(0);
 
   // An edit starts from the text; Escape leaves it.
@@ -221,7 +224,7 @@ test("the user reacts to a message, answers it, edits and deletes their own, fro
   await page.getByRole("button", { name: "Instant Echo" }).click();
   log = page.getByRole("log");
   await expect(log.locator('.message[data-deleted="true"]')).toHaveCount(1);
-  await expect(mine("an answer").locator("blockquote")).toContainText("Instant Echo");
+  await expect(mine("an answer").locator(".reply")).toContainText("Instant Echo");
   await app.close();
 });
 

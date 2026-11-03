@@ -43,17 +43,29 @@ export interface MessageHandlers {
   forward?(message: Message): void;
   /** Stars or unstars it (API 1.36). */
   star?(message: Message, starred: boolean): void;
+  /** Shows a message of the thread, read further back if needed (T2.78). */
+  show?(conversationId: string, messageId: string): void;
 }
 
 /** The answered message, quoted above an answer. */
-function ReplyQuote({ reply }: { reply: MessageReply }) {
+function ReplyQuote({ reply, onShow }: { reply: MessageReply; onShow?: (() => void) | undefined }) {
   const { sender, text } = replyQuote(reply);
-  return (
-    <blockquote className="reply" data-deleted={reply.deleted === true}>
+  const content = (
+    <>
       <span className="visually-hidden">In reply to </span>
       {sender !== "" ? <span className="reply-sender">{sender}</span> : null}
       <span className="reply-text">{text}</span>
+    </>
+  );
+  // A click goes to the answered message (T2.78), unless it was deleted.
+  return onShow === undefined || reply.deleted === true ? (
+    <blockquote className="reply" data-deleted={reply.deleted === true}>
+      {content}
     </blockquote>
+  ) : (
+    <button type="button" className="reply reply-link" onClick={onShow}>
+      {content}
+    </button>
   );
 }
 
@@ -118,7 +130,12 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers,
         ) : null}
         {/* Said first to a screen reader; the outline shows it (docs/ADR/0055). */}
         {message.mentions_me === true ? <span className="visually-hidden">Mentions you. </span> : null}
-        {message.reply_to && !deleted ? <ReplyQuote reply={message.reply_to} /> : null}
+        {message.reply_to && !deleted ? (
+          <ReplyQuote
+            reply={message.reply_to}
+            onShow={handlers?.show === undefined ? undefined : () => handlers.show?.(message.conversation_id, message.reply_to!.message_id)}
+          />
+        ) : null}
         {deleted ? (
           <span className="text" data-kind="deleted">
             {DELETED_TEXT}

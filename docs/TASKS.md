@@ -401,6 +401,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.77 — A conversation's media and files** (E2.4)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). "Media and files…" in "More…" lists what the device stores: pictures in a grid of thumbnails, files and audio by name; a click opens the message. 🧪 `ui/src/gallery.test.ts`, the desktop e2e "a conversation's media and files are listed".
 
+**T2.78 — Go to the message answered** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). A reply's quote is a button that shows the answered message, read further back on the device if needed, outlined for two seconds (ADR 0046's reveal). 🧪 the desktop e2e "a network's reactions, edits, deletions and replies".
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).
