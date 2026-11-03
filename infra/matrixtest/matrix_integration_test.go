@@ -159,6 +159,8 @@ func TestMatrixAccount(t *testing.T) {
 	// bob sends an encrypted photo, which the core copies to the device
 	// (T2.20).
 	changedTexts = append(changedTexts, receivedMedia(t, ctx, c, events, bob, room))
+	// The user sends a file, which bob receives encrypted (T2.21).
+	changedTexts = append(changedTexts, sentMedia(t, ctx, c, bob, room, conv))
 
 	// 5. A direct conversation can belong to a person.
 	var person api.PersonResult
@@ -682,6 +684,47 @@ func receivedMedia(t *testing.T, ctx context.Context, c *embedded.Core, events c
 	}
 	if !bytes.Equal(read, photo) {
 		t.Errorf("the photo read back has %d bytes, not the %d bob sent", len(read), len(photo))
+	}
+	return caption
+}
+
+// sentMedia has the user send a file with a caption through the API; bob
+// receives it in an encrypted event, as an encrypted attachment, and
+// decrypts the bytes the user sent (ADR 0037). It returns the caption,
+// which the log must not hold.
+func sentMedia(t *testing.T, ctx context.Context, c *embedded.Core, bob *peer, room id.RoomID, conv api.Conversation) string {
+	t.Helper()
+	data := bytes.Repeat([]byte("the user's notes "), 1000)
+	var appended api.UploadsAppendResult
+	coretest.Call(t, c, api.CommandUploadsAppend, api.UploadsAppendParams{Data: base64.StdEncoding.EncodeToString(data)}, &appended)
+	caption := "my notes " + coretest.RandomHex(t)
+	coretest.Call(t, c, api.CommandMessagesSendMedia, api.MessagesSendMediaParams{
+		ConversationID: conv.ConversationID, UploadID: appended.UploadID,
+		Kind: api.MessageKindFile, MimeType: "text/plain", FileName: "notes.txt", Caption: caption,
+	}, nil)
+	evt := bob.waitSeen(t, ctx, "the file", func(evt *event.Event) bool {
+		return evt.Type == event.EventMessage && evt.Content.AsMessage().Body == caption
+	})
+	content := evt.Content.AsMessage()
+	if content.MsgType != event.MsgFile || content.FileName != "notes.txt" || content.File == nil || content.URL != "" {
+		t.Fatalf("bob got the file as %s named %q, encrypted: %v", content.MsgType, content.FileName, content.File != nil)
+	}
+	uri, err := content.File.URL.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sealed, err := bob.cli.DownloadBytes(ctx, uri)
+	if err != nil {
+		t.Fatalf("bob downloading the file: %v", err)
+	}
+	if bytes.Contains(sealed, []byte("the user's notes")) {
+		t.Error("the homeserver holds the file in clear")
+	}
+	if err = content.File.DecryptInPlace(sealed); err != nil {
+		t.Fatalf("bob decrypting the file: %v", err)
+	}
+	if !bytes.Equal(sealed, data) {
+		t.Errorf("bob decrypted %d bytes, not the %d the user sent", len(sealed), len(data))
 	}
 	return caption
 }
