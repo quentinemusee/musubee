@@ -14,6 +14,8 @@ Sources (read 2026-11-03), mautrix-go v0.31.0:
 - `bridgev2/portal.go`: `handleMatrixAccountData` for `event.AccountDataRoomTags`; `updateUserLocalInfo`, which calls the double puppet's `TagRoom` with `UserLocalPortalInfo.Tag`;
 - `event/accountdata.go`: `TagEventContent`, `RoomTagFavourite`.
 
+mautrix-telegram v0.2609.0 maps the favourite tag to Telegram's pinned dialogs both ways: `pkg/connector/handlematrix.go` (`HandleRoomTag` calls `messages.toggleDialogPin`) and `pkg/connector/chatinfo.go` (a pinned dialog gets `UserLocal.Tag` favourite).
+
 ## Options considered
 
 ### Where the pin is kept
