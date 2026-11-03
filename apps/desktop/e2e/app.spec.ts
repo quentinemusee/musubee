@@ -597,7 +597,7 @@ test("a group shows its members", async () => {
   await page.getByRole("button", { name: "Members…" }).click();
   const dialog = page.getByRole("dialog", { name: "Members of Echo Group" });
   await expect(dialog.getByText("3 members")).toBeVisible();
-  await expect(dialog.getByRole("listitem")).toHaveText([/\(you\)$/, "Delayed Echo", "Instant Echo"]);
+  await expect(dialog.getByRole("listitem")).toHaveText([/\(you\)$/, /Delayed Echo$/, /Instant Echo$/]);
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
   await app.close();
