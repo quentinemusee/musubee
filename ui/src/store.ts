@@ -475,6 +475,32 @@ export class Store {
     }
   }
 
+  /**
+   * Mutes a conversation until a time, until unmuted (-1), or unmutes it
+   * (0), API 1.23: at once in the store, back if the core refuses.
+   */
+  async mute(conversationId: string, untilMs: number): Promise<void> {
+    const find = () => this.#state.conversations.findIndex((c) => c.conversation_id === conversationId);
+    const index = find();
+    const conversation = this.#state.conversations[index];
+    if (conversation === undefined) {
+      return;
+    }
+    const { muted_until_ms: before, ...rest } = conversation;
+    this.#set({ conversations: this.#state.conversations.with(index, untilMs === 0 ? rest : { ...rest, muted_until_ms: untilMs }) });
+    try {
+      await this.client.call("conversations.mute", { conversation_id: conversationId, until_ms: untilMs });
+    } catch (error) {
+      const at = find();
+      const current = this.#state.conversations[at];
+      if (current !== undefined && (current.muted_until_ms ?? 0) === untilMs) {
+        const { muted_until_ms: _, ...unchanged } = current;
+        this.#set({ conversations: this.#state.conversations.with(at, before === undefined ? unchanged : { ...unchanged, muted_until_ms: before }) });
+      }
+      this.#set({ error: `Could not change the conversation's notifications: ${describe(error)}` });
+    }
+  }
+
   async markRead(conversationId: string): Promise<void> {
     const conversations = this.#state.conversations;
     const index = conversations.findIndex((c) => c.conversation_id === conversationId);

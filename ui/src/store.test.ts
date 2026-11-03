@@ -406,6 +406,38 @@ describe("Store", () => {
     expect(store.getState().error).toMatch(/^Could not mark the conversation as read/);
   });
 
+  test("mutes and unmutes a conversation at once, and goes back if the core refuses", async () => {
+    const calls: unknown[] = [];
+    let refuse = false;
+    const shell = scriptedShell({
+      ...coreState([conversation("c1", "Adam", 1)]),
+      "conversations.mute": (params) => {
+        calls.push(params);
+        return refuse ? Promise.reject(new Error("no")) : {};
+      },
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    const mutedUntil = () => store.getState().conversations.find((c) => c.conversation_id === "c1")?.muted_until_ms;
+
+    const pending = store.mute("c1", -1);
+    expect(mutedUntil()).toBe(-1);
+    await pending;
+    await store.mute("c1", 0);
+    expect(mutedUntil()).toBeUndefined();
+    expect(calls).toEqual([
+      { conversation_id: "c1", until_ms: -1 },
+      { conversation_id: "c1", until_ms: 0 },
+    ]);
+
+    refuse = true;
+    await store.mute("c1", 1_800_000_000_000);
+    expect(mutedUntil()).toBeUndefined();
+    expect(store.getState().error).toMatch(/^Could not change the conversation's notifications/);
+  });
+
   test("reads older messages page by page, one page at a time", async () => {
     // 250 messages, m0 to m249; the core pages them from the newest.
     const all = Array.from({ length: 250 }, (_, i) => message(`m${i}`, i));

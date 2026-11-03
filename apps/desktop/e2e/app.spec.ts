@@ -439,6 +439,25 @@ test("an unsent text waits in its conversation's composer", async () => {
   await app.close();
 });
 
+test("the user mutes a conversation, kept after a restart, then unmutes it", async () => {
+  const dataDir = newDataDir();
+  let { app, page } = await launch(dataDir);
+  await addEchoAccount(page, "mute");
+  await page.getByRole("button", { name: "Mute…" }).click();
+  await page.getByRole("group", { name: "Mute notifications" }).getByRole("button", { name: "Until I unmute it" }).click();
+  await expect(page.getByText("Muted", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Instant Echo" })).toHaveAccessibleDescription(/Muted/);
+
+  await app.close();
+  ({ app, page } = await launch(dataDir));
+  await page.getByRole("button", { name: "Instant Echo" }).click();
+  await expect(page.getByText("Muted", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Unmute" }).click();
+  await expect(page.getByRole("button", { name: "Mute…" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Instant Echo" })).not.toHaveAccessibleDescription(/Muted/);
+  await app.close();
+});
+
 test("log out of an account: it goes away with its conversations", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "leaving");

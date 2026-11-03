@@ -4,6 +4,7 @@
 import { createContext, memo, use, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Virtualizer, type CustomItemComponentProps, type VirtualizerHandle } from "virtua";
 import { activityLabel, entryOf, inboxEntries, preview, unreadBadge, type InboxEntry } from "../inbox";
+import { isMuted } from "../mute";
 import { openConversation } from "./navigation";
 import { useAppState, useStore } from "./state";
 
@@ -96,6 +97,8 @@ const InboxRow = memo(function InboxRow({ entry, current, now, networkNames, onO
   const networks = [...new Set(entry.conversations.map((c) => networkNames.get(c.network_id) ?? c.network_id))];
   const activity = latest.activity_ms;
   const badge = unreadBadge(entry);
+  // An entry is muted when all its conversations are (ADR 0050).
+  const muted = entry.conversations.every((c) => isMuted(c, now));
   return (
     <div className="inbox-row">
       {/* Named by the name alone, so that the preview does not make names
@@ -122,6 +125,7 @@ const InboxRow = memo(function InboxRow({ entry, current, now, networkNames, onO
         <span id={`${id}-meta`} className="conversation-meta">
           {networks.join(" · ")}
           {latest.kind === "group" ? " · Group" : ""}
+          {muted ? " · Muted" : ""}
         </span>
         <span className="conversation-bottom">
           <span id={`${id}-preview`} className="conversation-preview">
@@ -131,7 +135,7 @@ const InboxRow = memo(function InboxRow({ entry, current, now, networkNames, onO
             // The count is what the eye reads; the label, what a screen
             // reader says: "3 unread messages", not "3".
             <>
-              <span className="unread-badge" aria-hidden="true">
+              <span className={muted ? "unread-badge muted" : "unread-badge"} aria-hidden="true">
                 {badge.text}
               </span>
               <span id={`${id}-unread`} className="visually-hidden">

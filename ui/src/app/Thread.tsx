@@ -8,6 +8,7 @@ import { canRecord, VoiceRecorder, type Recording } from "../recorder";
 import { accountLabel } from "../merge";
 import { replyQuote, replyTo, seenLabel, typingText } from "../message";
 import { MessageList } from "./MessageList";
+import { MuteButton } from "./MuteButton";
 import { VoiceRecording } from "./VoiceRecording";
 import type { MessageHandlers } from "./MessageRow";
 import { closeConversation } from "./navigation";
@@ -142,6 +143,7 @@ export function Thread() {
         >
           Mark unread
         </button>
+        <MuteButton key={selected} conversation={conversation} />
         {conversation.kind === "direct" ? (
           <button type="button" className="secondary person-button" aria-expanded={panelOpen} onClick={() => setPanelFor(panelOpen ? undefined : selected)}>
             {person === undefined ? "Same person…" : "Person…"}

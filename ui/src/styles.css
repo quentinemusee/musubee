@@ -1334,3 +1334,38 @@ button.flow:hover:not(:disabled) {
 .verification-emoji-glyph {
   font-size: calc(32 * var(--text));
 }
+
+/* Mute (docs/ADR/0050). */
+.mute {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--space) / 2);
+}
+
+.mute-state {
+  color: var(--color-muted);
+  font-size: calc(13 * var(--text));
+}
+
+.mute-choices {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space) / 2);
+  margin-top: calc(var(--space) / 2);
+  padding: calc(var(--space) / 2);
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  white-space: nowrap;
+}
+
+.unread-badge.muted {
+  background: var(--color-muted);
+  color: var(--color-bg);
+}
