@@ -427,6 +427,8 @@ func (c *client) chatInfo(ctx context.Context, room id.RoomID) (*bridgev2.ChatIn
 		Name:    ptr.Ptr(roomName(name, c.self, members)),
 		Type:    ptr.Ptr(database.RoomTypeDefault),
 		Members: &bridgev2.ChatMemberList{IsFull: true, MemberMap: memberMap},
+		// Older history comes from the homeserver on request (history.go).
+		CanBackfill: true,
 	}
 	if other, ok := c.directWith(room); ok {
 		info.Type = ptr.Ptr(database.RoomTypeDM)
