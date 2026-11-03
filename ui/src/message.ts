@@ -79,6 +79,11 @@ export interface MessageActions {
  * messages, and edits only to text.
  */
 export function messageActions(message: Message, allowed: ConversationActions | undefined): MessageActions {
+  // A message waiting for its account (API 1.14) can only be cancelled,
+  // on this device, whatever the network allows (API 1.16).
+  if (message.status === "queued" && message.from_me && message.deleted !== true && allowed !== undefined) {
+    return { react: false, reply: false, edit: false, delete: true };
+  }
   const onNetwork = message.status === "sent" || message.status === "received";
   const usable = allowed !== undefined && onNetwork && message.deleted !== true;
   const own = usable && message.from_me;

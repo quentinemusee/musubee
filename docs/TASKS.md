@@ -260,6 +260,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 - 🧪 Test: the Synapse journey (bob's messages from before alice's Musubee, once each, in order).
 - Outcome: **implemented, unverified** (cloud sprint, no test run). The Matrix connector implements `FetchMessages` (ADR 0045): backward pages of `/messages` from the oldest bridged message, decrypted, media copied; messages without keys show as undecryptable. Left: edits, reactions and redactions in older history; a test of decryption with restored keys.
 
+**T2.30 — Cancel a waiting message** (E2.3)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.16: `messages.delete` on a queued message cancels it, on the device only, never sent (ADR 0043's consequences); "Cancel sending…" in the message's actions. 🧪 `TestCancelAWaitingMessage`; `ui/src/message.test.ts`.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

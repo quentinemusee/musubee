@@ -229,13 +229,13 @@ function MessageMenu({ id, toggle, message, allowed, handlers, confirmDelete, on
       <legend className="visually-hidden">Actions</legend>
       {confirmDelete ? (
         <>
-          <p className="message-menu-question">Delete this message for everyone?</p>
+          <p className="message-menu-question">{message.status === "queued" ? "Cancel this message? It has not been sent." : "Delete this message for everyone?"}</p>
           <div className="message-menu-buttons">
             <button ref={cancel} type="button" className="secondary" onClick={() => onClose(true)}>
-              Cancel
+              {message.status === "queued" ? "Keep" : "Cancel"}
             </button>
             <button type="button" className="danger" onClick={() => run(() => handlers.delete(message))}>
-              Delete
+              {message.status === "queued" ? "Cancel sending" : "Delete"}
             </button>
           </div>
         </>
@@ -273,7 +273,7 @@ function MessageMenu({ id, toggle, message, allowed, handlers, confirmDelete, on
             ) : null}
             {allowed.delete ? (
               <button type="button" className="secondary danger-text" onClick={onConfirmDelete}>
-                Delete…
+                {message.status === "queued" ? "Cancel sending…" : "Delete…"}
               </button>
             ) : null}
           </div>

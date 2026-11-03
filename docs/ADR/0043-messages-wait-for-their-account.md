@@ -37,7 +37,7 @@ The message is stored as usual, with a pending status marked "queued", and not h
 
 ## Consequences
 
-- A message written offline goes when the account reconnects, even days later, with the time it was written: a network shows it at the time it receives it. A later task can offer to cancel a waiting message.
+- A message written offline goes when the account reconnects, even days later, with the time it was written: a network shows it at the time it receives it. Since T2.30 (API 1.16), deleting a waiting message cancels it: `messages.delete` takes it out of the hold atomically (`Server.CancelQueued`, so that it is never both cancelled and sent) and erases it on the device only, without a redaction to the bridge, which never had it, and whatever the network allows; the interface offers "Cancel sending…", confirmed with "Keep" as the safe choice.
 - An account that never connects again (logged out) keeps its messages waiting; logging out removes them with the conversations.
 - Reactions, edits and deletions are not held: they still fail while offline (they need the network's answer, ADR 0035).
 

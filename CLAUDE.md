@@ -480,3 +480,9 @@ To verify in the test session: T2.29 (cloud sprint, no test run; see ADR 0045). 
 ```
 matrix history:     go test -tags=goolm,integration -count=1 -run 'MatrixHistory' -v ./infra/matrixtest/     (needs Docker)
 ```
+
+To verify in the test session: T2.30 (cloud sprint, no test run; see ADR 0043):
+
+```
+cancel waiting:     go test -tags=goolm -count=1 -run 'CancelAWaitingMessage' -v ./core/embedded/       (ui: npx vitest run src/message.test.ts)
+```

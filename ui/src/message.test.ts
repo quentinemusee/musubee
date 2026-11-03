@@ -79,6 +79,14 @@ describe("messageActions", () => {
 });
 
 describe("ownReaction", () => {
+  test("offers to cancel a waiting message only, whatever the network allows (API 1.16)", () => {
+    const waiting: Message = { message_id: "m.q", conversation_id: "c.1", from_me: true, sender_name: "", timestamp_ms: 1, kind: "text", text: "on the train", status: "queued" };
+    expect(messageActions(waiting, {})).toEqual({ react: false, reply: false, edit: false, delete: true });
+    // Without actions (no handlers), nothing.
+    expect(messageActions(waiting, undefined)).toEqual({ react: false, reply: false, edit: false, delete: false });
+    expect(messageActions({ ...waiting, from_me: false }, {}).delete).toBe(false);
+  });
+
   test("finds the user's reaction whatever its variation selector", () => {
     const message = {
       message_id: "m1",

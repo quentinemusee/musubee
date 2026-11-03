@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.15",
+  "x-musubee-api-version": "1.16",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -239,7 +239,7 @@
           "additionalProperties": false
         },
         "messages.delete": {
-          "description": "Deletes one of the user's messages for everyone, then waits for the network's answer. The message is erased from this device at once (message.updated, deleted), whatever the network answers: when it refuses, the command fails with network, and the message stays on the network. Since API 1.8.",
+          "description": "Deletes one of the user's messages for everyone, then waits for the network's answer. The message is erased from this device at once (message.updated, deleted), whatever the network answers: when it refuses, the command fails with network, and the message stays on the network. Since API 1.8. Since API 1.16, a queued message (still waiting for its account) is cancelled instead: erased on this device, never sent, whatever the network allows.",
           "type": "object",
           "properties": {
             "params": { "$ref": "#/$defs/MessagesDeleteParams" },

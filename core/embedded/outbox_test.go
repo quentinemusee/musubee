@@ -72,3 +72,36 @@ func TestMessagesWaitForTheirAccount(t *testing.T) {
 		t.Errorf("status after reconnection = %s, want sending", msg.Status)
 	}
 }
+
+// TestCancelAWaitingMessage deletes a queued message (API 1.16): it is
+// erased on the device and never sent when the account comes back.
+func TestCancelAWaitingMessage(t *testing.T) {
+	c := open(t)
+	account := login(t, c)
+	conv := conversationNamed(t, c, "Instant Echo")
+	network, loginID, err := parseAccountID(account)
+	if err != nil {
+		t.Fatal(err)
+	}
+	userLogin := c.host.Bridge(network).GetCachedUserLoginByID(loginID)
+	userLogin.Client.Disconnect()
+	userLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect})
+	waitEvent(t, c, "the account away", func(e rawEvent) bool {
+		return e.Type == api.EventAccountUpdated && decode[api.AccountEvent](t, e.Data).Account.State == api.AccountStateTransientDisconnect
+	})
+	cancelled := call[api.MessagesSendResult](t, c, api.CommandMessagesSend, api.MessagesSendParams{ConversationID: conv.ConversationID, Text: "never mind"}).Message
+	kept := call[api.MessagesSendResult](t, c, api.CommandMessagesSend, api.MessagesSendParams{ConversationID: conv.ConversationID, Text: "this one goes"}).Message
+	call[api.Empty](t, c, api.CommandMessagesDelete, api.MessagesDeleteParams{ConversationID: conv.ConversationID, MessageID: cancelled.MessageID})
+	waitEvent(t, c, "the cancelled message", messageEvent(t, api.EventMessageUpdated, func(m api.Message) bool {
+		return m.MessageID == cancelled.MessageID && m.Deleted
+	}))
+
+	userLogin.Client.Connect(t.Context())
+	waitEvent(t, c, "the kept message's echo", messageEvent(t, api.EventMessageAdded, func(m api.Message) bool { return !m.FromMe && m.Text == kept.Text }))
+	listed := call[api.MessagesListResult](t, c, api.CommandMessagesList, api.MessagesListParams{ConversationID: conv.ConversationID})
+	for _, m := range listed.Messages {
+		if !m.FromMe && m.Text == "never mind" {
+			t.Error("the cancelled message was sent")
+		}
+	}
+}

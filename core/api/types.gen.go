@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.15"
+const APIVersion = "1.16"
 
 // Command names.
 const (
@@ -89,7 +89,9 @@ const (
 	// network's answer. The message is erased from this device at once
 	// (message.updated, deleted), whatever the network answers: when it refuses,
 	// the command fails with network, and the message stays on the network. Since
-	// API 1.8.
+	// API 1.8. Since API 1.16, a queued message (still waiting for its account)
+	// is cancelled instead: erased on this device, never sent, whatever the
+	// network allows.
 	CommandMessagesDelete = "messages.delete"
 	// Adds a part of a media the user sends to an upload, and returns the
 	// upload's size so far. Without upload_id, starts a new upload. An upload

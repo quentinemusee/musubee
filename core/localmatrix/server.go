@@ -407,6 +407,17 @@ func (s *Server) dispatch(ctx context.Context, conn *Connector, roomID id.RoomID
 	return nil
 }
 
+// CancelQueued takes a held message (QueueMessage) out of the hold and
+// erases it on this device, without telling the bridge, which never had
+// it. It reports false when the message is not held (sent already).
+func (s *Server) CancelQueued(ctx context.Context, roomID id.RoomID, eventID id.EventID) (bool, error) {
+	cancelled, err := s.store.unqueue(ctx, eventID, time.Now())
+	if err != nil || !cancelled {
+		return false, err
+	}
+	return true, s.Retract(ctx, roomID, eventID)
+}
+
 // Retract takes one of the user's events back on this device only, without
 // telling the bridge: a change that the network refused. It is stored as a
 // redaction by the user, which erases the event like SendEvent's.

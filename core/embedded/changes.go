@@ -235,6 +235,11 @@ func (c *Core) messagesDelete(ctx context.Context, p api.MessagesDeleteParams) (
 	case evt.Unsigned.RedactedBecause != nil:
 		return api.Empty{}, nil
 	}
+	// A message still waiting for its account (API 1.14) never reached the
+	// network: deleting it cancels it, on this device only (API 1.16).
+	if cancelled, err := c.host.Matrix.CancelQueued(ctx, roomID, evt.ID); err != nil || cancelled {
+		return api.Empty{}, err
+	}
 	if err = c.allowed(ctx, roomID, "deletions", func(a *api.ConversationActions) bool { return a.Delete }); err != nil {
 		return api.Empty{}, err
 	}
