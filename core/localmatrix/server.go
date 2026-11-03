@@ -780,14 +780,30 @@ func (s *Server) setMarkedUnread(ctx context.Context, roomID id.RoomID, unread b
 }
 
 // ClearMarkedUnread clears the user's "marked as unread" flag of a room.
-// MarkUnread sets the user's "marked as unread" flag of a room, on this
-// device (docs/ADR/0023): the conversation shows unread until it is read.
+// MarkUnread sets the user's "marked as unread" flag of a room
+// (docs/ADR/0023): the conversation shows unread until it is read. The
+// room's bridge gets it as Matrix account data (m.marked_unread), which
+// bridgev2 hands to connectors that handle it (MarkedUnreadHandlingNetworkAPI).
 func (s *Server) MarkUnread(ctx context.Context, roomID id.RoomID) error {
 	was, err := s.setMarkedUnread(ctx, roomID, true)
-	if err == nil && !was {
-		s.publish(Update{ReadState: roomID})
+	if err != nil || was {
+		return err
 	}
-	return err
+	s.publish(Update{ReadState: roomID})
+	room, err := s.store.getRoom(ctx, roomID)
+	if err != nil {
+		return err
+	}
+	if conn := s.connector(room.BridgeID); conn != nil && conn.br != nil {
+		conn.br.QueueMatrixEvent(conn.br.Log.WithContext(ctx), &event.Event{
+			Type:      event.AccountDataMarkedUnread,
+			RoomID:    roomID,
+			Sender:    s.userID,
+			Timestamp: time.Now().UnixMilli(),
+			Content:   event.Content{Parsed: &event.MarkedUnreadEventContent{Unread: true}},
+		})
+	}
+	return nil
 }
 
 func (s *Server) ClearMarkedUnread(ctx context.Context, roomID id.RoomID) error {
