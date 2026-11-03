@@ -544,3 +544,10 @@ preview (desktop):  cd apps/desktop && npx vitest run test/notification-rules.te
 preview in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "what notifications show|isolated"
 preview (android):  ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.musubee.core.MessageNotificationsTest
 ```
+
+To verify in the test session: T2.46 (cloud sprint, no test run; see ADR 0052):
+
+```
+pins (core):        go test -tags=goolm -count=1 -run 'Pin' -v ./core/localmatrix/ ./core/embedded/
+pins in the app:    cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "pinned conversation"      (ui: npx vitest run src/store.test.ts)
+```

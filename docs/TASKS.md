@@ -308,6 +308,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.45 — What notifications show** (E2.6)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). "Notifications" in the header: "Name and message", "Name only" or "No name or message" (ADR 0051), kept by the shell that posts them (Android preferences, the desktop's `notifications.json`). Also fixes the desktop isolation test, stale since T2.33. 🧪 `MessageNotificationsTest`, `apps/desktop/test/notification-rules.test.ts` and `notification-settings.test.ts`, `ui/src/capacitor.test.ts`, the desktop e2e "the user chooses what notifications show". By hand: the Android app's notifications.
 
+**T2.46 — Pin conversations** (E2.3)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.24 `conversations.pin` and `Conversation.pinned` (ADR 0052): Matrix's favourite tag, both ways through bridgev2; the first page of `conversations.list` starts with every pin; "Pin" in the thread. 🧪 `TestPin` (localmatrix and embedded), `ui/src/store.test.ts`, the desktop e2e "a pinned conversation stays at the top".
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).
