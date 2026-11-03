@@ -27,6 +27,14 @@
 
     { "target": "command:accounts.list:params", "value": {} },
     { "target": "command:accounts.list:result", "value": { "accounts": [
+      { "account_id": "a3", "network_id": "telegram", "name": "+33 6 00 00 00 00", "state": "connected", "connection": "on_device" }
+    ] } },
+    { "target": "command:conversations.list:result", "value": { "conversations": [
+      { "conversation_id": "c5", "account_id": "a3", "network_id": "telegram", "name": "Bob", "kind": "direct", "privacy": { "level": "network_can_read", "readers": "Telegram" } },
+      { "conversation_id": "c6", "account_id": "a4", "network_id": "matrix", "name": "Carol", "kind": "direct", "privacy": { "level": "end_to_end" } },
+      { "conversation_id": "c7", "account_id": "a1", "network_id": "echo", "name": "Instant Echo", "kind": "direct", "privacy": { "level": "device_only" } }
+    ] } },
+    { "target": "command:accounts.list:result", "value": { "accounts": [
       { "account_id": "a1", "network_id": "echo", "name": "alice", "state": "connected" },
       { "account_id": "a2", "network_id": "telegram", "name": "+33600000000", "state": "bad_credentials", "error": "Session expired" }
     ] } },
@@ -183,6 +191,10 @@
     { "target": "command:conversations.list:params", "why": "at most 200 conversations per page", "value": { "limit": 201 } },
     { "target": "command:conversations.markRead:params", "why": "conversation_id is required", "value": { "message_id": "m2" } },
     { "target": "command:conversations.list:result", "why": "unread_count is at most 1000", "value": { "conversations": [ { "conversation_id": "c1", "account_id": "a1", "network_id": "echo", "name": "Instant Echo", "kind": "direct", "unread_count": 1001 } ] } },
+    { "target": "command:accounts.list:result", "why": "unknown connection", "value": { "accounts": [ { "account_id": "a1", "network_id": "echo", "name": "", "state": "connected", "connection": "cloud" } ] } },
+    { "target": "command:conversations.list:result", "why": "privacy needs its level", "value": { "conversations": [
+      { "conversation_id": "c5", "account_id": "a3", "network_id": "telegram", "name": "Bob", "kind": "direct", "privacy": { "readers": "Telegram" } }
+    ] } },
     { "target": "command:accounts.list:result", "why": "unknown state", "value": { "accounts": [ { "account_id": "a1", "network_id": "echo", "name": "", "state": "online" } ] } },
     { "target": "command:accounts.list:result", "why": "accounts is required", "value": {} },
     { "target": "command:accounts.logout:params", "why": "account_id is required", "value": {} },

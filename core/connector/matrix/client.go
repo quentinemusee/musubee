@@ -794,6 +794,12 @@ func (c *client) GetCapabilities(context.Context, *bridgev2.Portal) *event.RoomF
 	}
 }
 
+// RoomEncrypted tells whether a conversation's room is end-to-end
+// encrypted, as the room's state says (docs/ADR/0039).
+func (c *client) RoomEncrypted(ctx context.Context, portal *bridgev2.Portal) (bool, error) {
+	return c.cli.StateStore.IsEncrypted(ctx, id.RoomID(portal.ID))
+}
+
 // isReady fails while the client cannot send.
 func (c *client) isReady() error {
 	c.lock.Lock()

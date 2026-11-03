@@ -85,7 +85,12 @@ func (c *Core) accountsLogout(ctx context.Context, p api.AccountsLogoutParams) (
 }
 
 func (c *Core) account(ctx context.Context, network networkid.BridgeID, login networkid.UserLoginID, name string) (api.Account, error) {
-	account := api.Account{AccountID: accountID(network, login), NetworkID: string(network), Name: name, State: api.AccountStateConnecting}
+	// Every network's bridge runs in this core: hosted bridges are to come
+	// (CLAUDE.md §2).
+	account := api.Account{
+		AccountID: accountID(network, login), NetworkID: string(network), Name: name,
+		State: api.AccountStateConnecting, Connection: api.AccountConnectionOnDevice,
+	}
 	state, err := c.host.Matrix.BridgeState(ctx, string(network), string(login))
 	if err != nil || state == nil {
 		return account, err
@@ -213,6 +218,7 @@ func (c *Core) conversation(ctx context.Context, activity *localmatrix.RoomActiv
 		PersonID:       personID,
 		ActivityMS:     activity.At,
 		Actions:        actions(ctx, portal, login),
+		Privacy:        privacy(ctx, br, portal, login),
 	}
 	if activity.LastMessage != nil {
 		msg, err := c.messageOf(ctx, activity.LastMessage)

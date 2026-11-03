@@ -162,6 +162,16 @@ func TestMatrixAccount(t *testing.T) {
 	// The user sends a file, which bob receives encrypted (T2.21).
 	changedTexts = append(changedTexts, sentMedia(t, ctx, c, bob, room, conv))
 
+	// The room is encrypted, as the exchanges showed: the core says so
+	// (T2.23).
+	var convs api.ConversationsListResult
+	coretest.Call(t, c, api.CommandConversationsList, api.ConversationsListParams{AccountID: account}, &convs)
+	for _, cv := range convs.Conversations {
+		if cv.ConversationID == conv.ConversationID && (cv.Privacy == nil || cv.Privacy.Level != api.PrivacyLevelEndToEnd) {
+			t.Errorf("privacy = %+v, want end_to_end", cv.Privacy)
+		}
+	}
+
 	// 5. A direct conversation can belong to a person.
 	var person api.PersonResult
 	coretest.Call(t, c, api.CommandPersonsCreate, api.PersonsCreateParams{ConversationIds: []string{conv.ConversationID}}, &person)
@@ -512,8 +522,9 @@ func changes(t *testing.T, ctx context.Context, events coretest.Events, bob *pee
 // must not hold.
 func ownChanges(t *testing.T, ctx context.Context, c *embedded.Core, events coretest.Events, bob *peer, room id.RoomID, conv api.Conversation) []string {
 	t.Helper()
-	if want := (api.ConversationActions{Reply: true, React: true, Edit: true, Delete: true}); conv.Actions == nil || *conv.Actions != want {
-		t.Errorf("actions = %+v, want %+v", conv.Actions, want)
+	// Media is checked by the media steps (T2.21).
+	if a := conv.Actions; a == nil || !a.Reply || !a.React || !a.Edit || !a.Delete || a.Media == nil || a.Media.File == nil {
+		t.Errorf("actions = %+v, want replies, reactions, edits, deletions and media", conv.Actions)
 	}
 	question := "answer me " + coretest.RandomHex(t)
 	asked := bob.send(t, ctx, room, question)

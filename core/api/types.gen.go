@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.11"
+const APIVersion = "1.12"
 
 // Command names.
 const (
@@ -277,7 +277,21 @@ type Account struct {
 	State AccountState `json:"state"`
 	// Explanation of the state for the user, when the network gave one.
 	Error string `json:"error,omitempty"`
+	// Where the account's bridge runs. Omitted by cores before API 1.12. Since
+	// API 1.12.
+	Connection AccountConnection `json:"connection,omitempty"`
 }
+
+// AccountConnection: on_device: the core on this device talks to the network
+// itself; no server of Musubee sees the messages. hosted_bridge: a bridge on a
+// server (Musubee's or the user's) talks to the network, and can read the
+// messages it passes on. Since API 1.12.
+type AccountConnection string
+
+const (
+	AccountConnectionOnDevice     AccountConnection = "on_device"
+	AccountConnectionHostedBridge AccountConnection = "hosted_bridge"
+)
 
 // AccountState: connecting: starting or catching up. connected: working.
 // transient_disconnect: temporarily unreachable, the core retries.
@@ -436,7 +450,35 @@ type Conversation struct {
 	// What the conversation's network lets the user do to messages. Omitted when
 	// it allows none of them. Since API 1.8.
 	Actions *ConversationActions `json:"actions,omitempty"`
+	// Who can read the conversation's messages besides its members. Omitted by
+	// cores before API 1.12. Since API 1.12.
+	Privacy *ConversationPrivacy `json:"privacy,omitempty"`
 }
+
+// ConversationPrivacy: Who can read a conversation's messages besides the
+// devices of its members, as far as the core knows. Since API 1.12.
+type ConversationPrivacy struct {
+	Level PrivacyLevel `json:"level"`
+	// For network_can_read and bridge_can_read: who else can read, in the user's
+	// words, to put in a sentence ("Telegram", "the Matrix servers of the room's
+	// members"). Omitted otherwise.
+	Readers string `json:"readers,omitempty"`
+}
+
+// PrivacyLevel: end_to_end: encrypted between the members' devices; no server
+// can read. network_can_read: the network's servers can read (not end-to-end
+// encrypted). bridge_can_read: encrypted up to a hosted bridge, which can
+// read. device_only: a test network; the messages never leave this device.
+// unknown: the core cannot tell; user interfaces must not claim more.
+type PrivacyLevel string
+
+const (
+	PrivacyLevelEndToEnd       PrivacyLevel = "end_to_end"
+	PrivacyLevelNetworkCanRead PrivacyLevel = "network_can_read"
+	PrivacyLevelBridgeCanRead  PrivacyLevel = "bridge_can_read"
+	PrivacyLevelDeviceOnly     PrivacyLevel = "device_only"
+	PrivacyLevelUnknown        PrivacyLevel = "unknown"
+)
 
 // ConversationActions: Each action is omitted when the network does not allow
 // it. The network may still refuse one message (for example one too old to
