@@ -706,6 +706,6 @@ in the app:         cd apps/desktop && npm run build && npx playwright test app.
 To verify in the test session: T2.80 (cloud sprint, no test run; see ADR 0069):
 
 ```
-start (core):       go test -tags=goolm -count=1 -run 'StartConversation' -v ./core/embedded/
+start (core):       go test -tags=goolm -count=1 -run 'StartConversation|Contacts' -v ./core/embedded/
 start in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "starts a conversation"
 ```

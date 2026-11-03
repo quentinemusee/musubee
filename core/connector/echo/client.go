@@ -52,6 +52,7 @@ var (
 	_ bridgev2.DeleteChatHandlingNetworkAPI  = (*client)(nil)
 	_ bridgev2.MembershipHandlingNetworkAPI  = (*client)(nil)
 	_ bridgev2.IdentifierResolvingNetworkAPI = (*client)(nil)
+	_ bridgev2.ContactListingNetworkAPI      = (*client)(nil)
 )
 
 func newClient(connector *Connector, login *bridgev2.UserLogin) *client {
@@ -335,6 +336,19 @@ func (c *client) ResolveIdentifier(ctx context.Context, identifier string, creat
 		}
 	}
 	return resp, nil
+}
+
+// GetContactList lists the login's echo contacts (docs/ADR/0069).
+func (c *client) GetContactList(ctx context.Context) ([]*bridgev2.ResolveIdentifierResponse, error) {
+	var list []*bridgev2.ResolveIdentifierResponse
+	for _, contact := range contactsOf(c.login) {
+		ghost, err := c.login.Bridge.GetGhostByID(ctx, contact.ID)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, &bridgev2.ResolveIdentifierResponse{Ghost: ghost, UserID: contact.ID, UserInfo: userInfo(contact)})
+	}
+	return list, nil
 }
 
 // HandleMatrixMembership accepts the user leaving a group (docs/ADR/0056);

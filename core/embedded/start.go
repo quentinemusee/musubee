@@ -5,6 +5,7 @@ package embedded
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"maunium.net/go/mautrix/bridgev2"
@@ -30,19 +31,23 @@ func startsConversations(login *bridgev2.UserLogin) bool {
 // bridge bot's start-chat command does.
 func (c *Core) conversationsStart(ctx context.Context, p api.ConversationsStartParams) (api.ConversationsStartResult, error) {
 	identifier := strings.TrimSpace(p.Identifier)
-	if identifier == "" || len(identifier) > maxIdentifier {
+	if p.ContactID != "" {
+		// A contact of the list (API 1.38): its ghost, which bridgev2's
+		// helper resolves without asking the network to search.
+		if identifier != "" {
+			return api.ConversationsStartResult{}, newError(api.ErrorCodeInvalidParams, "give identifier or contact_id, not both")
+		}
+		parts, err := decodeID(contactPrefix, p.ContactID, 1, "contact")
+		if err != nil {
+			return api.ConversationsStartResult{}, err
+		}
+		identifier = parts[0]
+	} else if identifier == "" || len(identifier) > maxIdentifier {
 		return api.ConversationsStartResult{}, newError(api.ErrorCodeInvalidParams, "identifier must have between 1 and %d bytes", maxIdentifier)
 	}
-	network, loginID, err := parseAccountID(p.AccountID)
+	login, err := c.loginOf(p.AccountID)
 	if err != nil {
 		return api.ConversationsStartResult{}, err
-	}
-	var login *bridgev2.UserLogin
-	if br := c.host.Bridge(network); br != nil && c.hasNetwork(network) {
-		login = br.GetCachedUserLoginByID(loginID)
-	}
-	if login == nil || login.Client == nil {
-		return api.ConversationsStartResult{}, newError(api.ErrorCodeNotFound, "no account %q", p.AccountID)
 	}
 	if !startsConversations(login) {
 		return api.ConversationsStartResult{}, newError(api.ErrorCodeUnsupported, "this account's network cannot find people")
@@ -60,4 +65,54 @@ func (c *Core) conversationsStart(ctx context.Context, p api.ConversationsStartP
 		return api.ConversationsStartResult{}, newError(api.ErrorCodeNotFound, "the conversation is not ready yet")
 	}
 	return api.ConversationsStartResult{Conversation: *conv}, nil
+}
+
+// loginOf returns the login of an account, connected or not.
+func (c *Core) loginOf(accountID string) (*bridgev2.UserLogin, error) {
+	network, loginID, err := parseAccountID(accountID)
+	if err != nil {
+		return nil, err
+	}
+	var login *bridgev2.UserLogin
+	if br := c.host.Bridge(network); br != nil && c.hasNetwork(network) {
+		login = br.GetCachedUserLoginByID(loginID)
+	}
+	if login == nil || login.Client == nil {
+		return nil, newError(api.ErrorCodeNotFound, "no account %q", accountID)
+	}
+	return login, nil
+}
+
+// listsContacts says whether a login's network lists the user's contacts
+// (API 1.38).
+func listsContacts(login *bridgev2.UserLogin) bool {
+	_, ok := login.Client.(bridgev2.ContactListingNetworkAPI)
+	return ok
+}
+
+// accountsContacts lists an account's contacts on its network, by name,
+// to start a conversation with one (API 1.38, docs/ADR/0069).
+func (c *Core) accountsContacts(ctx context.Context, p api.AccountsContactsParams) (api.AccountsContactsResult, error) {
+	result := api.AccountsContactsResult{Contacts: []api.Contact{}}
+	login, err := c.loginOf(p.AccountID)
+	if err != nil {
+		return result, err
+	}
+	if !listsContacts(login) {
+		return result, newError(api.ErrorCodeUnsupported, "this account's network does not list contacts")
+	}
+	list, err := provisionutil.GetContactList(ctx, login)
+	if err != nil {
+		return result, newError(api.ErrorCodeNetwork, "the network did not list the contacts")
+	}
+	for _, contact := range list.Contacts {
+		if contact.MXID == "" {
+			continue
+		}
+		result.Contacts = append(result.Contacts, api.Contact{ContactID: encodeID(contactPrefix, string(contact.MXID)), Name: contact.Name})
+	}
+	slices.SortStableFunc(result.Contacts, func(a, b api.Contact) int {
+		return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
+	})
+	return result, nil
 }

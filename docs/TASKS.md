@@ -408,7 +408,7 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 - Outcome: **implemented, unverified** (cloud sprint, no test run). Up in an empty composer edits the user's newest message when its network allows it. 🧪 `ui/src/message.test.ts` (`lastEditable`), the desktop e2e "Up in an empty composer".
 
 **T2.80 — Start a conversation** (E2.3)
-- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.37 `conversations.start` and `Account.starts_conversations` (ADR 0069): bridgev2's identifier resolution with chat creation; "New conversation…" above the inbox. 🧪 `TestStartConversation`, the desktop e2e "the user starts a conversation". Left: creating groups; a contact list.
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.37 `conversations.start` and `Account.starts_conversations` (ADR 0069): bridgev2's identifier resolution with chat creation; "New conversation…" above the inbox; since T2.81 (API 1.38 `accounts.contacts`), the dialog suggests the account's contacts. 🧪 `TestStartConversation`, `TestContacts`, the desktop e2e "the user starts a conversation". Left: creating groups.
 
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.

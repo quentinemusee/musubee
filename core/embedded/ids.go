@@ -28,6 +28,7 @@ const (
 	cursorPrefix       = "k."
 	processPrefix      = "p."
 	mediaPrefix        = "f."
+	contactPrefix      = "t."
 )
 
 func encodeID(prefix string, parts ...string) string {

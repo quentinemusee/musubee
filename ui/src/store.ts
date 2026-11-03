@@ -13,7 +13,7 @@ import { pageStorage } from "./appearance";
 import type { Accent } from "./appearance";
 import { loadAccents, saveAccent } from "./conversation-accent";
 import { loadTogether, saveTogether, togetherSources, togetherView, type TogetherStorage } from "./together";
-import type { Account, Conversation, ConversationMember, Event, Message, Network, Person, VerificationAction, VerificationEvent } from "./core-api/types.gen";
+import type { Account, Contact, Conversation, ConversationMember, Event, Message, Network, Person, VerificationAction, VerificationEvent } from "./core-api/types.gen";
 import { mergePlan } from "./merge";
 import { replyTo } from "./message";
 import type { CoreStatus, ShellCore } from "./shell";
@@ -681,10 +681,15 @@ export class Store {
    * them (API 1.37, docs/ADR/0069). Rejects with the core's reason, for the
    * dialog that asked.
    */
-  async startConversation(accountId: string, identifier: string): Promise<string> {
-    const { conversation } = await this.client.call("conversations.start", { account_id: accountId, identifier });
+  async startConversation(accountId: string, who: { identifier: string } | { contact_id: string }): Promise<string> {
+    const { conversation } = await this.client.call("conversations.start", { account_id: accountId, ...who });
     this.#set({ conversations: mergeConversations(this.#state.conversations, [conversation]) });
     return conversation.conversation_id;
+  }
+
+  /** An account's contacts on its network (API 1.38), read when asked. */
+  async contacts(accountId: string): Promise<Contact[]> {
+    return (await this.client.call("accounts.contacts", { account_id: accountId })).contacts;
   }
 
   /** Shows a problem in the app's error banner. */

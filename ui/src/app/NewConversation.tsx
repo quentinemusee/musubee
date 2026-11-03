@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import type { Contact } from "../core-api/types.gen";
+import { normalizeName } from "../merge";
 import { openConversation } from "./navigation";
 import { useAppState, useStore } from "./state";
 
@@ -30,6 +32,38 @@ export function NewConversation({ onClose }: { onClose: () => void }) {
     }
   }, []);
 
+  // The account's contacts (API 1.38), when its network lists them.
+  const listsContacts = usable.find((a) => a.account_id === accountId)?.lists_contacts === true;
+  const [contacts, setContacts] = useState<{ account: string; list: readonly Contact[] }>({ account: "", list: [] });
+  useEffect(() => {
+    if (!listsContacts) {
+      return;
+    }
+    let current = true;
+    store.contacts(accountId).then(
+      (list) => current && setContacts({ account: accountId, list }),
+      () => undefined,
+    );
+    return () => {
+      current = false;
+    };
+  }, [store, accountId, listsContacts]);
+  const wanted = normalizeName(who);
+  const suggestions = contacts.account === accountId ? contacts.list.filter((c) => normalizeName(c.name).includes(wanted)).slice(0, 8) : [];
+
+  async function startWith(contact: Contact) {
+    setBusy(true);
+    setError(undefined);
+    try {
+      const conversationId = await store.startConversation(accountId, { contact_id: contact.contact_id });
+      dialog.current?.close();
+      openConversation(store, conversationId);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+      setBusy(false);
+    }
+  }
+
   const label = (account: (typeof accounts)[number]) =>
     `${networks.find((n) => n.network_id === account.network_id)?.name ?? account.network_id}: ${account.name}`;
 
@@ -38,7 +72,7 @@ export function NewConversation({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(undefined);
     try {
-      const conversationId = await store.startConversation(accountId, who.trim());
+      const conversationId = await store.startConversation(accountId, { identifier: who.trim() });
       dialog.current?.close();
       openConversation(store, conversationId);
     } catch (reason) {
@@ -70,6 +104,17 @@ export function NewConversation({ onClose }: { onClose: () => void }) {
             autoComplete="off"
             onChange={(event) => setWho(event.target.value)}
           />
+          {suggestions.length === 0 ? null : (
+            <ul className="contact-suggestions" aria-label="Contacts">
+              {suggestions.map((contact) => (
+                <li key={contact.contact_id}>
+                  <button type="button" className="secondary" disabled={busy} onClick={() => void startWith(contact)}>
+                    {contact.name || "Unnamed contact"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
           {error === undefined ? null : <p role="alert">Musubee could not start it: {error}</p>}
           <div className="settings-buttons">
             <button type="button" className="secondary" onClick={() => dialog.current?.close()}>

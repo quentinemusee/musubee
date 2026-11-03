@@ -37,6 +37,7 @@ Any failure answers `not_found` with a fixed text. The network's reason may cont
 
 ## Consequences
 
+- Since API 1.38, `accounts.contacts` lists an account's contacts where its connector does (`ContactListingNetworkAPI`, through `provisionutil.GetContactList`); `conversations.start` takes a contact's opaque ID instead of what was typed, and the dialog suggests contacts as the user types. The echo network lists its contacts.
 - Groups are not created yet (bridgev2's `GroupCreatingNetworkAPI`).
 - Signal's and Matrix's connectors are to be checked for `ResolveIdentifier`; the dialog lists only accounts that have it.
 
@@ -45,5 +46,6 @@ Any failure answers `not_found` with a fixed text. The network's reason may cont
 | Claim | Status | Evidence |
 |---|---|---|
 | The echo account starts a conversation by name, again opens the same one, and nobody is not found | **implemented, unverified** | `core/embedded/start_test.go` |
-| The desktop app starts one from the dialog, and says when nobody is found | **implemented, unverified** | `apps/desktop/e2e/app.spec.ts`, "the user starts a conversation" |
+| Contacts are listed, and one starts its conversation | **implemented, unverified** | `core/embedded/start_test.go`, `TestContacts` |
+| The desktop app starts one from the dialog, from a contact too, and says when nobody is found | **implemented, unverified** | `apps/desktop/e2e/app.spec.ts`, "the user starts a conversation" |
 | Telegram finds a username | **assumed** (mautrix-telegram's `ResolveIdentifier`; needs a Telegram account) | |

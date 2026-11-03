@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.37",
+  "x-musubee-api-version": "1.38",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -214,6 +214,16 @@
           "properties": {
             "params": { "$ref": "#/$defs/ConversationsPinParams" },
             "result": { "$ref": "#/$defs/Empty" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "accounts.contacts": {
+          "description": "Lists an account's contacts on its network, by name, to start a conversation with one (conversations.start's contact_id). Only for accounts whose lists_contacts is set. Since API 1.38.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/AccountsContactsParams" },
+            "result": { "$ref": "#/$defs/AccountsContactsResult" }
           },
           "required": ["params", "result"],
           "additionalProperties": false
@@ -673,6 +683,10 @@
       "description": "An account of the user on one network.",
       "type": "object",
       "properties": {
+        "lists_contacts": {
+          "description": "The account's network lists the user's contacts: accounts.contacts. Omitted when false. Since API 1.38.",
+          "type": "boolean"
+        },
         "starts_conversations": {
           "description": "The account's network finds people from what the user types: conversations.start. Omitted when false. Since API 1.37.",
           "type": "boolean"
@@ -1163,13 +1177,39 @@
       "required": ["conversation_id", "pinned"],
       "additionalProperties": false
     },
+    "AccountsContactsParams": {
+      "type": "object",
+      "properties": {
+        "account_id": { "type": "string" }
+      },
+      "required": ["account_id"],
+      "additionalProperties": false
+    },
+    "AccountsContactsResult": {
+      "type": "object",
+      "properties": {
+        "contacts": { "type": "array", "items": { "$ref": "#/$defs/Contact" } }
+      },
+      "required": ["contacts"],
+      "additionalProperties": false
+    },
+    "Contact": {
+      "type": "object",
+      "properties": {
+        "contact_id": { "description": "Opaque: for conversations.start.", "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["contact_id", "name"],
+      "additionalProperties": false
+    },
     "ConversationsStartParams": {
       "type": "object",
       "properties": {
         "account_id": { "type": "string" },
-        "identifier": { "description": "What the user typed to find someone.", "type": "string", "minLength": 1, "maxLength": 256 }
+        "identifier": { "description": "What the user typed to find someone. Give this or contact_id.", "type": "string", "maxLength": 256 },
+        "contact_id": { "description": "A contact of accounts.contacts. Since API 1.38.", "type": "string" }
       },
-      "required": ["account_id", "identifier"],
+      "required": ["account_id"],
       "additionalProperties": false
     },
     "ConversationsStartResult": {

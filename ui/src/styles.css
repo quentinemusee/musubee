@@ -1687,3 +1687,15 @@ kbd {
   display: grid;
   gap: 4px;
 }
+
+.contact-suggestions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contact-suggestions button {
+  width: 100%;
+  margin-bottom: 4px;
+  text-align: start;
+}

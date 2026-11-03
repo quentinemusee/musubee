@@ -33,3 +33,28 @@ func TestStartConversation(t *testing.T) {
 	callFails(t, c, api.CommandConversationsStart, api.ConversationsStartParams{AccountID: conv.AccountID, Identifier: "nobody at all"}, api.ErrorCodeNotFound)
 	callFails(t, c, api.CommandConversationsStart, api.ConversationsStartParams{AccountID: "a.nope", Identifier: "x"}, api.ErrorCodeNotFound)
 }
+
+// TestContacts lists the echo contacts and starts a conversation from one
+// (API 1.38).
+func TestContacts(t *testing.T) {
+	c := open(t)
+	login(t, c)
+	conv := conversationNamed(t, c, "Instant Echo")
+	contacts := call[api.AccountsContactsResult](t, c, api.CommandAccountsContacts, api.AccountsContactsParams{AccountID: conv.AccountID}).Contacts
+	var instant api.Contact
+	for _, contact := range contacts {
+		if contact.Name == "Instant Echo" {
+			instant = contact
+		}
+	}
+	if instant.ContactID == "" {
+		t.Fatalf("contacts = %+v, want Instant Echo among them", contacts)
+	}
+	started := call[api.ConversationsStartResult](t, c, api.CommandConversationsStart, api.ConversationsStartParams{AccountID: conv.AccountID, ContactID: instant.ContactID}).Conversation
+	if started.ConversationID != conv.ConversationID {
+		t.Errorf("the contact's conversation is %s, want the existing %s", started.ConversationID, conv.ConversationID)
+	}
+	callFails(t, c, api.CommandConversationsStart, api.ConversationsStartParams{AccountID: conv.AccountID, ContactID: instant.ContactID, Identifier: "x"}, api.ErrorCodeInvalidParams)
+	callFails(t, c, api.CommandConversationsStart, api.ConversationsStartParams{AccountID: conv.AccountID}, api.ErrorCodeInvalidParams)
+}
+

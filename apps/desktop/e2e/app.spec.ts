@@ -697,6 +697,12 @@ test("the user starts a conversation with someone by name", async () => {
   await expect(page.getByRole("heading", { name: "Delayed Echo" })).toBeVisible();
   await expect(page.locator(".inbox-row").getByRole("button", { name: "Delayed Echo" })).toBeVisible();
 
+  // From the contacts' list (API 1.38).
+  await page.getByRole("button", { name: "New conversation…" }).click();
+  await page.getByRole("dialog", { name: "New conversation" }).getByRole("textbox", { name: "To" }).fill("inst");
+  await page.getByRole("dialog", { name: "New conversation" }).getByRole("list", { name: "Contacts" }).getByRole("button", { name: "Instant Echo" }).click();
+  await expect(page.getByRole("heading", { name: "Instant Echo" })).toBeVisible();
+
   // Nobody by that name.
   await page.getByRole("button", { name: "New conversation…" }).click();
   await page.getByRole("dialog", { name: "New conversation" }).getByRole("textbox", { name: "To" }).fill("nobody at all");

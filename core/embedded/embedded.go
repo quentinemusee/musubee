@@ -633,6 +633,8 @@ func (c *Core) dispatch(ctx context.Context, command string, params json.RawMess
 		return handle(ctx, params, c.conversationsDelete)
 	case api.CommandConversationsStart:
 		return handle(ctx, params, c.conversationsStart)
+	case api.CommandAccountsContacts:
+		return handle(ctx, params, c.accountsContacts)
 	case api.CommandMessagesForward:
 		return handle(ctx, params, c.messagesForward)
 	case api.CommandConversationsMembers:
