@@ -44,11 +44,21 @@ func actions(ctx context.Context, portal *bridgev2.Portal, login *bridgev2.UserL
 		// Since API 1.25, direct conversations only (docs/ADR/0053):
 		// networks delete groups for everyone, or let the user leave.
 		DeleteChat: features.DeleteChat && portal.RoomType == database.RoomTypeDM,
+		// Since API 1.29 (docs/ADR/0056): groups whose connector handles
+		// memberships.
+		Leave: portal.RoomType != database.RoomTypeDM && handlesMemberships(login),
 	}
 	if *a == (api.ConversationActions{}) {
 		return nil
 	}
 	return a
+}
+
+// handlesMemberships says whether a login's connector takes the user's
+// membership changes, leaving included.
+func handlesMemberships(login *bridgev2.UserLogin) bool {
+	_, ok := login.Client.(bridgev2.MembershipHandlingNetworkAPI)
+	return ok
 }
 
 // conversationActions returns the actions of a conversation's room, or nil

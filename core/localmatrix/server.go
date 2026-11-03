@@ -958,3 +958,44 @@ func (s *Server) DeleteChat(ctx context.Context, roomID id.RoomID) error {
 	})
 	return nil
 }
+
+// Leave asks a room's bridge to make the user leave the chat on its
+// network (docs/ADR/0056): the user's leave, as a member event that is
+// not stored, which bridgev2 hands to connectors that handle memberships
+// (MembershipHandlingNetworkAPI). Its outcome arrives as the message
+// status of the returned event ID; the room stays until ForgetRoom.
+func (s *Server) Leave(ctx context.Context, roomID id.RoomID) (id.EventID, error) {
+	room, err := s.store.getRoom(ctx, roomID)
+	if err != nil {
+		return "", err
+	}
+	conn := s.connector(room.BridgeID)
+	if conn == nil || conn.br == nil {
+		return "", fmt.Errorf("room %s: no bridge to leave it", roomID)
+	}
+	stateKey := s.userID.String()
+	eventID := newEventID(s.serverName)
+	conn.br.QueueMatrixEvent(conn.br.Log.WithContext(ctx), &event.Event{
+		Type:      event.StateMember,
+		ID:        eventID,
+		RoomID:    roomID,
+		Sender:    s.userID,
+		StateKey:  &stateKey,
+		Timestamp: time.Now().UnixMilli(),
+		Content:   event.Content{Parsed: &event.MemberEventContent{Membership: event.MembershipLeave}},
+		Unsigned: event.Unsigned{
+			PrevContent: &event.Content{Parsed: &event.MemberEventContent{Membership: event.MembershipJoin}},
+		},
+	})
+	return eventID, nil
+}
+
+// ForgetRoom deletes a room the user left, with its events, media and
+// account data, and publishes RoomDeleted.
+func (s *Server) ForgetRoom(ctx context.Context, roomID id.RoomID) error {
+	if err := s.store.deleteRoom(ctx, roomID); err != nil {
+		return err
+	}
+	s.publish(Update{RoomDeleted: roomID})
+	return nil
+}

@@ -510,6 +510,12 @@ export class Store {
     this.#forgetConversation(conversationId);
   }
 
+  /** Leaves a group on its network, then forgets it (API 1.29, docs/ADR/0056). Rejects with the core's reason. */
+  async leaveConversation(conversationId: string): Promise<void> {
+    await this.client.call("conversations.leave", { conversation_id: conversationId });
+    this.#forgetConversation(conversationId);
+  }
+
   /** Drops a deleted conversation and what the store kept of it; leaves it if it was open. */
   #forgetConversation(conversationId: string): void {
     const state = this.#state;

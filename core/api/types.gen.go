@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.28"
+const APIVersion = "1.29"
 
 // Command names.
 const (
@@ -86,6 +86,12 @@ const (
 	// conversation.deleted event follows); fails if the network refuses or does
 	// not answer within 30 seconds. Since API 1.25.
 	CommandConversationsDelete = "conversations.delete"
+	// Leaves a group on its network, then removes it from this device with its
+	// messages (a conversation.deleted event follows). Only when
+	// Conversation.actions.leave says the network allows it. Resolves once the
+	// network answered; fails if it refuses or does not answer within 30 seconds.
+	// Since API 1.29.
+	CommandConversationsLeave = "conversations.leave"
 	// Lists who is in a conversation, as this device knows it: the user first,
 	// then the others by name. The network's bridge is not a member. Since API
 	// 1.27.
@@ -248,6 +254,7 @@ var Commands = []CommandSpec{
 	{Name: CommandConversationsMute, Params: reflect.TypeFor[ConversationsMuteParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsPin, Params: reflect.TypeFor[ConversationsPinParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsDelete, Params: reflect.TypeFor[ConversationsDeleteParams](), Result: reflect.TypeFor[Empty]()},
+	{Name: CommandConversationsLeave, Params: reflect.TypeFor[ConversationsLeaveParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsMembers, Params: reflect.TypeFor[ConversationsMembersParams](), Result: reflect.TypeFor[ConversationsMembersResult]()},
 	{Name: CommandConversationsMarkRead, Params: reflect.TypeFor[ConversationsMarkReadParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandMessagesList, Params: reflect.TypeFor[MessagesListParams](), Result: reflect.TypeFor[MessagesListResult]()},
@@ -689,6 +696,8 @@ type ConversationActions struct {
 	// conversations.delete: direct conversations only, as networks delete groups
 	// for everyone. Since API 1.25.
 	DeleteChat bool `json:"delete_chat,omitempty"`
+	// conversations.leave: groups only. Since API 1.29.
+	Leave bool `json:"leave,omitempty"`
 }
 
 // MediaActions: The kinds of media a conversation takes; a kind is omitted
@@ -758,6 +767,11 @@ type ConversationsPinParams struct {
 
 // ConversationsDeleteParams is $defs/ConversationsDeleteParams of the schema.
 type ConversationsDeleteParams struct {
+	ConversationID string `json:"conversation_id"`
+}
+
+// ConversationsLeaveParams is $defs/ConversationsLeaveParams of the schema.
+type ConversationsLeaveParams struct {
 	ConversationID string `json:"conversation_id"`
 }
 

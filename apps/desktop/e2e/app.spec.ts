@@ -501,6 +501,18 @@ test("a group shows its members", async () => {
   await app.close();
 });
 
+test("the user leaves a group after confirming", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "leave");
+  await page.getByRole("button", { name: "Echo Group" }).click();
+  // A group is left, not deleted.
+  await expect(page.getByRole("button", { name: "Delete…" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Leave…" }).click();
+  await page.getByRole("dialog", { name: "Leave Echo Group?" }).getByRole("button", { name: "Leave", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Echo Group" })).toHaveCount(0);
+  await app.close();
+});
+
 test("the user forwards a message to another conversation", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "forward");

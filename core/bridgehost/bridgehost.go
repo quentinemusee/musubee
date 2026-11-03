@@ -97,6 +97,10 @@ func (h *Host) AddNetwork(bridgeID networkid.BridgeID, network bridgev2.NetworkC
 		// goroutine, so sending returns before the network answers, and
 		// the outcome arrives as a message status.
 		PortalEventBuffer: 64,
+		// Leaving a group in Musubee leaves it on the network
+		// (docs/ADR/0056): the user's leave events come only from that
+		// command.
+		BridgeMatrixLeave: true,
 		// Logging out removes the account's conversations from the device;
 		// bridgev2 keeps those another login of the user still reaches.
 		// Bad credentials keep them, for the user to log in again.

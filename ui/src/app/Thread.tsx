@@ -7,7 +7,7 @@ import { accepts, formatSize } from "../media";
 import { canRecord, VoiceRecorder, type Recording } from "../recorder";
 import { accountLabel } from "../merge";
 import { replyQuote, replyTo, seenLabel, typingText } from "../message";
-import { DeleteConversation } from "./DeleteConversation";
+import { DeleteConversation, type Removal } from "./DeleteConversation";
 import { ForwardMessage } from "./ForwardMessage";
 import { MembersDialog } from "./MembersDialog";
 import { MessageList } from "./MessageList";
@@ -80,7 +80,7 @@ export function Thread() {
   // The message being forwarded (docs/ADR/0054).
   const [forwarding, setForwarding] = useState<Message | undefined>(undefined);
   // The conversation whose deletion is being asked (docs/ADR/0053).
-  const [deleteFor, setDeleteFor] = useState<string | undefined>(undefined);
+  const [deleteFor, setDeleteFor] = useState<{ conversation: string; removal: Removal } | undefined>(undefined);
   const panelOpen = panelFor !== undefined && panelFor === selected;
   const unread = (conversation?.unread_count ?? 0) > 0 || conversation?.marked_unread === true;
   // The message the composer answers or edits, in the selected
@@ -167,8 +167,13 @@ export function Thread() {
             Members…
           </button>
         ) : null}
+        {conversation.actions?.leave === true ? (
+          <button type="button" className="secondary" aria-haspopup="dialog" onClick={() => setDeleteFor({ conversation: selected, removal: "leave" })}>
+            Leave…
+          </button>
+        ) : null}
         {conversation.actions?.delete_chat === true ? (
-          <button type="button" className="secondary" aria-haspopup="dialog" onClick={() => setDeleteFor(selected)}>
+          <button type="button" className="secondary" aria-haspopup="dialog" onClick={() => setDeleteFor({ conversation: selected, removal: "delete" })}>
             Delete…
           </button>
         ) : null}
@@ -178,9 +183,10 @@ export function Thread() {
           </button>
         ) : null}
       </div>
-      {deleteFor === selected ? (
+      {deleteFor?.conversation === selected ? (
         <DeleteConversation
           conversationId={selected}
+          removal={deleteFor.removal}
           name={conversation.name || "Unnamed conversation"}
           network={networks.find((n) => n.network_id === conversation.network_id)?.name ?? conversation.network_id}
           onClose={() => setDeleteFor(undefined)}

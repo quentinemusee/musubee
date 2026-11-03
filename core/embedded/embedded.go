@@ -357,7 +357,11 @@ func (c *Core) translate(update localmatrix.Update) ([]*api.Event, error) {
 		return nil, nil
 	case update.MessageStatus != nil:
 		evt, err := c.host.Matrix.Event(ctx, update.MessageStatus.RoomID, update.MessageStatus.EventID)
-		if err != nil {
+		if errors.Is(err, localmatrix.ErrNotFound) {
+			// The status of an event that is not stored: leaving a group
+			// (docs/ADR/0056), whose command waits for it.
+			return nil, nil
+		} else if err != nil {
 			return nil, err
 		}
 		// The statuses of the user's changes (edits, reactions,
@@ -628,6 +632,8 @@ func (c *Core) dispatch(ctx context.Context, command string, params json.RawMess
 		return handle(ctx, params, c.messagesForward)
 	case api.CommandConversationsMembers:
 		return handle(ctx, params, c.conversationsMembers)
+	case api.CommandConversationsLeave:
+		return handle(ctx, params, c.conversationsLeave)
 	case api.CommandConversationsTyping:
 		return handle(ctx, params, c.conversationsTyping)
 	case api.CommandMessagesList:

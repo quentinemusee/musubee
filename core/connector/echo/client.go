@@ -50,6 +50,7 @@ var (
 	_ bridgev2.RedactionHandlingNetworkAPI   = (*client)(nil)
 	_ bridgev2.TypingHandlingNetworkAPI      = (*client)(nil)
 	_ bridgev2.DeleteChatHandlingNetworkAPI  = (*client)(nil)
+	_ bridgev2.MembershipHandlingNetworkAPI  = (*client)(nil)
 )
 
 func newClient(connector *Connector, login *bridgev2.UserLogin) *client {
@@ -297,6 +298,16 @@ func (c *client) GetCapabilities(context.Context, *bridgev2.Portal) *event.RoomF
 		Reaction:      event.CapLevelFullySupported,
 		DeleteChat:    true,
 	}
+}
+
+// HandleMatrixMembership accepts the user leaving a group (docs/ADR/0056);
+// the echo contacts keep no member list, so there is nothing to change on
+// their side. Other membership changes are not supported.
+func (c *client) HandleMatrixMembership(_ context.Context, msg *bridgev2.MatrixMembershipChange) (*bridgev2.MatrixMembershipResult, error) {
+	if msg.Type == bridgev2.Leave {
+		return nil, nil
+	}
+	return nil, fmt.Errorf("the echo network does not support %s -> %s", msg.Type.From, msg.Type.To)
 }
 
 // HandleMatrixDeleteChat accepts deleting a chat for the user: the echo
