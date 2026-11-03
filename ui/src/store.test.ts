@@ -545,6 +545,29 @@ describe("Store", () => {
     expect(store.getState().together).toBeUndefined();
   });
 
+  test("reveals a message found by search, reading older pages until it is there", async () => {
+    const all = Array.from({ length: 250 }, (_, i) => message(`m${i}`, i));
+    const shell = scriptedShell({
+      ...coreState([conversation("c1", "Adam")]),
+      "messages.list": (params) => {
+        const { before, limit = 50 } = params as { before?: string; limit?: number };
+        const end = before === undefined ? all.length : Number(before);
+        const start = Math.max(0, end - limit);
+        return { messages: all.slice(start, end), ...(start > 0 ? { before: String(start) } : {}) };
+      },
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    await store.reveal(all[30]!);
+    expect(store.getState().selected).toBe("c1");
+    expect(store.getState().focus).toBe("m30");
+    expect(store.getState().messages["c1"]?.[0]?.message_id).toBe("m0");
+    store.focused();
+    expect(store.getState().focus).toBeUndefined();
+  });
+
   test("searches the messages, keeping only the latest search's answer (API 1.17)", async () => {
     const answers = new Map<string, (value: unknown) => void>();
     const shell = scriptedShell({

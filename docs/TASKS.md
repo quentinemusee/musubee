@@ -287,6 +287,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.38 — Seen** (E2.3)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.21 `Conversation.seen` from others' read receipts (ADR 0023's consequences); "Sent · Seen" or "Seen by Alice and Bob" under the user's latest read message; the echo contact reads before answering. 🧪 `TestSeen`, `ui/src/message.test.ts`.
 
+**T2.39 — Go to the message found** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). A search result opens its conversation at the message, read up to 20 pages back, centred and outlined for two seconds (ADR 0046's consequences). 🧪 `ui/src/store.test.ts` ("reveals a message").
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

@@ -32,7 +32,7 @@ Sources: SQLite, "The LIKE, GLOB, REGEXP, MATCH, and extract operators" (`LIKE â
 
 ## Consequences
 
-- A result opens its conversation at its newest message, not at the message found: jumping to a message needs the thread to read the history around it, a later task.
+- Since T2.39, a result opens its conversation at the message found: the store reads older pages on the device until the message is there (at most 20 pages, 2000 messages), then the thread scrolls it to the middle and outlines it for two seconds. An older message opens the conversation at its newest message; reading the history around a message, without the pages between, is a later change.
 - File names of media without a caption are not found (the caption is the text searched).
 - An accented capital letter does not find its lowercase form: SQLite's LIKE folds ASCII letters only.
 

@@ -58,6 +58,8 @@ export interface State {
    * selected conversation alone.
    */
   together?: string;
+  /** A message the thread scrolls to and highlights once shown (a search result). */
+  focus?: string;
   /** Who types in each conversation, by name (API 1.20); "" for someone unnamed. */
   typing?: Readonly<Record<string, readonly string[]>>;
   /** A search of the messages (API 1.17), while the user searches. */
@@ -92,6 +94,9 @@ export interface UploadState {
 
 export type HistoryState = { cursor: string } | "loading" | "network" | "start";
 export type InboxState = { cursor: string } | "loading" | "end";
+
+/** How many pages of older messages reveal() reads at most to find a message. */
+export const REVEAL_PAGES = 20;
 
 /** How many older messages loadOlder() reads at once. */
 export const OLDER_PAGE = 100;
@@ -777,6 +782,33 @@ export class Store {
         this.#set({ search: { ...search }, error: `Could not search: ${describe(error)}` });
       }
     }
+  }
+
+  /**
+   * Opens a message's conversation at that message: reads older pages on
+   * the device until it is there (at most REVEAL_PAGES), then asks the
+   * thread to show it. A message older than that opens the conversation at
+   * its newest message.
+   */
+  async reveal(message: Message): Promise<void> {
+    await this.select(message.conversation_id);
+    for (let page = 0; page < REVEAL_PAGES; page++) {
+      if (this.#state.messages[message.conversation_id]?.some((m) => m.message_id === message.message_id)) {
+        this.#set({ focus: message.message_id });
+        return;
+      }
+      const history = this.#state.history[message.conversation_id];
+      if (typeof history !== "object" || this.#state.selected !== message.conversation_id) {
+        return;
+      }
+      await this.loadOlder();
+    }
+  }
+
+  /** The thread showed the focused message. */
+  focused(): void {
+    const { focus: _, ...rest } = this.#state;
+    this.#replace(rest);
   }
 
   /** Ends the search: the inbox shows again. */

@@ -72,7 +72,7 @@ export function SearchResults() {
       <ul>
         {search.results.map((message) => (
           <li key={message.message_id}>
-            <button type="button" className="search-result" onClick={() => void store.select(message.conversation_id)}>
+            <button type="button" className="search-result" onClick={() => void store.reveal(message)}>
               <span className="search-result-head">
                 <span className="search-result-name">{name(message) || "Unnamed conversation"}</span>
                 <time dateTime={new Date(message.timestamp_ms).toISOString()}>{activityLabel(message.timestamp_ms, now)}</time>

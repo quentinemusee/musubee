@@ -59,13 +59,15 @@ export interface MessageRowProps {
   via?: string | undefined;
   /** For the user's latest message that others read: "Seen…", after "Sent" (API 1.21). */
   seen?: string | undefined;
+  /** The message the user came to (a search result), shown for a moment. */
+  highlighted?: boolean;
 }
 
 /**
  * One message of a thread: a full-width row holding the bubble. The row has
  * no margin, so that a virtualized list can measure it whole.
  */
-export const MessageRow = memo(function MessageRow({ message, actions, handlers, via, seen }: MessageRowProps) {
+export const MessageRow = memo(function MessageRow({ message, actions, handlers, via, seen, highlighted = false }: MessageRowProps) {
   const deleted = message.deleted === true;
   const allowed = messageActions(message, handlers === undefined ? undefined : actions);
   const [menu, setMenu] = useState<"closed" | "open" | "confirm-delete">("closed");
@@ -81,7 +83,7 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers,
   }
 
   return (
-    <div className="message-row" data-message-id={message.message_id}>
+    <div className="message-row" data-message-id={message.message_id} data-highlighted={highlighted}>
       <div className="message" data-from-me={message.from_me} data-status={message.status} data-deleted={deleted}>
         {!message.from_me && message.sender_name ? <span className="sender">{message.sender_name}</span> : null}
         {message.reply_to && !deleted ? <ReplyQuote reply={message.reply_to} /> : null}

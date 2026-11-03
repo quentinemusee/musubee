@@ -1290,3 +1290,15 @@ button.flow:hover:not(:disabled) {
   font-size: calc(13 * var(--text));
   font-style: italic;
 }
+
+/* The message the user came to from a search (T2.39). */
+.message-row[data-highlighted="true"] .message {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .message-row .message {
+    transition: outline-color 0.4s;
+  }
+}

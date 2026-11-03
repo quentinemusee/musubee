@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Quentin Raimbaud
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { VList, type VListHandle } from "virtua";
 import type { ConversationActions, Message } from "../core-api/types.gen";
 import { summary } from "../media";
 import type { HistoryState } from "../store";
 import { MessageRow, type MessageHandlers } from "./MessageRow";
+import { useAppState, useStore } from "./state";
 
 export interface MessageListProps {
   /** The messages of one conversation, oldest first. */
@@ -78,6 +79,31 @@ export function MessageList({ messages, history, onOlder, labelledBy, onBottomCh
     setShown(current);
   }
 
+  // A message to show (a search result): scrolled to the middle and
+  // highlighted for a moment; following the bottom stops until the user
+  // goes back down.
+  const store = useStore();
+  const focus = useAppState((s) => s.focus);
+  const focusIndex = focus === undefined ? -1 : messages.findIndex((m) => m.message_id === focus);
+  const highlighted = focusIndex < 0 ? undefined : focus;
+  const scrolledTo = useRef<string>(undefined);
+  useLayoutEffect(() => {
+    if (highlighted === undefined || scrolledTo.current === highlighted) {
+      return;
+    }
+    scrolledTo.current = highlighted;
+    atBottom.current = false;
+    ref.current?.scrollToIndex(focusIndex, { align: "center" });
+  }, [highlighted, focusIndex]);
+  // The highlight lasts two seconds.
+  useEffect(() => {
+    if (highlighted === undefined) {
+      return;
+    }
+    const timer = setTimeout(() => store.focused(), 2000);
+    return () => clearTimeout(timer);
+  }, [highlighted, store]);
+
   // Follow the conversation while at the bottom; older messages keep the
   // position (shift) instead.
   useLayoutEffect(() => {
@@ -129,7 +155,14 @@ export function MessageList({ messages, history, onOlder, labelledBy, onBottomCh
       >
         {(message) =>
           together === undefined ? (
-            <MessageRow key={message.message_id} message={message} actions={actions} handlers={handlers} seen={seen?.[message.message_id]} />
+            <MessageRow
+              key={message.message_id}
+              message={message}
+              actions={actions}
+              handlers={handlers}
+              seen={seen?.[message.message_id]}
+              highlighted={message.message_id === highlighted}
+            />
           ) : (
             <MessageRow
               key={message.message_id}
@@ -138,6 +171,7 @@ export function MessageList({ messages, history, onOlder, labelledBy, onBottomCh
               handlers={handlers}
               via={together.via[message.conversation_id]}
               seen={seen?.[message.message_id]}
+              highlighted={message.message_id === highlighted}
             />
           )
         }
