@@ -85,7 +85,7 @@
     { "target": "command:conversations.list:result", "value": { "conversations": [
       { "conversation_id": "c2", "account_id": "a1", "network_id": "echo", "name": "Family", "kind": "group", "activity_ms": 1791496000000, "unread_count": 3,
         "actions": { "reply": true, "react": true, "edit": true, "delete": true } },
-      { "conversation_id": "c3", "account_id": "a1", "network_id": "echo", "name": "Delayed Echo", "kind": "direct", "activity_ms": 1791495000000, "marked_unread": true, "avatar_id": "f9", "archived": true, "draft": "see you", "pinned": true, "muted_until_ms": -1 }
+      { "conversation_id": "c3", "account_id": "a1", "network_id": "echo", "name": "Delayed Echo", "kind": "direct", "activity_ms": 1791495000000, "unread_mentions": 1, "marked_unread": true, "avatar_id": "f9", "archived": true, "draft": "see you", "pinned": true, "muted_until_ms": -1 }
     ] } },
 
     { "target": "command:conversations.markRead:params", "value": { "conversation_id": "c1" } },

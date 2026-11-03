@@ -105,6 +105,9 @@ type ReadState struct {
 	// ArchivedAt is when the user archived the room, in Unix milliseconds,
 	// or 0 (docs/ADR/0060).
 	ArchivedAt int64
+	// UnreadMentions counts the unread messages that mention the user, by
+	// ID or the whole room, up to MaxUnread (docs/ADR/0062).
+	UnreadMentions int
 	// MutedUntil is when the user's mute of the room ends, in Unix
 	// milliseconds: MutedForever until unmuted, 0 when not muted. A time
 	// in the past is not muted either.
@@ -984,15 +987,21 @@ func (s *store) advanceReadMarker(ctx context.Context, roomID id.RoomID, order i
 // in a room implies reading it. Deleted messages do not count.
 const unreadQuery = `
 SELECT COUNT(*) FROM (
-	SELECT 1 FROM local_event
-	WHERE room_id=$1 AND ` + messageFilter + ` AND redacted_by IS NULL AND sender<>$2
+	SELECT 1 FROM local_event WHERE ` + unreadFilter + `
+	LIMIT $3
+)`
+
+// unreadFilter selects the unread messages of unreadQuery.
+const unreadFilter = `room_id=$1 AND ` + messageFilter + ` AND redacted_by IS NULL AND sender<>$2
 	  AND stream_order <= $4
 	  AND stream_order > MAX(
 		COALESCE((SELECT stream_order FROM local_read_marker WHERE room_id=$1), 0),
 		COALESCE((SELECT MAX(stream_order) FROM local_event
-		          WHERE room_id=$1 AND event_type='m.room.message' AND state_key IS NULL AND sender=$2), 0))
-	LIMIT $3
-)`
+		          WHERE room_id=$1 AND event_type='m.room.message' AND state_key IS NULL AND sender=$2), 0))`
+
+// unreadMentionsQuery lists the contents of unread messages that may
+// mention someone (docs/ADR/0062); the caller checks who.
+const unreadMentionsQuery = `SELECT content FROM local_event WHERE ` + unreadFilter + ` AND content LIKE '%"m.mentions"%' LIMIT $3`
 
 // readState returns the user's read state of a room, counting the messages
 // stored up to upTo.
@@ -1000,6 +1009,13 @@ func (s *store) readState(ctx context.Context, roomID id.RoomID, userID id.UserI
 	var st ReadState
 	if err := s.db.QueryRow(ctx, unreadQuery, roomID, userID, MaxUnread, upTo).Scan(&st.Unread); err != nil {
 		return nil, err
+	}
+	if st.Unread > 0 {
+		mentions, err := s.unreadMentions(ctx, roomID, userID, upTo)
+		if err != nil {
+			return nil, err
+		}
+		st.UnreadMentions = mentions
 	}
 	var marked event.MarkedUnreadEventContent
 	if _, err := s.getRoomAccountData(ctx, userID, roomID, accountDataUnread, &marked); err != nil {
@@ -1022,6 +1038,33 @@ func (s *store) readState(ctx context.Context, roomID id.RoomID, userID id.UserI
 	}
 	st.ArchivedAt = archived.At
 	return &st, nil
+}
+
+// unreadMentions counts the unread messages of a room that mention a user
+// (m.mentions with the user's ID, or the room).
+func (s *store) unreadMentions(ctx context.Context, roomID id.RoomID, userID id.UserID, upTo int64) (int, error) {
+	rows, err := s.db.Query(ctx, unreadMentionsQuery, roomID, userID, MaxUnread, upTo)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = rows.Close() }()
+	n := 0
+	for rows.Next() {
+		var content string
+		if err = rows.Scan(&content); err != nil {
+			return 0, err
+		}
+		var parsed struct {
+			Mentions *event.Mentions `json:"m.mentions"`
+		}
+		if json.Unmarshal([]byte(content), &parsed) != nil || parsed.Mentions == nil {
+			continue
+		}
+		if parsed.Mentions.Room || slices.Contains(parsed.Mentions.UserIDs, userID) {
+			n++
+		}
+	}
+	return n, rows.Err()
 }
 
 func (s *store) putMedia(ctx context.Context, mediaID string, roomID id.RoomID, mimeType, fileName string, data []byte) error {

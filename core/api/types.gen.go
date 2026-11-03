@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.33"
+const APIVersion = "1.34"
 
 // Command names.
 const (
@@ -634,6 +634,9 @@ type Conversation struct {
 	// last message the user read here or on another device, or their own last
 	// message, whichever is later. At most 1000; omitted when 0. Since API 1.4.
 	UnreadCount int64 `json:"unread_count,omitempty"`
+	// How many of the unread messages mention the user (Message.mentions_me), up
+	// to 1000. Omitted when none. Since API 1.34.
+	UnreadMentions int64 `json:"unread_mentions,omitempty"`
 	// The user marked the conversation as unread (on another device, for now);
 	// reading it clears the flag. Omitted when false. Since API 1.4.
 	MarkedUnread bool `json:"marked_unread,omitempty"`

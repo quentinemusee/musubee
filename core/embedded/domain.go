@@ -243,6 +243,7 @@ func (c *Core) conversation(ctx context.Context, activity *localmatrix.RoomActiv
 	}
 	conv.UnreadCount = int64(read.Unread)
 	conv.MarkedUnread = read.MarkedUnread
+	conv.UnreadMentions = int64(read.UnreadMentions)
 	conv.MutedUntilMS = mutedUntil(read.MutedUntil, time.Now())
 	conv.Pinned = read.Pinned
 	if conv.AvatarID, err = c.avatarID(ctx, room.ID); err != nil {

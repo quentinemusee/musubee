@@ -31,6 +31,8 @@ func TestMentions(t *testing.T) {
 	if mention := answer(echo.CommandMention+" look at this", "look at this"); !mention.MentionsMe {
 		t.Errorf("the answer to /mention does not mention the user: %+v", mention)
 	}
+	// The conversation counts it as an unread mention (API 1.34).
+	waitConversationUpdate(t, c, "an unread mention", conv.ConversationID, func(cv api.Conversation) bool { return cv.UnreadMentions == 1 })
 }
 
 func TestMentionsOf(t *testing.T) {

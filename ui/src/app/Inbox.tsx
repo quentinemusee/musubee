@@ -118,6 +118,7 @@ const InboxRow = memo(function InboxRow({ entry, current, now, networkNames, onO
   const badge = unreadBadge(entry);
   // Someone typing shows in place of the preview (API 1.20).
   const typing = useAppState((s) => s.typing?.[latest.conversation_id]);
+  const mentions = entry.conversations.reduce((sum, c) => sum + (c.unread_mentions ?? 0), 0);
   // An entry is muted when all its conversations are (ADR 0050).
   const muted = entry.conversations.every((c) => isMuted(c, now));
   return (
@@ -132,7 +133,9 @@ const InboxRow = memo(function InboxRow({ entry, current, now, networkNames, onO
         className={badge === undefined ? "conversation" : "conversation unread"}
         aria-current={current ? "true" : undefined}
         aria-label={entry.name}
-        aria-describedby={badge === undefined ? `${id}-meta ${id}-preview` : `${id}-unread ${id}-meta ${id}-preview`}
+        aria-describedby={[mentions > 0 ? `${id}-mentions` : "", badge === undefined ? "" : `${id}-unread`, `${id}-meta`, `${id}-preview`]
+          .filter((x) => x !== "")
+          .join(" ")}
         onClick={() => onOpen(latest.conversation_id)}
       >
         <Avatar mediaId={latest.avatar_id} name={entry.name} />
@@ -154,6 +157,17 @@ const InboxRow = memo(function InboxRow({ entry, current, now, networkNames, onO
           <span id={`${id}-preview`} className="conversation-preview" data-typing={typing !== undefined && typing.length > 0}>
             {typing !== undefined && typing.length > 0 ? typingText(typing) : preview(entry)}
           </span>
+          {mentions > 0 ? (
+            // An unread message mentions the user (API 1.34, docs/ADR/0062).
+            <>
+              <span className="mention-badge" aria-hidden="true">
+                @
+              </span>
+              <span id={`${id}-mentions`} className="visually-hidden">
+                {mentions === 1 ? "1 mention of you" : `${mentions} mentions of you`}
+              </span>
+            </>
+          ) : null}
           {badge === undefined ? null : (
             // The count is what the eye reads; the label, what a screen
             // reader says: "3 unread messages", not "3".
