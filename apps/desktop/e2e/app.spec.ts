@@ -533,6 +533,26 @@ test("an archived conversation leaves the inbox for the archive", async () => {
   await app.close();
 });
 
+test("a conversation keeps its own color after a restart", async () => {
+  const dataDir = newDataDir();
+  let { app, page } = await launch(dataDir);
+  await addEchoAccount(page, "color");
+  await page.getByRole("button", { name: "Delayed Echo" }).click();
+  await page.getByRole("button", { name: "Color…" }).click();
+  await page.getByRole("radio", { name: "Rose" }).check();
+  const thread = page.locator("section.thread");
+  await expect(thread).toHaveAttribute("data-accent", "rose");
+  // Another conversation keeps the app's color.
+  await page.getByRole("button", { name: "Instant Echo" }).click();
+  await expect(page.locator("section.thread")).not.toHaveAttribute("data-accent", /./);
+
+  await app.close();
+  ({ app, page } = await launch(dataDir));
+  await page.getByRole("button", { name: "Delayed Echo" }).click();
+  await expect(page.locator("section.thread")).toHaveAttribute("data-accent", "rose");
+  await app.close();
+});
+
 test("a group shows its members", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "members");

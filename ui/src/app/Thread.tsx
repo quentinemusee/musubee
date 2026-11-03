@@ -7,6 +7,8 @@ import { accepts, formatSize } from "../media";
 import { canRecord, VoiceRecorder, type Recording } from "../recorder";
 import { accountLabel } from "../merge";
 import { replyQuote, replyTo, seenLabel, typingText } from "../message";
+import { accentKey } from "../conversation-accent";
+import { AccentButton } from "./AccentButton";
 import { Avatar } from "./Avatar";
 import { DeleteConversation, type Removal } from "./DeleteConversation";
 import { ForwardMessage } from "./ForwardMessage";
@@ -132,11 +134,15 @@ export function Thread() {
     }
   }, [store, view, visible, atBottom]);
 
+  // The thread's own color, if the user gave one (docs/ADR/0063).
+  const themeKey = selected === undefined ? "" : accentKey(selected, person?.person_id);
+  const accent = useAppState((s) => s.accents?.[themeKey]);
+
   if (selected === undefined || conversation === undefined) {
     return <p className="empty">Choose a conversation.</p>;
   }
   return (
-    <section className="thread" aria-labelledby="thread-title">
+    <section className="thread" aria-labelledby="thread-title" data-accent={accent}>
       <div className="thread-header">
         {/* Shown on a narrow screen only, where the thread hides the inbox. */}
         <button type="button" className="secondary back" aria-label="Back to conversations" onClick={() => closeConversation(store)}>
@@ -164,6 +170,7 @@ export function Thread() {
           Pin
         </button>
         <MuteButton key={selected} conversation={conversation} />
+        <AccentButton key={`accent:${themeKey}`} accentKey={themeKey} />
         <button type="button" className="secondary" onClick={() => void store.archive(selected, conversation.archived !== true)}>
           {conversation.archived === true ? "Unarchive" : "Archive"}
         </button>

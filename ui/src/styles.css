@@ -31,28 +31,58 @@
   color-scheme: light dark;
 }
 
-:root[data-accent="teal"] {
+/* A thread with its own accent (docs/ADR/0063) takes the same pairs, and
+   picks its half for the theme below. */
+.thread[data-accent="indigo"] {
+  --accent-light: #4b45c6;
+  --accent-dark: #8e89ff;
+  --mine-light: #e7e6fb;
+  --mine-dark: #2d2b55;
+}
+
+.thread[data-accent] {
+  --color-accent: var(--accent-light);
+  --color-mine: var(--mine-light);
+}
+
+:root[data-theme="dark"] .thread[data-accent] {
+  --color-accent: var(--accent-dark);
+  --color-mine: var(--mine-dark);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .thread[data-accent] {
+    --color-accent: var(--accent-dark);
+    --color-mine: var(--mine-dark);
+  }
+}
+
+:root[data-accent="teal"],
+.thread[data-accent="teal"] {
   --accent-light: #0f766e;
   --accent-dark: #5eead4;
   --mine-light: #d5f2ee;
   --mine-dark: #173b38;
 }
 
-:root[data-accent="rose"] {
+:root[data-accent="rose"],
+.thread[data-accent="rose"] {
   --accent-light: #be123c;
   --accent-dark: #fda4af;
   --mine-light: #fde2e7;
   --mine-dark: #4a1f2a;
 }
 
-:root[data-accent="amber"] {
+:root[data-accent="amber"],
+.thread[data-accent="amber"] {
   --accent-light: #b45309;
   --accent-dark: #fcd34d;
   --mine-light: #fdebd3;
   --mine-dark: #45321a;
 }
 
-:root[data-accent="slate"] {
+:root[data-accent="slate"],
+.thread[data-accent="slate"] {
   --accent-light: #475569;
   --accent-dark: #cbd5e1;
   --mine-light: #e5e8ee;

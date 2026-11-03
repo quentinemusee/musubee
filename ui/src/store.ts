@@ -10,6 +10,8 @@
 import { CoreApiError, CoreClient, parseEvent } from "./core-api/client";
 import { accepts, MediaCache, sendChoice, sendProblem, uploadBlob } from "./media";
 import { pageStorage } from "./appearance";
+import type { Accent } from "./appearance";
+import { loadAccents, saveAccent } from "./conversation-accent";
 import { loadTogether, saveTogether, togetherSources, togetherView, type TogetherStorage } from "./together";
 import type { Account, Conversation, ConversationMember, Event, Message, Network, Person, VerificationAction, VerificationEvent } from "./core-api/types.gen";
 import { mergePlan } from "./merge";
@@ -61,6 +63,8 @@ export interface State {
    * selected conversation alone.
    */
   together?: string;
+  /** The accent colors chosen per conversation or person (docs/ADR/0063), by accentKey. */
+  accents?: Readonly<Record<string, Accent>>;
   /** Each account's interactive verification, as its last step said (API 1.22). */
   verifications?: Readonly<Record<string, VerificationEvent>>;
   /** A message the thread scrolls to and highlights once shown (a search result). */
@@ -192,6 +196,15 @@ export class Store {
     this.media = new MediaCache((params) => this.client.call("media.read", params));
     this.#togetherStorage = togetherStorage;
     this.#togetherPersons = loadTogether(togetherStorage);
+    const accents = loadAccents(togetherStorage);
+    if (Object.keys(accents).length > 0) {
+      this.#state = { ...this.#state, accents };
+    }
+  }
+
+  /** Gives a conversation or a person its own accent, or the app's back (undefined). */
+  setAccent(key: string, accent: Accent | undefined): void {
+    this.#set({ accents: saveAccent(this.#togetherStorage, this.#state.accents ?? {}, key, accent) });
   }
 
   /** Listens to the shell; returns a function that stops listening. */
