@@ -6,6 +6,7 @@
 // gives the interface the same window.musubee as the desktop's preload.
 
 import { registerPlugin, type PluginListenerHandle } from "@capacitor/core";
+import { encodeBase64 } from "./media";
 import { parseNotificationPreview } from "./notification-preview";
 import type { CoreStatus, NotificationPreview, Shell, ShellNotifications } from "./shell";
 
@@ -20,6 +21,8 @@ export interface MusubeeCorePlugin {
   /** What notifications show of a message (docs/ADR/0051), kept in the app's preferences. */
   notificationPreview(): Promise<{ preview: string }>;
   setNotificationPreview(options: { preview: NotificationPreview }): Promise<void>;
+  /** Saves a file through Android's document picker (docs/ADR/0068); data in base64. */
+  saveFile(options: { name: string; mimeType: string; data: string }): Promise<{ saved: boolean }>;
   /** Until when notifications wait (docs/ADR/0067), kept in the app's preferences. */
   notificationsPausedUntil(): Promise<{ until: number }>;
   pauseNotifications(options: { until: number }): Promise<void>;
@@ -117,6 +120,12 @@ export function pluginShell(plugin: MusubeeCorePlugin): Shell {
       },
     },
     notifications,
+    files: {
+      async save(name, mimeType, data) {
+        const bytes = new Uint8Array(await data.arrayBuffer());
+        return (await plugin.saveFile({ name, mimeType, data: encodeBase64(bytes) })).saved;
+      },
+    },
   };
 }
 

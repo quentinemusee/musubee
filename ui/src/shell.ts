@@ -63,10 +63,17 @@ export interface ShellLinks {
   open(url: string): Promise<void>;
 }
 
+/** Saves a file the user asked for, where the page cannot (Android's WebView, docs/ADR/0068). */
+export interface ShellFiles {
+  /** Resolves with whether it was saved: false when the user cancelled. */
+  save(name: string, mimeType: string, data: Blob): Promise<boolean>;
+}
+
 export interface Shell {
   core: ShellCore;
   notifications?: ShellNotifications;
   links?: ShellLinks;
+  files?: ShellFiles;
 }
 
 declare global {

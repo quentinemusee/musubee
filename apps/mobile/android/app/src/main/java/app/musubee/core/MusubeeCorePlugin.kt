@@ -10,12 +10,15 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.Build
 import android.os.IBinder
+import android.util.Base64
+import androidx.activity.result.ActivityResult
 import androidx.core.content.ContextCompat
 import com.getcapacitor.JSObject
 import com.getcapacitor.PermissionState
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
+import com.getcapacitor.annotation.ActivityCallback
 import com.getcapacitor.annotation.CapacitorPlugin
 import com.getcapacitor.annotation.Permission
 import com.getcapacitor.annotation.PermissionCallback
@@ -158,6 +161,48 @@ class MusubeeCorePlugin : Plugin() {
         }
         MessageNotifier.pauseUntil(context, until)
         call.resolve()
+    }
+
+    /**
+     * Saves a file the user asked for (docs/ADR/0068): `{name, mimeType,
+     * data}` with the bytes in base64. Android's document picker asks where;
+     * the WebView itself does not save Blob downloads. Resolves with
+     * `{saved}`: false when the user cancelled.
+     */
+    @PluginMethod
+    fun saveFile(call: PluginCall) {
+        val name = call.getString("name")
+        val data = call.getString("data")
+        if (name.isNullOrBlank() || data == null) {
+            call.reject("name and data are required")
+            return
+        }
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType(call.getString("mimeType") ?: "application/octet-stream")
+            .putExtra(Intent.EXTRA_TITLE, name)
+        startActivityForResult(call, intent, "fileChosen")
+    }
+
+    @ActivityCallback
+    private fun fileChosen(call: PluginCall, result: ActivityResult) {
+        val uri = result.data?.data
+        if (uri == null) {
+            call.resolve(JSObject().put("saved", false))
+            return
+        }
+        val data = call.getString("data") ?: ""
+        calls.execute {
+            try {
+                val bytes = Base64.decode(data, Base64.DEFAULT)
+                val stream = context.contentResolver.openOutputStream(uri) ?: throw IllegalStateException("no stream")
+                stream.use { it.write(bytes) }
+                call.resolve(JSObject().put("saved", true))
+            } catch (e: Exception) {
+                // The file's content is never logged.
+                call.reject("Could not write the file: ${e.javaClass.simpleName}")
+            }
+        }
     }
 
     @PermissionCallback

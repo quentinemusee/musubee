@@ -9,6 +9,7 @@ import { openConversation } from "./app/navigation";
 import { NotificationsContext, StoreContext } from "./app/state";
 import { followNotifications } from "./notifications";
 import type { Shell } from "./shell";
+import { setShellFiles } from "./save";
 import { Store } from "./store";
 import "./styles.css";
 
@@ -39,6 +40,7 @@ void findShell().then((shell) => {
     return;
   }
   const store = new Store(shell.core);
+  setShellFiles(shell.files);
   // Started once for the page's whole life, outside React.
   store.start();
   if (shell.notifications !== undefined) {

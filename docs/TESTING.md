@@ -81,6 +81,7 @@ The cloud sprint (T2.20 to T2.70) ran no tests; `CLAUDE.md` §9 lists the automa
    - each notification preview (T2.45);
    - a pause (T2.68);
    - "Reply" and "Mark as read" from a notification, with the phone locked (it must ask to unlock) and unlocked (T2.64);
-   - a link opened in the browser (T2.67).
+   - a link opened in the browser (T2.67);
+   - a received file and an exported conversation saved through the document picker (T2.75, T2.76).
 7. **Look**: avatars and initials (T2.59), a conversation's color in light and dark themes (T2.61), the thread's header and "More…" on a narrow window (T2.62), "New messages" (T2.69).
 

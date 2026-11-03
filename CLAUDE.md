@@ -680,3 +680,11 @@ To verify in the test session: T2.72 and T2.73 (cloud sprint, no test run; inter
 days (ui):          cd ui && npx vitest run src/message.test.ts
 names in search:    cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "search finds"
 ```
+
+To verify in the test session: T2.74 to T2.76 (cloud sprint, no test run; see ADR 0068). By hand on the Pixel 8 Pro: save a file and an export.
+
+```
+export, files (ui): cd ui && npx vitest run src/export.test.ts src/store.test.ts src/capacitor.test.ts
+unread only:        cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "only unread"
+android kotlin:     cd apps/mobile/android && ./gradlew :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin -Pmusubee.abis=x86_64 -x buildCore-x86_64     (without the Go core, after npm run sync)
+```

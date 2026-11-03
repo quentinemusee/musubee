@@ -4,6 +4,7 @@
 import { use, useEffect, useRef, useState, type CSSProperties } from "react";
 import type { MessageKind, MessageMedia as Media } from "../core-api/types.gen";
 import { autoload, formatDuration, formatSize, inlineType, mediaLabel, SAVE_TYPE, type MediaCache } from "../media";
+import { saveBlob } from "../save";
 import { StoreContext } from "./state";
 
 type Loaded = { state: "idle" } | { state: "loading" } | { state: "ready"; url: string } | { state: "failed" };
@@ -187,14 +188,8 @@ function SaveFile({ kind, media, cache, unreadable }: { kind: MessageKind; media
     setState("saving");
     try {
       const blob = await cache.get(media.media_id, SAVE_TYPE);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = name;
-      link.rel = "noopener";
-      link.click();
-      // The browser has the Blob once the click is handled.
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      // Through the shell on Android, as a download elsewhere (docs/ADR/0068).
+      await saveBlob(blob, name, media.mime_type || SAVE_TYPE);
       setState("idle");
     } catch {
       setState("failed");

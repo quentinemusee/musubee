@@ -77,3 +77,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0065](0065-starred-messages.md) | Starred messages: the user's room account data, listed across conversations | accepted | T2.66 |
 | [0066](0066-links-in-messages.md) | Links in messages: web addresses only, opened outside the app by the shell | accepted | T2.67 |
 | [0067](0067-pausing-notifications.md) | Pausing notifications: a time kept by the shells, next to the preview | accepted | T2.68 |
+| [0068](0068-saving-files-on-android.md) | Saving files on Android: the system's document picker, through the plugin | accepted | T2.76 |

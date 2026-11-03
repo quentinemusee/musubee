@@ -16,12 +16,17 @@ function scriptedPlugin(
   let granted = false;
   let preview = "";
   let pausedUntil = 0;
+  const saved: { name: string; mimeType: string; data: string }[] = [];
   const plugin: MusubeeCorePlugin = {
     call: ({ request }) => answer(request as { id: number; command: string }),
     startOver,
     askToNotify: () => Promise.resolve({ granted }),
     notificationPreview: () => Promise.resolve({ preview }),
     notificationsPausedUntil: () => Promise.resolve({ until: pausedUntil }),
+    saveFile: (options) => {
+      saved.push(options);
+      return Promise.resolve({ saved: true });
+    },
     pauseNotifications: (options) => {
       pausedUntil = options.until;
       return Promise.resolve();
@@ -41,6 +46,7 @@ function scriptedPlugin(
     emit: (event: object) => send("event", event),
     tap: (conversationId: string) => send("openConversation", { conversation_id: conversationId }),
     grant: () => (granted = true),
+    saved,
   };
 }
 
@@ -124,5 +130,12 @@ describe("pluginShell", () => {
     expect(await notifications.pausedUntil?.()).toBe(0);
     await notifications.pauseUntil?.(1_800_000_000_000);
     expect(await notifications.pausedUntil?.()).toBe(1_800_000_000_000);
+  });
+
+  test("saves a file through the plugin, in base64 (ADR 0068)", async () => {
+    const { plugin, saved } = scriptedPlugin(() => Promise.resolve({}));
+    const files = pluginShell(plugin).files!;
+    expect(await files.save("a.txt", "text/plain", new Blob(["hi"]))).toBe(true);
+    expect(saved).toEqual([{ name: "a.txt", mimeType: "text/plain", data: "aGk=" }]);
   });
 });

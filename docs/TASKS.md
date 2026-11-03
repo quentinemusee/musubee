@@ -393,7 +393,10 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 - Outcome: **implemented, unverified** (cloud sprint, no test run). "Unread only" above the inbox keeps the entries with unread messages or marked unread, and the one open. 🧪 the desktop e2e "the inbox shows only unread conversations" (`npx playwright test app.spec.ts -g "only unread"`).
 
 **T2.75 — Export a conversation** (E2.4)
-- Outcome: **implemented, unverified** (cloud sprint, no test run). "Export as text" in the thread's "More…" saves the messages stored on the device as a .txt file, one line per message, media named but not included. 🧪 `ui/src/export.test.ts`, `ui/src/store.test.ts` (`cd ui && npx vitest run src/export.test.ts src/store.test.ts`). By hand: the desktop's save dialog; Android's WebView may not save a Blob download (as for media files): to check.
+- Outcome: **implemented, unverified** (cloud sprint, no test run). "Export as text" in the thread's "More…" saves the messages stored on the device as a .txt file, one line per message, media named but not included. 🧪 `ui/src/export.test.ts`, `ui/src/store.test.ts` (`cd ui && npx vitest run src/export.test.ts src/store.test.ts`). By hand: the desktop's save dialog; on Android, the document picker of T2.76.
+
+**T2.76 — Save files on Android** (E2.4)
+- Outcome: **implemented, unverified; the Kotlin compiles**. Android's WebView did not save Blob downloads, so received files and exports did nothing there: the plugin's `saveFile` opens the system's document picker and writes the file (ADR 0068). 🧪 `ui/src/capacitor.test.ts`; by hand on the Pixel 8 Pro: save a file received from the echo contact (`/file`), and an export.
 
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.

@@ -9,6 +9,7 @@ import { accountLabel } from "../merge";
 import { firstUnread, replyQuote, replyTo, seenLabel, sendsOnEnter, typingText } from "../message";
 import { accentKey } from "../conversation-accent";
 import { exportFileName, exportText } from "../export";
+import { saveBlob } from "../save";
 import { AccentButton } from "./AccentButton";
 import { SEARCH_FIELD_ID } from "./Shortcuts";
 import { Avatar } from "./Avatar";
@@ -700,13 +701,8 @@ function TypingLine({ conversationId }: { conversationId: string }) {
 async function exportConversation(store: Store, conversationId: string, name: string): Promise<void> {
   try {
     const messages = await store.allStoredMessages(conversationId);
-    const url = URL.createObjectURL(new Blob([exportText(name, messages)], { type: "text/plain;charset=utf-8" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = exportFileName(name);
-    link.rel = "noopener";
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    const blob = new Blob([exportText(name, messages)], { type: "text/plain;charset=utf-8" });
+    await saveBlob(blob, exportFileName(name), "text/plain");
   } catch (error) {
     store.reportError(`Could not export the conversation: ${error instanceof Error ? error.message : String(error)}`);
   }
