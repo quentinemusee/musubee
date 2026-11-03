@@ -636,3 +636,11 @@ To verify in the test session: T2.64 (cloud sprint, not even compiled: no Androi
 ```
 android build:      cd apps/mobile/android && ./gradlew :app:assembleDebug
 ```
+
+To verify in the test session: T2.65 and T2.66 (cloud sprint, no test run; see ADR 0046 and 0065):
+
+```
+stars (core):       go test -tags=goolm -count=1 -run 'Star' -v ./core/localmatrix/ ./core/embedded/
+stars, scope (ui):  cd ui && npx vitest run src/store.test.ts
+stars in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "starred message"
+```
