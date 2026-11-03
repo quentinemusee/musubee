@@ -88,6 +88,8 @@ Not decided here, and not built: marking a conversation unread from the interfac
 
 ## Consequences
 
+- Since T2.34 (API 1.18), `conversations.markUnread` sets the "marked unread" flag from the interface: "Mark unread" in the thread's header sets it and leaves the conversation, since a shown conversation is read at once. On this device only: the networks are not told.
+
 - Every connector that handles read receipts gets them without code in the core; Signal (T2.6) will too.
 - One `conversation.updated` per received message doubles the events of a busy conversation; it is the price of keeping the interface's list right without asking the core again. Batching is possible later if measurements call for it.
 - The read position is per device: two Musubee devices agree only through the networks. An encrypted sync of the read state belongs with the persons' sync (ADR 0017).

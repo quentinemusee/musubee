@@ -500,3 +500,9 @@ To verify in the test session: T2.33 (cloud sprint, no test run; see ADR 0047). 
 ```
 desktop notices:    cd apps/desktop && npx vitest run test/notification-rules.test.ts
 ```
+
+To verify in the test session: T2.34 (cloud sprint, no test run; see ADR 0023):
+
+```
+mark unread:        go test -tags=goolm -count=1 -run 'MarkUnread' -v ./core/embedded/
+```

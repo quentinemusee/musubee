@@ -272,6 +272,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.33 — Desktop notifications** (E2.3)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). The desktop main process announces recent messages from others while no window is focused, one notification per conversation, and a click opens the conversation (ADR 0047). 🧪 `apps/desktop/test/notification-rules.test.ts`; by hand on Windows. Left: a setting to hide the text, conversation names in the title.
 
+**T2.34 — Mark a conversation unread** (E2.3)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.18 `conversations.markUnread`, on this device; "Mark unread" in the thread's header leaves the conversation (ADR 0023's consequences). 🧪 `TestMarkUnread`. Left: telling the networks (bridgev2's marked-unread handling).
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).
