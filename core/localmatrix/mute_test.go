@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/event"
 
 	"github.com/quentinemusee/musubee/core/localmatrix"
@@ -89,13 +90,14 @@ func TestMute(t *testing.T) {
 }
 
 func TestMutedUntilMS(t *testing.T) {
-	at := time.UnixMilli(1_800_000_000_000)
+	at := time.Now().Add(time.Hour).Truncate(time.Millisecond)
 	for _, tc := range []struct {
 		until time.Time
 		want  int64
 	}{
 		{time.Time{}, 0},
-		{at, 1_800_000_000_000},
+		{at, at.UnixMilli()},
+		{bridgev2.Unmuted, 0},
 		{event.MutedForever, localmatrix.MutedForever},
 	} {
 		if got := localmatrix.MutedUntilMS(tc.until); got != tc.want {

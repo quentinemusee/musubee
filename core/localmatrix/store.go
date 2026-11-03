@@ -115,10 +115,11 @@ type mutedUntil struct {
 }
 
 // MutedUntilMS turns a time from bridgev2 (event.MutedForever or later:
-// forever; zero: not muted) into ReadState.MutedUntil.
+// forever; zero, or a time past such as bridgev2.Unmuted: not muted) into
+// ReadState.MutedUntil.
 func MutedUntilMS(until time.Time) int64 {
 	switch {
-	case until.IsZero():
+	case until.IsZero(), !until.After(time.Now()):
 		return 0
 	case !until.Before(event.MutedForever):
 		return MutedForever
