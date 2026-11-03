@@ -19,7 +19,9 @@ import org.json.JSONObject
  *   news;
  * - it is older than [MAX_AGE_MILLIS]: after days offline, the inbox says
  *   enough;
- * - the app is on screen ([visible]): the inbox shows it.
+ * - the app is on screen ([visible]): the inbox shows it;
+ * - the user muted its conversation (`muted_until_ms`, API 1.23,
+ *   docs/ADR/0050): muting also removes the conversation's notification.
  *
  * A conversation that is read again (unread count 0 and not marked unread)
  * loses its notification, wherever it was read. An account that is logged
@@ -119,7 +121,7 @@ class MessageNotifications(
         if (conversationId.isEmpty()) return emptyList()
         val arrived = waiting.remove(conversationId).orEmpty()
         val unread = conversation.optInt("unread_count") > 0 || conversation.optBoolean("marked_unread")
-        if (!unread) {
+        if (!unread || muted(conversation, now())) {
             return if (shown.remove(conversationId) != null) listOf(Action.Cancel(conversationId)) else emptyList()
         }
         val accountId = conversation.optString("account_id")
@@ -166,6 +168,12 @@ class MessageNotifications(
     }
 
     companion object {
+        /** Whether the user muted the conversation, as of [now]: -1 is until unmuted. */
+        fun muted(conversation: JSONObject, now: Long): Boolean {
+            val until = conversation.optLong("muted_until_ms")
+            return until == -1L || until > now
+        }
+
         /** Messages older than this are never announced. */
         const val MAX_AGE_MILLIS = 24 * 60 * 60 * 1000L
 

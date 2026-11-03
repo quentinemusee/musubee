@@ -57,12 +57,13 @@ class MessageNotificationsTest {
         ),
     )
 
-    private fun conversation(unread: Int, markedUnread: Boolean = false) = rules.onEvent(
+    private fun conversation(unread: Int, markedUnread: Boolean = false, mutedUntil: Long = 0) = rules.onEvent(
         event(
             "conversation.updated",
             "conversation",
             JSONObject().put("conversation_id", "c1").put("account_id", "a1").put("name", "Bob").put("kind", "direct")
-                .put("unread_count", unread).put("marked_unread", markedUnread),
+                .put("unread_count", unread).put("marked_unread", markedUnread)
+                .apply { if (mutedUntil != 0L) put("muted_until_ms", mutedUntil) },
         ),
     )
 
@@ -129,6 +130,22 @@ class MessageNotificationsTest {
         assertEquals(listOf("cancel"), texts(conversation(0)))
         // Nothing left to cancel.
         assertEquals(emptyList<String>(), texts(conversation(0)))
+    }
+
+    @Test
+    fun aMutedConversationStaysQuiet() {
+        account()
+        message("hi", now + 1)
+        assertEquals(listOf("post:hi"), texts(conversation(1)))
+        // Muting removes the notification, and no message is announced.
+        assertEquals(listOf("cancel"), texts(conversation(1, mutedUntil = -1)))
+        message("still there?", now + 2)
+        assertEquals(emptyList<String>(), texts(conversation(2, mutedUntil = -1)))
+        message("for an hour", now + 3)
+        assertEquals(emptyList<String>(), texts(conversation(3, mutedUntil = now + 3_600_000L)))
+        // A mute that ended.
+        message("back", now + 4)
+        assertEquals(listOf("post:back"), texts(conversation(4, mutedUntil = now - 1)))
     }
 
     @Test
