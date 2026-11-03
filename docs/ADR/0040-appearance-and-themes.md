@@ -51,6 +51,8 @@ The theme (same as the system, light, dark), five accents and four text sizes. L
 
 ## Consequences
 
+- Since T2.41, a density (comfortable, compact) is a fourth choice: compact lowers `--space` and the bubbles' padding.
+
 - The text size scales up to 1.3 times; WCAG's 200% resize is still the browser's or the system's zoom (Electron's Ctrl+plus, Android's font scale through the WebView).
 - Each device keeps its own appearance. Syncing settings, if wanted, is a later ADR.
 - Every new color in `styles.css` must be a token, or it will not follow the theme.

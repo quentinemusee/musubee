@@ -9,23 +9,28 @@
 export const THEMES = ["system", "light", "dark"] as const;
 export const ACCENTS = ["indigo", "teal", "rose", "amber", "slate"] as const;
 export const TEXT_SIZES = ["small", "normal", "large", "larger"] as const;
+export const DENSITIES = ["comfortable", "compact"] as const;
 
 export type Theme = (typeof THEMES)[number];
 export type Accent = (typeof ACCENTS)[number];
 export type TextSize = (typeof TEXT_SIZES)[number];
+export type Density = (typeof DENSITIES)[number];
 
 export interface Appearance {
   theme: Theme;
   accent: Accent;
   textSize: TextSize;
+  /** Since T2.41: how much room the lists and bubbles take. */
+  density: Density;
 }
 
-export const DEFAULT_APPEARANCE: Appearance = { theme: "system", accent: "indigo", textSize: "normal" };
+export const DEFAULT_APPEARANCE: Appearance = { theme: "system", accent: "indigo", textSize: "normal", density: "comfortable" };
 
 /** The names the settings show. */
 export const THEME_NAMES: Record<Theme, string> = { system: "Same as the system", light: "Light", dark: "Dark" };
 export const ACCENT_NAMES: Record<Accent, string> = { indigo: "Indigo", teal: "Teal", rose: "Rose", amber: "Amber", slate: "Slate" };
 export const TEXT_SIZE_NAMES: Record<TextSize, string> = { small: "Small", normal: "Normal", large: "Large", larger: "Larger" };
+export const DENSITY_NAMES: Record<Density, string> = { comfortable: "Comfortable", compact: "Compact" };
 
 /** The key of the page's storage that holds the appearance. */
 export const STORAGE_KEY = "musubee.appearance";
@@ -50,6 +55,7 @@ export function parseAppearance(json: string | null): Appearance {
     theme: oneOf(THEMES, fields["theme"], DEFAULT_APPEARANCE.theme),
     accent: oneOf(ACCENTS, fields["accent"], DEFAULT_APPEARANCE.accent),
     textSize: oneOf(TEXT_SIZES, fields["textSize"], DEFAULT_APPEARANCE.textSize),
+    density: oneOf(DENSITIES, fields["density"], DEFAULT_APPEARANCE.density),
   };
 }
 
@@ -79,6 +85,7 @@ export function applyAppearance(root: HTMLElement, appearance: Appearance): void
   root.dataset["theme"] = appearance.theme;
   root.dataset["accent"] = appearance.accent;
   root.dataset["textSize"] = appearance.textSize;
+  root.dataset["density"] = appearance.density;
 }
 
 /** The page's storage, when the page may use it. */

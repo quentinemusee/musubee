@@ -26,9 +26,9 @@ describe("appearance", () => {
   test("reads what it wrote", () => {
     const { storage, items } = memoryStorage();
     expect(loadAppearance(storage)).toEqual(DEFAULT_APPEARANCE);
-    saveAppearance(storage, { theme: "dark", accent: "teal", textSize: "larger" });
-    expect(JSON.parse(items.get(STORAGE_KEY) ?? "")).toEqual({ theme: "dark", accent: "teal", textSize: "larger" });
-    expect(loadAppearance(storage)).toEqual({ theme: "dark", accent: "teal", textSize: "larger" });
+    saveAppearance(storage, { theme: "dark", accent: "teal", textSize: "larger", density: "compact" });
+    expect(JSON.parse(items.get(STORAGE_KEY) ?? "")).toEqual({ theme: "dark", accent: "teal", textSize: "larger", density: "compact" });
+    expect(loadAppearance(storage)).toEqual({ theme: "dark", accent: "teal", textSize: "larger", density: "compact" });
   });
 
   test("falls back to the default, field by field", () => {
@@ -46,7 +46,7 @@ describe("appearance", () => {
 
   test("applies as data attributes of the root", () => {
     const root = { dataset: {} as Record<string, string> } as unknown as HTMLElement;
-    applyAppearance(root, { theme: "light", accent: "amber", textSize: "small" });
-    expect(root.dataset).toEqual({ theme: "light", accent: "amber", textSize: "small" });
+    applyAppearance(root, { theme: "light", accent: "amber", textSize: "small", density: "compact" });
+    expect(root.dataset).toEqual({ theme: "light", accent: "amber", textSize: "small", density: "compact" });
   });
 });

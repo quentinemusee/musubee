@@ -293,6 +293,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.40 — Drafts** (E2.4)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). Each conversation's composer keeps the text the user left there while the app runs, in memory only (unsent text stays off the disk); an edit's text never replaces it. 🧪 `apps/desktop/e2e/app.spec.ts`, "an unsent text waits". Left: drafts that survive a restart (sealed in the core's database, if wanted).
 
+**T2.41 — Density** (E2.7)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). "Density" (comfortable, compact) in the appearance settings, a root attribute that lowers the spacing token (ADR 0040's consequences). 🧪 `ui/src/appearance.test.ts`.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

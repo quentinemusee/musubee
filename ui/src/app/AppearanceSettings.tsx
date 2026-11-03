@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   ACCENT_NAMES,
   ACCENTS,
+  DENSITIES,
+  DENSITY_NAMES,
   applyAppearance,
   loadAppearance,
   pageStorage,
@@ -76,6 +78,15 @@ export function AppearanceSettings({ onClose }: { onClose: () => void }) {
               onChange={() => change({ ...appearance, textSize })}
             />
             {TEXT_SIZE_NAMES[textSize]}
+          </label>
+        ))}
+      </fieldset>
+      <fieldset>
+        <legend>Density</legend>
+        {DENSITIES.map((density) => (
+          <label key={density} className="settings-choice">
+            <input type="radio" name="density" value={density} checked={appearance.density === density} onChange={() => change({ ...appearance, density })} />
+            {DENSITY_NAMES[density]}
           </label>
         ))}
       </fieldset>

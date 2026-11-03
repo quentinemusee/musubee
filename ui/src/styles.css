@@ -1302,3 +1302,13 @@ button.flow:hover:not(:disabled) {
     transition: outline-color 0.4s;
   }
 }
+
+/* Compact density (T2.41): less room around everything that uses --space,
+   and closer bubbles. */
+:root[data-density="compact"] {
+  --space: 5px;
+}
+
+:root[data-density="compact"] .message {
+  padding: 3px 9px;
+}
