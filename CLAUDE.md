@@ -411,3 +411,11 @@ ui media:           cd ui && npx vitest run src/media.test.ts src/message.test.t
 media in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "photos, GIFs"
 media notification: ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.musubee.core.MessageNotificationsTest
 ```
+
+To verify in the test session: T2.21 (cloud sprint, no test run; see ADR 0037):
+
+```
+send media:         go test -tags=goolm -count=1 -run 'SendMedia|UploadsLimits' -v ./core/embedded/
+ui sending:         cd ui && npx vitest run src/media.test.ts src/store.test.ts src/core-api/contract.test.ts
+sending in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "sends a photo"
+```
