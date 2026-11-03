@@ -520,6 +520,31 @@ describe("Store", () => {
     expect(JSON.stringify(store.getState())).not.toContain("right\"");
   });
 
+  test("remembers the persons read together, per device", async () => {
+    const items = new Map<string, string>();
+    const storage = { getItem: (k: string) => items.get(k) ?? null, setItem: (k: string, v: string) => void items.set(k, v) };
+    const conversations = [{ ...conversation("tg", "Alice", 30), person_id: "h1" }, { ...conversation("sg", "Alice", 20), person_id: "h1" }];
+    const start = async () => {
+      const shell = scriptedShell(coreState(conversations));
+      const store = new Store(shell.core, storage);
+      store.start();
+      shell.status({ state: "ready" });
+      await settle();
+      return store;
+    };
+    let store = await start();
+    await store.select("tg");
+    await store.showTogether();
+    // A new run: the person opens together again.
+    store = await start();
+    await store.select("sg");
+    expect(store.getState().together).toBe("h1");
+    store.showSeparately();
+    store = await start();
+    await store.select("sg");
+    expect(store.getState().together).toBeUndefined();
+  });
+
   test("asks the network for older history once the device's is read (API 1.13)", async () => {
     const fetched: unknown[] = [];
     let pages = [

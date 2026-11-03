@@ -88,3 +88,31 @@ export function togetherSources(state: State, personId: string): TogetherSource[
     .filter((c) => c.person_id === personId)
     .map((c) => ({ conversationId: c.conversation_id, messages: state.messages[c.conversation_id], history: state.history[c.conversation_id] }));
 }
+
+/** The key of the page's storage that holds the persons shown together. */
+export const TOGETHER_KEY = "musubee.together";
+
+/** The part of Web Storage used here; replaced in the tests. */
+export type TogetherStorage = Pick<Storage, "getItem" | "setItem">;
+
+/**
+ * The persons whose conversations the user last chose to read together,
+ * per device: the thread opens that way again (docs/ADR/0042). Only opaque
+ * person IDs are kept.
+ */
+export function loadTogether(storage: TogetherStorage | undefined): Set<string> {
+  try {
+    const value: unknown = JSON.parse(storage?.getItem(TOGETHER_KEY) ?? "[]");
+    return new Set(Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function saveTogether(storage: TogetherStorage | undefined, persons: ReadonlySet<string>): void {
+  try {
+    storage?.setItem(TOGETHER_KEY, JSON.stringify([...persons]));
+  } catch {
+    // Kept for this run only.
+  }
+}

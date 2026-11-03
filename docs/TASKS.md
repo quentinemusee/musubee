@@ -263,6 +263,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.30 — Cancel a waiting message** (E2.3)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.16: `messages.delete` on a queued message cancels it, on the device only, never sent (ADR 0043's consequences); "Cancel sending…" in the message's actions. 🧪 `TestCancelAWaitingMessage`; `ui/src/message.test.ts`.
 
+**T2.31 — Remember a person's thread** (E2.5)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). The persons read "All together" are remembered per device in the page's storage, and open together again (ADR 0042's consequences). 🧪 `ui/src/store.test.ts` ("remembers the persons read together").
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

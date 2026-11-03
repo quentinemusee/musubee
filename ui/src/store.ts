@@ -9,7 +9,8 @@
 
 import { CoreApiError, CoreClient, parseEvent } from "./core-api/client";
 import { accepts, MediaCache, sendChoice, sendProblem, uploadBlob } from "./media";
-import { togetherSources, togetherView } from "./together";
+import { pageStorage } from "./appearance";
+import { loadTogether, saveTogether, togetherSources, togetherView, type TogetherStorage } from "./together";
 import type { Account, Conversation, Event, Message, Network, Person } from "./core-api/types.gen";
 import { mergePlan } from "./merge";
 import { replyTo } from "./message";
@@ -114,10 +115,16 @@ export class Store {
   /** The conversations whose latest messages select() is reading. */
   readonly #reading = new Set<string>();
 
-  constructor(core: ShellCore) {
+  /** The persons the user reads together (docs/ADR/0042), remembered per device. */
+  readonly #togetherPersons: Set<string>;
+  readonly #togetherStorage: TogetherStorage | undefined;
+
+  constructor(core: ShellCore, togetherStorage: TogetherStorage | undefined = pageStorage()) {
     this.#core = core;
     this.client = new CoreClient({ call: (request) => core.call(request) });
     this.media = new MediaCache((params) => this.client.call("media.read", params));
+    this.#togetherStorage = togetherStorage;
+    this.#togetherPersons = loadTogether(togetherStorage);
   }
 
   /** Listens to the shell; returns a function that stops listening. */
@@ -261,6 +268,11 @@ export class Store {
     } else {
       this.#set({ selected: conversationId });
     }
+    // A person the user reads together opens together again.
+    if (this.#state.together === undefined && conversation?.person_id !== undefined && this.#togetherPersons.has(conversation.person_id)) {
+      await this.#readLatest(conversationId);
+      return this.showTogether();
+    }
     return this.#readLatest(conversationId);
   }
 
@@ -275,13 +287,19 @@ export class Store {
       return;
     }
     this.#set({ together: personId });
+    this.#togetherPersons.add(personId);
+    saveTogether(this.#togetherStorage, this.#togetherPersons);
     const merged = this.#state.conversations.filter((c) => c.person_id === personId);
     await Promise.all(merged.map((c) => this.#readLatest(c.conversation_id)));
   }
 
   /** Shows the selected conversation alone again. */
   showSeparately(): void {
-    const { together: _, ...rest } = this.#state;
+    const { together, ...rest } = this.#state;
+    if (together !== undefined) {
+      this.#togetherPersons.delete(together);
+      saveTogether(this.#togetherStorage, this.#togetherPersons);
+    }
     this.#replace(rest);
   }
 

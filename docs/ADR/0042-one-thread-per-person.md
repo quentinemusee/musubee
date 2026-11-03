@@ -50,7 +50,7 @@ While a conversation has older messages not read yet (on the device or on the ne
 
 ## Consequences
 
-- The person's thread is per device and per session: the app opens on one conversation, and "All together" is pressed again after a restart. Remembering it is a small later change.
+- Since T2.31, the choice is remembered per device: the persons read together are kept in the page's storage (opaque person IDs only, like the appearance, ADR 0040), and selecting one of their conversations opens their thread together again; "All together" pressed off forgets it.
 - Groups are not merged (ADR 0024); a person's thread holds direct conversations only.
 - Sending in a person's thread goes to the conversation chosen, never to "all": a message goes once, through one network.
 - A person with many conversations reads more pages to reach the same date.
