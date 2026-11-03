@@ -610,3 +610,10 @@ inbox (ui):         cd ui && npx vitest run src/store.test.ts src/inbox.test.ts 
 icon count:         cd apps/desktop && npx vitest run test/notification-rules.test.ts
 archive in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "archived conversation"
 ```
+
+To verify in the test session: T2.59 (cloud sprint, no test run; see ADR 0061). Also look at the inbox: every echo conversation shows a gradient picture.
+
+```
+avatars (core):     go test -tags=goolm -count=1 -run 'Avatar' -v ./core/embedded/
+avatars (ui):       cd ui && npx vitest run src/avatar.test.ts
+```
