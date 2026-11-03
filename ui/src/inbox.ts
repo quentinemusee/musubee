@@ -80,6 +80,11 @@ export function entryOf(entries: readonly InboxEntry[], conversationId: string |
 
 /** The last message of an entry, in one line. */
 export function preview(entry: InboxEntry): string {
+  // A draft comes first, as the user left it (docs/ADR/0057).
+  const draft = entry.conversations.find((c) => c.draft !== undefined && c.draft !== "")?.draft;
+  if (draft !== undefined) {
+    return `Draft: ${draft}`;
+  }
   const message = entry.lastMessage;
   if (message === undefined) {
     return "No messages yet";

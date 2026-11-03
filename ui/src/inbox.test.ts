@@ -92,6 +92,12 @@ describe("preview", () => {
     expect(preview(entry("group", { from_me: true, sender_name: "Me" }))).toBe("You: Hi");
     expect(preview(entry("group", { sender_name: "Bob", text: "", deleted: true }))).toBe("Bob: Message deleted");
   });
+
+  test("shows a draft first", () => {
+    const withDraft = entry("direct", { sender_name: "Bob" });
+    expect(preview({ ...withDraft, conversations: [{ ...withDraft.conversations[0]!, draft: "see you" }] })).toBe("Draft: see you");
+    expect(preview({ ...withDraft, conversations: [{ ...withDraft.conversations[0]!, draft: "" }] })).toBe("Hi");
+  });
 });
 
 describe("unreadBadge", () => {

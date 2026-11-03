@@ -41,7 +41,7 @@ This reverses T2.40's memory-only rule.
 ## Consequences
 
 - Drafts follow the device, not the account: Matrix's own draft sync (none in the specification) and the networks' drafts (Telegram syncs them) are not used.
-- The inbox does not show "Draft:" in previews yet.
+- The inbox's preview shows "Draft: text" first; the store puts a draft in its conversation when it saves it.
 
 ## Verification
 
@@ -50,4 +50,5 @@ This reverses T2.40's memory-only rule.
 | The local server keeps, replaces and forgets a draft | **implemented, unverified** | `core/localmatrix/draft_test.go` |
 | The core gives a draft back in the conversation list | **implemented, unverified** | `core/embedded/draft_test.go` |
 | The store saves after a pause, and reads the core's draft | **implemented, unverified** | `ui/src/store.test.ts` |
+| The inbox's preview shows a draft first | **implemented, unverified** | `ui/src/inbox.test.ts` |
 | The desktop app finds a draft after a restart | **implemented, unverified** | `apps/desktop/e2e/app.spec.ts`, "an unsent text waits in its conversation's composer, after a restart too" |

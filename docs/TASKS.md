@@ -327,7 +327,7 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.29 `conversations.leave` and `ConversationActions.leave` (ADR 0056): the user's leave to the bridge (`BridgeMatrixLeave` on), waited for by its status; the portal and the room are deleted on success; "Leave…" in a group's header. 🧪 `TestLeave`, the desktop e2e "the user leaves a group". Left: deleting a group for everyone.
 
 **T2.52 — Drafts that survive a restart** (E2.4)
-- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.30 `conversations.setDraft` and `Conversation.draft` (ADR 0057): the user's room account data in the local server, saved a second after typing stops, read back after a restart. 🧪 `TestDraft` (localmatrix and embedded), `ui/src/store.test.ts`, the desktop e2e "an unsent text waits". Left: "Draft:" in the inbox's previews.
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.30 `conversations.setDraft` and `Conversation.draft` (ADR 0057): the user's room account data in the local server, saved a second after typing stops, read back after a restart. 🧪 `TestDraft` (localmatrix and embedded), `ui/src/store.test.ts`, the desktop e2e "an unsent text waits", `ui/src/inbox.test.ts` ("Draft:" in the inbox's previews).
 
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.

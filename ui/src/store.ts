@@ -163,10 +163,23 @@ export class Store {
       conversationId,
       setTimeout(() => {
         this.#draftTimers.delete(conversationId);
+        this.#showDraft(conversationId, text);
         // A draft is a convenience: a failure loses it at the next restart only.
         this.client.call("conversations.setDraft", { conversation_id: conversationId, text }).catch(() => undefined);
       }, DRAFT_SAVE_DELAY_MS),
     );
+  }
+
+  /** Puts a saved draft in its conversation, for the inbox's preview. */
+  #showDraft(conversationId: string, text: string): void {
+    const conversations = this.#state.conversations;
+    const index = conversations.findIndex((c) => c.conversation_id === conversationId);
+    const conversation = conversations[index];
+    if (conversation === undefined || (conversation.draft ?? "") === text) {
+      return;
+    }
+    const { draft: _, ...rest } = conversation;
+    this.#set({ conversations: conversations.with(index, text === "" ? rest : { ...rest, draft: text }) });
   }
 
   /** The persons the user reads together (docs/ADR/0042), remembered per device. */
