@@ -39,7 +39,7 @@ The interface reads the picture through the media cache, shown at 40 pixels in t
 ## Consequences
 
 - A person's entry shows the picture of its most recently active conversation.
-- Since API 1.33, `Message.sender_avatar_id` is the sender's current picture, from their global profile (the local server does not rewrite member events), shown small before the sender's name. The members' list (API 1.27) has no pictures yet.
+- Since API 1.33, `Message.sender_avatar_id` is the sender's current picture, from their global profile (the local server does not rewrite member events), shown small before the sender's name. Since API 1.35, the members' list (API 1.27) has them too.
 - Pictures are read whole, as message media are; the cache's limit (64 MiB) bounds them.
 
 ## Verification

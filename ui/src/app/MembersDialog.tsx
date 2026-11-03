@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ConversationMember } from "../core-api/types.gen";
+import { Avatar } from "./Avatar";
 import { useStore } from "./state";
 
 /** Who is in a conversation (API 1.27), in a modal dialog: the user first, then the others by name. */
@@ -42,7 +43,10 @@ export function MembersDialog({ conversationId, name, onClose }: { conversationI
             {members.map((member, index) => (
               // Names repeat, and members have no ID here: the order is stable.
               // oxlint-disable-next-line react/no-array-index-key
-              <li key={index}>{member.me === true ? `${member.name || "You"} (you)` : member.name || "Unnamed member"}</li>
+              <li key={index}>
+                <Avatar mediaId={member.avatar_id} name={member.name || "?"} size="tiny" />
+                {member.me === true ? `${member.name || "You"} (you)` : member.name || "Unnamed member"}
+              </li>
             ))}
           </ul>
         </>

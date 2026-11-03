@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.34"
+const APIVersion = "1.35"
 
 // Command names.
 const (
@@ -831,6 +831,9 @@ type ConversationMember struct {
 	Name string `json:"name"`
 	// The user. Omitted when false.
 	Me bool `json:"me,omitempty"`
+	// The member's picture, to read with media.read. Omitted when none. Since API
+	// 1.35.
+	AvatarID string `json:"avatar_id,omitempty"`
 }
 
 // ConversationsMarkReadParams is $defs/ConversationsMarkReadParams of the

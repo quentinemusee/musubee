@@ -16,8 +16,12 @@ func TestMembers(t *testing.T) {
 	login(t, c)
 	group := conversationNamed(t, c, "Echo Group")
 	members := call[api.ConversationsMembersResult](t, c, api.CommandConversationsMembers, api.ConversationsMembersParams{ConversationID: group.ConversationID}).Members
-	if len(members) != 3 || !members[0].Me || members[1] != (api.ConversationMember{Name: "Delayed Echo"}) || members[2] != (api.ConversationMember{Name: "Instant Echo"}) {
+	if len(members) != 3 || !members[0].Me || members[1].Name != "Delayed Echo" || members[2].Name != "Instant Echo" {
 		t.Errorf("members = %+v, want the user, Delayed Echo and Instant Echo", members)
+	}
+	// The echo contacts have pictures (API 1.35).
+	if members[1].AvatarID == "" || members[2].AvatarID == "" {
+		t.Errorf("the contacts have no pictures: %+v", members)
 	}
 	direct := conversationNamed(t, c, "Instant Echo")
 	if members := call[api.ConversationsMembersResult](t, c, api.CommandConversationsMembers, api.ConversationsMembersParams{ConversationID: direct.ConversationID}).Members; len(members) != 2 || !members[0].Me || members[1].Name != "Instant Echo" {

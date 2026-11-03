@@ -41,11 +41,20 @@ func (c *Core) conversationsMembers(ctx context.Context, p api.ConversationsMemb
 		if member.Membership != event.MembershipJoin || string(userID) == bot {
 			continue
 		}
-		if userID == me {
-			result.Members = append(result.Members, api.ConversationMember{Name: member.Displayname, Me: true})
+		entry := api.ConversationMember{Name: member.Displayname, Me: userID == me}
+		// Their current picture (API 1.35), from their global profile.
+		profile, err := c.host.Matrix.Profile(ctx, userID)
+		if err != nil {
+			return result, err
+		}
+		if profile.AvatarURL != "" {
+			entry.AvatarID = mediaID(profile.AvatarURL)
+		}
+		if entry.Me {
+			result.Members = append(result.Members, entry)
 			continue
 		}
-		others = append(others, api.ConversationMember{Name: member.Displayname})
+		others = append(others, entry)
 	}
 	slices.SortFunc(others, func(a, b api.ConversationMember) int {
 		return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))

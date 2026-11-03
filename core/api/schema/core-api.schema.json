@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.34",
+  "x-musubee-api-version": "1.35",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -1183,7 +1183,8 @@
       "type": "object",
       "properties": {
         "name": { "description": "The member's name on the network; empty when the network gave none.", "type": "string" },
-        "me": { "description": "The user. Omitted when false.", "type": "boolean" }
+        "me": { "description": "The user. Omitted when false.", "type": "boolean" },
+        "avatar_id": { "description": "The member's picture, to read with media.read. Omitted when none. Since API 1.35.", "type": "string" }
       },
       "required": ["name"],
       "additionalProperties": false
