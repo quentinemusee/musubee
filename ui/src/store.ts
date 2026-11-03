@@ -8,7 +8,7 @@
 // replaced on every change; components select the part they show.
 
 import { CoreClient, parseEvent } from "./core-api/client";
-import { MediaCache, sendChoice, sendProblem, uploadBlob } from "./media";
+import { accepts, MediaCache, sendChoice, sendProblem, uploadBlob } from "./media";
 import type { Account, Conversation, Event, Message, Network, Person } from "./core-api/types.gen";
 import { mergePlan } from "./merge";
 import { replyTo } from "./message";
@@ -360,10 +360,13 @@ export class Store {
     const media = conversation?.actions?.media;
     // A recorded voice message goes as one where the network takes them,
     // as audio (or a file) otherwise.
-    const choice = options.voice === true && media?.voice !== undefined ? { kind: "voice" as const, action: media.voice } : sendChoice(file.type, media);
+    const choice =
+      options.voice === true && media?.voice !== undefined && accepts(media.voice, file.type)
+        ? { kind: "voice" as const, action: media.voice }
+        : sendChoice(file.type, media);
     const problem = sendProblem(file.size, choice, caption !== "");
     if (choice === null || problem !== null) {
-      this.#set({ error: problem ?? "This conversation does not take files." });
+      this.#set({ error: problem ?? "This conversation does not take this kind of file." });
       return false;
     }
     const progress = (sent: number) => this.#set({ upload: { conversationId, name: file.name, sent, size: file.size } });

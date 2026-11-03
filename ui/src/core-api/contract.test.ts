@@ -122,7 +122,7 @@ describe("the generated types", () => {
   // The mapped types make the compiler require one example per command and
   // per event: a command added to the schema breaks the typecheck here.
   const commands: { [K in CommandName]: Commands[K] } = {
-    "core.hello": { params: {}, result: { api_version: "1.10", core_version: "dev" } },
+    "core.hello": { params: {}, result: { api_version: "1.11", core_version: "dev" } },
     "networks.list": {
       params: {},
       result: { networks: [{ network_id: "echo", name: "Echo", login_flows: [{ flow_id: "username", name: "Username", description: "" }] }] },
@@ -165,7 +165,7 @@ describe("the generated types", () => {
             activity_ms: 1_791_496_800_000,
             last_message: message,
             unread_count: 2,
-            actions: { reply: true, react: true, edit: true, delete: true, media: { image: { max_size: 10_485_760, caption: true }, voice: {} } },
+            actions: { reply: true, react: true, edit: true, delete: true, media: { image: { max_size: 10_485_760, caption: true }, voice: { mime_types: ["audio/ogg"] } } },
           },
         ],
         before: "k.3",

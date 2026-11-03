@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.10"
+const APIVersion = "1.11"
 
 // Command names.
 const (
@@ -473,6 +473,9 @@ type MediaAction struct {
 	MaxSize int64 `json:"max_size,omitempty"`
 	// It takes a caption with this kind of media. Omitted when false.
 	Caption bool `json:"caption,omitempty"`
+	// The media types it takes, as type/subtype, type/* or */*, without
+	// parameters. Omitted: any. Since API 1.11.
+	MimeTypes []string `json:"mime_types,omitempty"`
 }
 
 // ConversationKind is $defs/ConversationKind of the schema.

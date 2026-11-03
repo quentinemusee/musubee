@@ -4,6 +4,7 @@
 import { describe, expect, test } from "vitest";
 import type { MessageMedia } from "./core-api/types.gen";
 import {
+  accepts,
   decodeBase64,
   encodeBase64,
   formatDuration,
@@ -144,8 +145,21 @@ describe("sending", () => {
     expect(sendProblem(1001, image, false)).toBe("The file is too large: this conversation takes up to 1 KB.");
     expect(sendProblem(0, image, false)).toBe("The file is empty.");
     expect(sendProblem(10, sendChoice("application/pdf", all), true)).toContain("no text");
-    expect(sendProblem(10, null, false)).toBe("This conversation does not take files.");
+    expect(sendProblem(10, null, false)).toBe("This conversation does not take this kind of file.");
     expect(sendProblem(MAX_UPLOAD_BYTES + 1, sendChoice("video/mp4", all), false)).toContain("too large");
+  });
+
+  test("follows the media types the network lists (API 1.11)", () => {
+    const telegramVoice = { mime_types: ["audio/mpeg", "audio/mp4", "audio/ogg"] };
+    expect(accepts(telegramVoice, "audio/mp4;codecs=opus")).toBe(true);
+    expect(accepts(telegramVoice, "audio/webm;codecs=opus")).toBe(false);
+    expect(accepts({ mime_types: ["image/*"] }, "image/png")).toBe(true);
+    expect(accepts({ mime_types: ["*/*"] }, "text/plain")).toBe(true);
+    expect(accepts({}, "anything/at-all")).toBe(true);
+    expect(accepts(undefined, "image/png")).toBe(false);
+    // An image the network does not take as one goes as a file.
+    expect(sendChoice("image/png", { image: { mime_types: ["image/jpeg"] }, file: {} })?.kind).toBe("file");
+    expect(sendChoice("image/png", { image: { mime_types: ["image/jpeg"] } })).toBeNull();
   });
 
   test("encodes base64", () => {

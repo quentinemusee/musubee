@@ -246,16 +246,36 @@ export function sendChoice(type: string, media: MediaActions | undefined): SendC
     kind = family;
   }
   const action = media[kind];
-  if (action !== undefined) {
+  if (action !== undefined && accepts(action, type)) {
     return { kind, action };
   }
-  return media.file === undefined ? null : { kind: "file", action: media.file };
+  return media.file !== undefined && accepts(media.file, type) ? { kind: "file", action: media.file } : null;
+}
+
+/**
+ * Whether a network takes a media type for a kind (API 1.11): its listed
+ * types match exactly, by family ("audio/*") or all ("*\/*"); parameters
+ * ("codecs=opus") do not count. Without a list, it takes any.
+ */
+export function accepts(action: MediaAction | undefined, type: string): boolean {
+  if (action === undefined) {
+    return false;
+  }
+  if (action.mime_types === undefined) {
+    return true;
+  }
+  const plain = type.split(";")[0]?.trim().toLowerCase() ?? "";
+  const family = `${plain.split("/")[0] ?? ""}/*`;
+  return action.mime_types.some((t) => {
+    const listed = t.toLowerCase();
+    return listed === "*/*" || listed === plain || listed === family;
+  });
 }
 
 /** Why a file cannot be sent with this choice, for the user, or null if it can. */
 export function sendProblem(size: number, choice: SendChoice | null, hasCaption: boolean): string | null {
   if (choice === null) {
-    return "This conversation does not take files.";
+    return "This conversation does not take this kind of file.";
   }
   if (size === 0) {
     return "The file is empty.";

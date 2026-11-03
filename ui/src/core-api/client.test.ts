@@ -46,8 +46,8 @@ describe("CoreClient", () => {
   });
 
   test("checks the API version", async () => {
-    const newer = scripted((r) => ({ id: r.id, result: { api_version: "1.11", core_version: "x" } }));
-    expect(await new CoreClient(newer.transport).hello()).toMatchObject({ api_version: "1.11" });
+    const newer = scripted((r) => ({ id: r.id, result: { api_version: "1.12", core_version: "x" } }));
+    expect(await new CoreClient(newer.transport).hello()).toMatchObject({ api_version: "1.12" });
     const breaking = scripted((r) => ({ id: r.id, result: { api_version: "2.0", core_version: "x" } }));
     await expect(new CoreClient(breaking.transport).hello()).rejects.toThrow("speaks API 2.0");
   });

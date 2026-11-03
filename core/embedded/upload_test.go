@@ -6,8 +6,11 @@ package embedded
 import (
 	"bytes"
 	"encoding/base64"
+	"slices"
 	"testing"
 	"time"
+
+	"maunium.net/go/mautrix/event"
 
 	"github.com/quentinemusee/musubee/core/api"
 	"github.com/quentinemusee/musubee/core/connector/echo"
@@ -132,5 +135,26 @@ func TestUploadsLimits(t *testing.T) {
 	}
 	if u.size(a) != 0 || u.size(b) != 0 {
 		t.Error("idle uploads are kept")
+	}
+}
+
+func TestMimeTypes(t *testing.T) {
+	full, unsupported := event.CapLevelFullySupported, event.CapLevelUnsupported
+	for _, tc := range []struct {
+		types map[string]event.CapabilitySupportLevel
+		want  []string
+		ok    bool
+	}{
+		{map[string]event.CapabilitySupportLevel{"*/*": full}, nil, true},
+		// Signal's voice messages without ffmpeg: AAC only.
+		{map[string]event.CapabilitySupportLevel{"audio/aac": full, "audio/ogg": unsupported}, []string{"audio/aac"}, true},
+		{map[string]event.CapabilitySupportLevel{"audio/ogg": full, "audio/mp4": event.CapLevelPartialSupport}, []string{"audio/mp4", "audio/ogg"}, true},
+		{map[string]event.CapabilitySupportLevel{"audio/ogg": unsupported}, nil, false},
+		{nil, nil, false},
+	} {
+		got, ok := mimeTypes(&event.FileFeatures{MimeTypes: tc.types})
+		if ok != tc.ok || !slices.Equal(got, tc.want) {
+			t.Errorf("mimeTypes(%v) = %v, %v; want %v, %v", tc.types, got, ok, tc.want, tc.ok)
+		}
 	}
 }

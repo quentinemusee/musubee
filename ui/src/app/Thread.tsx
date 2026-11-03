@@ -14,7 +14,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import type { MediaActions, Message } from "../core-api/types.gen";
-import { formatSize } from "../media";
+import { accepts, formatSize } from "../media";
 import { canRecord, VoiceRecorder, type Recording } from "../recorder";
 import { accountLabel } from "../merge";
 import { replyQuote, replyTo } from "../message";
@@ -167,7 +167,9 @@ function Composer({ draft, onDraftDone, media }: ComposerProps) {
 
   function startRecording() {
     setStarting(true);
-    VoiceRecorder.start().then(
+    // A type the network takes for voice messages, else for audio.
+    const action = media?.voice ?? media?.audio;
+    VoiceRecorder.start((type) => accepts(action, type)).then(
       (started) => {
         setStarting(false);
         setRecorder(started);

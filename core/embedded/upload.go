@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -159,7 +160,11 @@ func mediaActions(features *event.RoomFeatures) *api.MediaActions {
 		if !ok || feat == nil {
 			return nil
 		}
-		return &api.MediaAction{MaxSize: feat.MaxSize, Caption: feat.Caption.Partial()}
+		types, ok := mimeTypes(feat)
+		if !ok {
+			return nil
+		}
+		return &api.MediaAction{MaxSize: feat.MaxSize, Caption: feat.Caption.Partial(), MimeTypes: types}
 	}
 	a := &api.MediaActions{
 		Image: of(event.MsgImage),
@@ -172,6 +177,23 @@ func mediaActions(features *event.RoomFeatures) *api.MediaActions {
 		return nil
 	}
 	return a
+}
+
+// mimeTypes lists the media types a network takes for a kind (at least
+// partly: bridgev2 refuses only the rejected ones), nil for any; ok is
+// false when it takes none, so that the kind is not offered.
+func mimeTypes(feat *event.FileFeatures) (types []string, ok bool) {
+	for mimeType, level := range feat.MimeTypes {
+		if !level.Partial() {
+			continue
+		}
+		if mimeType == "*/*" {
+			return nil, true
+		}
+		types = append(types, mimeType)
+	}
+	slices.Sort(types)
+	return types, len(types) > 0
 }
 
 // mediaAction returns what a conversation's actions say of a kind.

@@ -50,15 +50,29 @@ function fakeBrowser(options: { refuse?: boolean; supported?: readonly string[] 
   return { deps, recorders, stoppedTracks, advance: (ms: number) => (now += ms) };
 }
 
+/** What Chromium's MediaRecorder records. */
+function chromium(type: string): boolean {
+  return type.startsWith("audio/webm") || type.startsWith("audio/mp4");
+}
+
 afterEach(() => {
   vi.useRealTimers();
 });
 
 describe("recording types and names", () => {
-  test("asks for Ogg Opus first, then WebM, then MP4", () => {
-    expect(recordingType((t) => t === "audio/webm;codecs=opus" || t === "audio/mp4")).toBe("audio/webm;codecs=opus");
+  test("asks for Ogg Opus first, then MP4, then WebM, among what the network takes", () => {
+    expect(recordingType(chromium)).toBe("audio/mp4;codecs=opus");
     expect(recordingType((t) => t.startsWith("audio/ogg"))).toBe("audio/ogg;codecs=opus");
     expect(recordingType(() => false)).toBeUndefined();
+    // Telegram's voice messages: Ogg, MPEG or MP4.
+    expect(recordingType(chromium, (t) => t.startsWith("audio/mp4"))).toBe("audio/mp4;codecs=opus");
+    // Nothing the network takes: the browser's first, sent as audio or a file.
+    expect(
+      recordingType(
+        (t) => t.startsWith("audio/webm"),
+        (t) => t.startsWith("audio/aac"),
+      ),
+    ).toBe("audio/webm;codecs=opus");
   });
 
   test("names a recording by its time and container", () => {
@@ -72,7 +86,7 @@ describe("recording types and names", () => {
 describe("VoiceRecorder", () => {
   test("records in chunks, gives the recording and its duration, and closes the microphone", async () => {
     const browser = fakeBrowser();
-    const recorder = await VoiceRecorder.start(browser.deps);
+    const recorder = await VoiceRecorder.start(undefined, browser.deps);
     const fake = browser.recorders[0]!;
     expect(fake.mimeType).toBe("audio/webm;codecs=opus");
     expect(fake.timeslice).toBe(1000);
@@ -89,7 +103,7 @@ describe("VoiceRecorder", () => {
 
   test("throws a cancelled recording away and closes the microphone", async () => {
     const browser = fakeBrowser();
-    const recorder = await VoiceRecorder.start(browser.deps);
+    const recorder = await VoiceRecorder.start(undefined, browser.deps);
     browser.recorders[0]!.emit(new Blob(["secret"]));
     recorder.cancel();
     recorder.cancel();
@@ -100,7 +114,7 @@ describe("VoiceRecorder", () => {
   test("stops by itself at the limit", async () => {
     vi.useFakeTimers();
     const browser = fakeBrowser();
-    const recorder = await VoiceRecorder.start(browser.deps);
+    const recorder = await VoiceRecorder.start(undefined, browser.deps);
     vi.advanceTimersByTime(MAX_RECORDING_MS);
     expect(recorder.closed).toBe(true);
     expect(browser.stoppedTracks).toEqual(["audio"]);
@@ -109,7 +123,7 @@ describe("VoiceRecorder", () => {
 
   test("passes on a refused microphone", async () => {
     const browser = fakeBrowser({ refuse: true });
-    await expect(VoiceRecorder.start(browser.deps)).rejects.toMatchObject({ name: "NotAllowedError" });
+    await expect(VoiceRecorder.start(undefined, browser.deps)).rejects.toMatchObject({ name: "NotAllowedError" });
     expect(browser.recorders).toHaveLength(0);
   });
 });

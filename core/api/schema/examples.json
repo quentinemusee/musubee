@@ -132,7 +132,7 @@
       "media": { "media_id": "f4", "mime_type": "image/png", "file_name": "photo.png", "size": 11, "width": 640, "height": 480 } } } },
     { "target": "command:conversations.list:result", "value": { "conversations": [
       { "conversation_id": "c1", "account_id": "a1", "network_id": "echo", "name": "Instant Echo", "kind": "direct", "activity_ms": 1791496000000,
-        "actions": { "reply": true, "media": { "image": { "max_size": 10485760, "caption": true }, "voice": {}, "file": { "max_size": 10485760 } } } }
+        "actions": { "reply": true, "media": { "image": { "max_size": 10485760, "caption": true }, "voice": { "mime_types": ["audio/mp4", "audio/ogg"] }, "file": { "max_size": 10485760 } } } }
     ] } },
     { "target": "command:media.read:params", "value": { "media_id": "f1", "offset": 1048576, "length": 65536 } },
     { "target": "command:media.read:result", "value": { "mime_type": "image/jpeg", "size": 48213, "data": "/9j/4AAQ" } },

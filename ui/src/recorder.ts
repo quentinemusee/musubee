@@ -5,15 +5,25 @@
 // The microphone is opened when recording starts and closed when it ends,
 // whatever ends it; nothing is recorded in the background.
 
-/** The containers asked for, the preferred first: Ogg Opus is what voice messages are on most networks. */
-export const RECORDING_TYPES: readonly string[] = ["audio/ogg;codecs=opus", "audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
+/**
+ * The containers asked for, the preferred first: Ogg Opus is what voice
+ * messages are on most networks, MP4 is what Telegram also takes and what
+ * Chromium records besides WebM, which no network's connector lists for
+ * voice messages (ADR 0038).
+ */
+export const RECORDING_TYPES: readonly string[] = ["audio/ogg;codecs=opus", "audio/mp4;codecs=opus", "audio/mp4", "audio/webm;codecs=opus", "audio/webm"];
 
 /** A recording stops by itself after 15 minutes. */
 export const MAX_RECORDING_MS = 15 * 60_000;
 
-/** The first recording type the browser takes, or undefined to let it choose. */
-export function recordingType(isTypeSupported: (type: string) => boolean): string | undefined {
-  return RECORDING_TYPES.find((type) => isTypeSupported(type));
+/**
+ * The first recording type the browser can record and the network takes;
+ * else the first the browser can record (the message then goes as audio
+ * or a file); undefined to let the browser choose.
+ */
+export function recordingType(isTypeSupported: (type: string) => boolean, accepted: (type: string) => boolean = () => true): string | undefined {
+  const recordable = RECORDING_TYPES.filter((type) => isTypeSupported(type));
+  return recordable.find((type) => accepted(type)) ?? recordable[0];
 }
 
 function pad(n: number): string {
@@ -97,13 +107,10 @@ export class VoiceRecorder {
   }
 
   /** Opens the microphone and starts recording; rejects when the user or the system refuses it. */
-  static async start(deps: RecorderDeps = browserDeps()): Promise<VoiceRecorder> {
-    const stream = await deps.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true },
-      video: false,
-    });
+  static async start(accepted?: (type: string) => boolean, deps: RecorderDeps = browserDeps()): Promise<VoiceRecorder> {
+    const stream = await deps.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false });
     try {
-      return new VoiceRecorder(stream, deps.createRecorder(stream, recordingType(deps.isTypeSupported)), deps);
+      return new VoiceRecorder(stream, deps.createRecorder(stream, recordingType(deps.isTypeSupported, accepted)), deps);
     } catch (error) {
       for (const track of stream.getTracks()) {
         track.stop();
