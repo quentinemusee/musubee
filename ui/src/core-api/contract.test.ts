@@ -122,7 +122,7 @@ describe("the generated types", () => {
   // The mapped types make the compiler require one example per command and
   // per event: a command added to the schema breaks the typecheck here.
   const commands: { [K in CommandName]: Commands[K] } = {
-    "core.hello": { params: {}, result: { api_version: "1.19", core_version: "dev" } },
+    "core.hello": { params: {}, result: { api_version: "1.20", core_version: "dev" } },
     "networks.list": {
       params: {},
       result: { networks: [{ network_id: "echo", name: "Echo", login_flows: [{ flow_id: "username", name: "Username", description: "" }] }] },
@@ -154,7 +154,13 @@ describe("the generated types", () => {
     },
     "login.wait": {
       params: { process_id: "p.2" },
-      result: { process_id: "p.2", type: "display_and_wait", step_id: "code", instructions: "Enter the code", display: { type: "code", data: "1f2e3d", can_cancel: true } },
+      result: {
+        process_id: "p.2",
+        type: "display_and_wait",
+        step_id: "code",
+        instructions: "Enter the code",
+        display: { type: "code", data: "1f2e3d", can_cancel: true },
+      },
     },
     "login.cancel": { params: { process_id: "p.2" }, result: {} },
     "conversations.list": {
@@ -167,13 +173,20 @@ describe("the generated types", () => {
             last_message: message,
             unread_count: 2,
             privacy: { level: "network_can_read", readers: "Telegram" },
-            actions: { reply: true, react: true, edit: true, delete: true, media: { image: { max_size: 10_485_760, caption: true }, voice: { mime_types: ["audio/ogg"] } } },
+            actions: {
+              reply: true,
+              react: true,
+              edit: true,
+              delete: true,
+              media: { image: { max_size: 10_485_760, caption: true }, voice: { mime_types: ["audio/ogg"] } },
+            },
           },
         ],
         before: "k.3",
       },
     },
     "conversations.markUnread": { params: { conversation_id: "c.1" }, result: {} },
+    "conversations.typing": { params: { conversation_id: "c.1", typing: true }, result: {} },
     "conversations.markRead": { params: { conversation_id: "c.1", message_id: "m.1" }, result: {} },
     "messages.list": { params: { conversation_id: "c.1", limit: 50 }, result: { messages: [message], before: "k.1" } },
     "accounts.verify": { params: { account_id: "a.2", recovery_key: "EsTc 1234" }, result: { backup_restored: true } },
@@ -182,7 +195,13 @@ describe("the generated types", () => {
     "messages.send": {
       params: { conversation_id: "c.1", text: "hello", reply_to: "m.1" },
       result: {
-        message: { ...message, from_me: true, status: "sending", sender_name: "alice", reply_to: { message_id: "m.1", sender_name: "Instant Echo", text: "hello" } },
+        message: {
+          ...message,
+          from_me: true,
+          status: "sending",
+          sender_name: "alice",
+          reply_to: { message_id: "m.1", sender_name: "Instant Echo", text: "hello" },
+        },
       },
     },
     "messages.react": { params: { conversation_id: "c.1", message_id: "m.1", key: "👍" }, result: {} },
@@ -192,7 +211,17 @@ describe("the generated types", () => {
     "uploads.append": { params: { upload_id: "u.1", data: "AAAA" }, result: { upload_id: "u.1", size: 3 } },
     "uploads.cancel": { params: { upload_id: "u.1" }, result: {} },
     "messages.sendMedia": {
-      params: { conversation_id: "c.1", upload_id: "u.1", kind: "image", mime_type: "image/png", file_name: "a.png", caption: "look", width: 2, height: 1, reply_to: "m.1" },
+      params: {
+        conversation_id: "c.1",
+        upload_id: "u.1",
+        kind: "image",
+        mime_type: "image/png",
+        file_name: "a.png",
+        caption: "look",
+        width: 2,
+        height: 1,
+        reply_to: "m.1",
+      },
       result: { message: { ...message, from_me: true, status: "sending", kind: "image", media: { media_id: "f.1", mime_type: "image/png", size: 3 } } },
     },
     "media.read": { params: { media_id: "f.1", offset: 0, length: 65_536 }, result: { mime_type: "image/png", size: 68, data: "iVBORw0KGgo=" } },
@@ -206,6 +235,7 @@ describe("the generated types", () => {
     "debug.stats": { params: {}, result: { heap_alloc_bytes: 1, heap_sys_bytes: 2, goroutines: 3 } },
   };
   const events: { [K in EventType]: Events[K] } = {
+    "conversation.typing": { conversation_id: "c.1", names: ["Instant Echo"] },
     "account.updated": { account: { account_id: "a.1", network_id: "echo", name: "alice", state: "transient_disconnect", error: "No network" } },
     "conversation.updated": { conversation: { ...conversation, person_id: "h.1" } },
     "person.updated": { person },

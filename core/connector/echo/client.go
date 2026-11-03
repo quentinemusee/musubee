@@ -47,6 +47,7 @@ var (
 	_ bridgev2.EditHandlingNetworkAPI        = (*client)(nil)
 	_ bridgev2.ReactionHandlingNetworkAPI    = (*client)(nil)
 	_ bridgev2.RedactionHandlingNetworkAPI   = (*client)(nil)
+	_ bridgev2.TypingHandlingNetworkAPI      = (*client)(nil)
 )
 
 func newClient(connector *Connector, login *bridgev2.UserLogin) *client {
@@ -534,6 +535,29 @@ func convertEdit(_ context.Context, _ *bridgev2.Portal, _ bridgev2.MatrixAPI, ex
 		}},
 	}, nil
 }
+
+// HandleMatrixTyping makes ContactInstant type back while the user types,
+// for a few seconds, as a person answering would (docs/ADR/0048).
+func (c *client) HandleMatrixTyping(_ context.Context, msg *bridgev2.MatrixTyping) error {
+	if !msg.IsTyping || networkid.UserID(msg.Portal.ID) != ContactInstant {
+		return nil
+	}
+	return c.schedule(0, func() []bridgev2.RemoteEvent {
+		return []bridgev2.RemoteEvent{&simplevent.Typing{
+			EventMeta: simplevent.EventMeta{
+				Type:      bridgev2.RemoteEventTyping,
+				PortalKey: c.portalKey(msg.Portal.ID),
+				Sender:    bridgev2.EventSender{Sender: ContactInstant},
+				Timestamp: time.Now(),
+			},
+			Timeout: TypingTimeout,
+			Type:    bridgev2.TypingTypeText,
+		}}
+	})
+}
+
+// TypingTimeout is how long ContactInstant types back.
+const TypingTimeout = 3 * time.Second
 
 // HandleMatrixReadReceipt accepts the user's read receipts: the echo network
 // has nobody to tell, and bridgev2 records how far the login read

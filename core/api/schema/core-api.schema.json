@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.19",
+  "x-musubee-api-version": "1.20",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -164,6 +164,16 @@
           "properties": {
             "params": { "$ref": "#/$defs/ConversationsListParams" },
             "result": { "$ref": "#/$defs/ConversationsListResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "conversations.typing": {
+          "description": "Tells the conversation's network that the user types (again while typing, every few seconds, as networks forget it), or stopped. Networks that do not show typing ignore it. Since API 1.20.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/ConversationsTypingParams" },
+            "result": { "$ref": "#/$defs/Empty" }
           },
           "required": ["params", "result"],
           "additionalProperties": false
@@ -399,6 +409,10 @@
         "account.updated": {
           "description": "An account was added or its connection state changed.",
           "$ref": "#/$defs/AccountEvent"
+        },
+        "conversation.typing": {
+          "description": "Who is typing in a conversation changed: the names of those typing now (none: nobody). Not stored: after a restart nobody types. Since API 1.20.",
+          "$ref": "#/$defs/TypingEvent"
         },
         "conversation.updated": {
           "description": "A conversation was created or changed: its name or kind, its person, its last message (sent after its message.added event, since API 1.4) or its read state (since API 1.4).",
@@ -869,6 +883,28 @@
     "ConversationKind": {
       "type": "string",
       "enum": ["direct", "group"]
+    },
+    "ConversationsTypingParams": {
+      "type": "object",
+      "properties": {
+        "conversation_id": { "type": "string" },
+        "typing": { "type": "boolean" }
+      },
+      "required": ["conversation_id", "typing"],
+      "additionalProperties": false
+    },
+    "TypingEvent": {
+      "type": "object",
+      "properties": {
+        "conversation_id": { "type": "string" },
+        "names": {
+          "description": "The display names of those typing, sorted; a name the core does not know is \"\" (someone types).",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["conversation_id", "names"],
+      "additionalProperties": false
     },
     "ConversationsMarkUnreadParams": {
       "type": "object",

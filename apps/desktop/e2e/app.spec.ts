@@ -417,6 +417,16 @@ test("search finds a message in any conversation and opens it", async () => {
   await app.close();
 });
 
+test("typing shows the echo contact typing back, then stopping", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "typing");
+  await page.getByRole("textbox", { name: "Message" }).pressSequentially("hel");
+  await expect(page.getByText("Instant Echo is typing…")).toBeVisible();
+  // It types for three seconds.
+  await expect(page.getByText("Instant Echo is typing…")).toBeHidden({ timeout: 10_000 });
+  await app.close();
+});
+
 test("log out of an account: it goes away with its conversations", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "leaving");

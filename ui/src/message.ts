@@ -153,3 +153,15 @@ export function messageActions(message: Message, allowed: ConversationActions | 
 export function hasActions(actions: MessageActions): boolean {
   return actions.react || actions.reply || actions.edit || actions.delete;
 }
+
+/** "Alice is typing…", "Alice and Bob are typing…", "Several people are typing…". */
+export function typingText(names: readonly string[]): string {
+  const named = names.filter((n) => n !== "");
+  if (names.length === 0) {
+    return "";
+  }
+  if (names.length > 2 || named.length < names.length) {
+    return names.length === 1 ? "Someone is typing…" : "Several people are typing…";
+  }
+  return names.length === 1 ? `${named[0]} is typing…` : `${named[0]} and ${named[1]} are typing…`;
+}

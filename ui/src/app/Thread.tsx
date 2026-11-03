@@ -6,7 +6,7 @@ import type { ConversationActions, MediaActions, Message } from "../core-api/typ
 import { accepts, formatSize } from "../media";
 import { canRecord, VoiceRecorder, type Recording } from "../recorder";
 import { accountLabel } from "../merge";
-import { replyQuote, replyTo } from "../message";
+import { replyQuote, replyTo, typingText } from "../message";
 import { MessageList } from "./MessageList";
 import { VoiceRecording } from "./VoiceRecording";
 import type { MessageHandlers } from "./MessageRow";
@@ -154,6 +154,7 @@ export function Thread() {
         handlers={handlers}
         together={view?.list}
       />
+      <TypingLine conversationId={selected} />
       <Composer
         key={`composer:${selected}`}
         draft={draft}
@@ -224,6 +225,40 @@ interface ComposerProps {
 }
 
 function Composer({ draft, onDraftDone, media, writingWith }: ComposerProps) {
+  const typingIn = useAppState((s) => s.selected);
+  // When the network was last told that the user types (0: not typing).
+  const lastTyping = useRef(0);
+  const typingStore = useStore();
+  // at: the input event's time stamp, in milliseconds.
+  function onTextChange(value: string, at: number) {
+    setText(value);
+    if (typingIn === undefined) {
+      return;
+    }
+    const now = Math.max(at, 1);
+    if (value.trim() !== "" && now - lastTyping.current > TYPING_RENEW_MS) {
+      lastTyping.current = now;
+      typingStore.setTyping(typingIn, true);
+    } else if (value.trim() === "" && lastTyping.current !== 0) {
+      lastTyping.current = 0;
+      typingStore.setTyping(typingIn, false);
+    }
+  }
+  // Leaving the conversation, or sending, stops typing.
+  function stopTyping() {
+    if (typingIn !== undefined && lastTyping.current !== 0) {
+      lastTyping.current = 0;
+      typingStore.setTyping(typingIn, false);
+    }
+  }
+  useEffect(
+    () => () => {
+      if (typingIn !== undefined && lastTyping.current !== 0) {
+        typingStore.setTyping(typingIn, false);
+      }
+    },
+    [typingStore, typingIn],
+  );
   const store = useStore();
   const [text, setText] = useState("");
   const input = useRef<HTMLInputElement>(null);
@@ -289,6 +324,7 @@ function Composer({ draft, onDraftDone, media, writingWith }: ComposerProps) {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    stopTyping();
     const message = text.trim();
     if (file !== undefined && canAttach) {
       if (upload !== undefined) {
@@ -416,7 +452,7 @@ function Composer({ draft, onDraftDone, media, writingWith }: ComposerProps) {
             autoComplete="off"
             placeholder={file !== undefined ? "Add a caption…" : writingWith === undefined ? "Write a message…" : `Write with ${writingWith}…`}
             value={text}
-            onChange={(event) => setText(event.target.value)}
+            onChange={(event) => onTextChange(event.target.value, event.timeStamp)}
             onKeyDown={onKeyDown}
             onPaste={onPaste}
           />
@@ -449,4 +485,19 @@ function subscribeVisibility(listener: () => void): () => void {
 /** Whether the page can be seen: not in a minimized window or a hidden tab. */
 function useDocumentVisible(): boolean {
   return useSyncExternalStore(subscribeVisibility, () => document.visibilityState === "visible");
+}
+
+const noNames: readonly string[] = [];
+
+/** How long the composer's typing lasts on the network before it is said again. */
+const TYPING_RENEW_MS = 5000;
+
+/** Who types in the conversation (API 1.20), above the composer; read out politely. */
+function TypingLine({ conversationId }: { conversationId: string }) {
+  const names = useAppState((s) => s.typing?.[conversationId] ?? noNames);
+  return (
+    <output className="typing-line" aria-live="polite">
+      {typingText(names)}
+    </output>
+  );
 }

@@ -1280,3 +1280,13 @@ button.flow:hover:not(:disabled) {
   flex: 1;
   min-width: 0;
 }
+
+/* Who is typing, above the composer (API 1.20). */
+.typing-line {
+  display: block;
+  min-height: 1.2em;
+  padding: 0 var(--space);
+  color: var(--color-muted);
+  font-size: calc(13 * var(--text));
+  font-style: italic;
+}

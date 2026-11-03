@@ -506,3 +506,11 @@ To verify in the test session: T2.34 (cloud sprint, no test run; see ADR 0023):
 ```
 mark unread:        go test -tags=goolm -count=1 -run 'MarkUnread' -v ./core/embedded/
 ```
+
+To verify in the test session: T2.35 to T2.37 (cloud sprint, no test run; see ADR 0034, 0047 and 0048):
+
+```
+reactions, typing:  go test -tags=goolm -count=1 -run 'MessageChanges|Typing' -v ./core/embedded/
+ui wording:         cd ui && npx vitest run src/message.test.ts src/core-api/contract.test.ts
+typing in the app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "typing shows|reactions, edits"
+```

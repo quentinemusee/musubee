@@ -58,6 +58,8 @@ export interface State {
    * selected conversation alone.
    */
   together?: string;
+  /** Who types in each conversation, by name (API 1.20); "" for someone unnamed. */
+  typing?: Readonly<Record<string, readonly string[]>>;
   /** A search of the messages (API 1.17), while the user searches. */
   search?: SearchState;
   /** A media the user sends, while its bytes go to the core (API 1.10). */
@@ -421,6 +423,14 @@ export class Store {
    * count: the thread calls this again while it is shown, and the core
    * changes nothing the second time.
    */
+  /**
+   * Tells a conversation's network that the user types, or stopped (API
+   * 1.20). Failures are not the user's concern: typing is a hint.
+   */
+  setTyping(conversationId: string, typing: boolean): void {
+    this.client.call("conversations.typing", { conversation_id: conversationId, typing }).catch(() => undefined);
+  }
+
   /** Marks a conversation as unread (API 1.18), at once in the store. */
   async markUnread(conversationId: string): Promise<void> {
     const conversations = this.#state.conversations;
@@ -805,6 +815,12 @@ export class Store {
 
   #apply(event: Event): void {
     switch (event.type) {
+      case "conversation.typing": {
+        const { conversation_id, names } = event.data;
+        const { [conversation_id]: _, ...others } = this.#state.typing ?? {};
+        this.#set({ typing: names.length === 0 ? others : { ...others, [conversation_id]: names } });
+        break;
+      }
       case "account.updated": {
         const { account } = event.data;
         // A logged-out account no longer exists in the core.

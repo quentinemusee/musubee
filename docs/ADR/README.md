@@ -57,3 +57,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0045](0045-matrix-history.md) | A Matrix room's history: paged from the homeserver on request, decrypted with the device's keys | accepted | T2.29 |
 | [0046](0046-searching-messages.md) | Searching messages: LIKE over the local storage, checked against the latest text | accepted | T2.32 |
 | [0047](0047-desktop-notifications.md) | Desktop notifications: the main process announces recent messages while the app is in the background | accepted | T2.33 |
+| [0048](0048-typing-notifications.md) | Typing notifications: in memory, both ways, renewed by the interface | accepted | T2.37 |

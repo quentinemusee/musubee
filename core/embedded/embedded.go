@@ -328,6 +328,16 @@ func (c *Core) translate(update localmatrix.Update) ([]*api.Event, error) {
 			return []*api.Event{added}, err
 		}
 		return []*api.Event{added, {Type: api.EventConversationUpdated, Data: api.ConversationEvent{Conversation: *conv}}}, nil
+	case update.Typing != "":
+		typing := api.TypingEvent{ConversationID: conversationID(update.Typing), Names: []string{}}
+		for _, userID := range c.host.Matrix.Typing(update.Typing) {
+			name, err := c.memberName(ctx, update.Typing, userID)
+			if err != nil {
+				return nil, err
+			}
+			typing.Names = append(typing.Names, name)
+		}
+		return []*api.Event{{Type: api.EventConversationTyping, Data: typing}}, nil
 	case update.ReadState != "":
 		conv, err := c.conversationOf(ctx, update.ReadState, nil)
 		if err != nil || conv == nil {
@@ -605,6 +615,8 @@ func (c *Core) dispatch(ctx context.Context, command string, params json.RawMess
 		return handle(ctx, params, c.conversationsMarkRead)
 	case api.CommandConversationsMarkUnread:
 		return handle(ctx, params, c.conversationsMarkUnread)
+	case api.CommandConversationsTyping:
+		return handle(ctx, params, c.conversationsTyping)
 	case api.CommandMessagesList:
 		return handle(ctx, params, c.messagesList)
 	case api.CommandMessagesSend:

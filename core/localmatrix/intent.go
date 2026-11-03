@@ -220,10 +220,18 @@ func (in *Intent) MarkUnread(ctx context.Context, roomID id.RoomID, unread bool)
 	return err
 }
 
-// MarkTyping does nothing yet: typing notifications are not stored, and the
-// application cannot receive them until the core API exposes ephemeral
-// updates (T1.4).
-func (in *Intent) MarkTyping(context.Context, id.RoomID, bridgev2.TypingType, time.Duration) error {
+// MarkTyping records that a remote user types in a room for a while (a zero
+// timeout: stopped), in memory (typing.go). The device's user typing in
+// another app of the network is not shown.
+func (in *Intent) MarkTyping(_ context.Context, roomID id.RoomID, _ bridgev2.TypingType, timeout time.Duration) error {
+	if in.mxid == in.server.userID {
+		return nil
+	}
+	var until time.Time
+	if timeout > 0 {
+		until = time.Now().Add(min(timeout, maxTyping))
+	}
+	in.server.setTyping(roomID, in.mxid, until)
 	return nil
 }
 

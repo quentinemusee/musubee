@@ -281,6 +281,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.36 — More reactions** (E2.4)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). "More reactions" (＋) after the six quick ones opens 32 common emoji, each named for screen readers, and a field for any other short reaction; networks that take emoji only refuse the rest, and the command says so (ADR 0035). 🧪 `ui/src/message.test.ts`.
 
+**T2.37 — Typing notifications** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.20 `conversation.typing` and `conversations.typing` (ADR 0048): the local server keeps who types in memory and sends the user's typing to the bridge; the echo contact types back; "Alice is typing…" above the composer.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

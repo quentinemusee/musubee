@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.19"
+const APIVersion = "1.20"
 
 // Command names.
 const (
@@ -49,6 +49,10 @@ const (
 	// recently active first. Without a limit, returns them all; with one, returns
 	// a page and a cursor to the next. Ordered by activity since API 1.3.
 	CommandConversationsList = "conversations.list"
+	// Tells the conversation's network that the user types (again while typing,
+	// every few seconds, as networks forget it), or stopped. Networks that do not
+	// show typing ignore it. Since API 1.20.
+	CommandConversationsTyping = "conversations.typing"
 	// Marks a conversation as unread (marked_unread), on this device, until it is
 	// read again. The conversation is then sent again in a conversation.updated
 	// event, if it was not marked already. Since API 1.18.
@@ -150,6 +154,9 @@ const (
 const (
 	// An account was added or its connection state changed.
 	EventAccountUpdated = "account.updated"
+	// Who is typing in a conversation changed: the names of those typing now
+	// (none: nobody). Not stored: after a restart nobody types. Since API 1.20.
+	EventConversationTyping = "conversation.typing"
 	// A conversation was created or changed: its name or kind, its person, its
 	// last message (sent after its message.added event, since API 1.4) or its
 	// read state (since API 1.4).
@@ -189,6 +196,7 @@ var Commands = []CommandSpec{
 	{Name: CommandLoginWait, Params: reflect.TypeFor[LoginProcessParams](), Result: reflect.TypeFor[LoginStep]()},
 	{Name: CommandLoginCancel, Params: reflect.TypeFor[LoginProcessParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsList, Params: reflect.TypeFor[ConversationsListParams](), Result: reflect.TypeFor[ConversationsListResult]()},
+	{Name: CommandConversationsTyping, Params: reflect.TypeFor[ConversationsTypingParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsMarkUnread, Params: reflect.TypeFor[ConversationsMarkUnreadParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsMarkRead, Params: reflect.TypeFor[ConversationsMarkReadParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandMessagesList, Params: reflect.TypeFor[MessagesListParams](), Result: reflect.TypeFor[MessagesListResult]()},
@@ -216,6 +224,7 @@ var Commands = []CommandSpec{
 // Events lists every event with the type of its data.
 var Events = []EventSpec{
 	{Type: EventAccountUpdated, Data: reflect.TypeFor[AccountEvent]()},
+	{Type: EventConversationTyping, Data: reflect.TypeFor[TypingEvent]()},
 	{Type: EventConversationUpdated, Data: reflect.TypeFor[ConversationEvent]()},
 	{Type: EventMessageAdded, Data: reflect.TypeFor[MessageEvent]()},
 	{Type: EventMessageUpdated, Data: reflect.TypeFor[MessageEvent]()},
@@ -584,6 +593,20 @@ const (
 	ConversationKindDirect ConversationKind = "direct"
 	ConversationKindGroup  ConversationKind = "group"
 )
+
+// ConversationsTypingParams is $defs/ConversationsTypingParams of the schema.
+type ConversationsTypingParams struct {
+	ConversationID string `json:"conversation_id"`
+	Typing         bool   `json:"typing"`
+}
+
+// TypingEvent is $defs/TypingEvent of the schema.
+type TypingEvent struct {
+	ConversationID string `json:"conversation_id"`
+	// The display names of those typing, sorted; a name the core does not know is
+	// "" (someone types).
+	Names []string `json:"names"`
+}
 
 // ConversationsMarkUnreadParams is $defs/ConversationsMarkUnreadParams of the
 // schema.

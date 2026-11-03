@@ -137,6 +137,10 @@
       { "message_id": "m10", "conversation_id": "c2", "from_me": false, "sender_name": "Bob", "timestamp_ms": 1791496808000, "kind": "text", "text": "Dinner?", "status": "received",
         "reactions": [ { "key": "👍", "count": 3, "from_me": true, "names": ["Alice", "Carol"] } ] }
     ] } },
+    { "target": "command:conversations.typing:params", "value": { "conversation_id": "c1", "typing": true } },
+    { "target": "command:conversations.typing:result", "value": {} },
+    { "target": "event:conversation.typing", "value": { "conversation_id": "c1", "names": ["Instant Echo"] } },
+    { "target": "event:conversation.typing", "value": { "conversation_id": "c1", "names": [] } },
     { "target": "command:conversations.markUnread:params", "value": { "conversation_id": "c1" } },
     { "target": "command:conversations.markUnread:result", "value": {} },
     { "target": "command:messages.search:params", "value": { "query": "picnic" } },
@@ -243,6 +247,7 @@
     { "target": "command:accounts.list:result", "why": "unknown verification", "value": { "accounts": [ { "account_id": "a4", "network_id": "matrix", "name": "", "state": "connected", "verification": "trusted" } ] } },
     { "target": "command:messages.search:params", "why": "query is not empty", "value": { "query": "" } },
     { "target": "command:conversations.markUnread:params", "why": "conversation_id is required", "value": {} },
+    { "target": "command:conversations.typing:params", "why": "typing is required", "value": { "conversation_id": "c1" } },
     { "target": "command:messages.fetchOlder:params", "why": "limit is at most 200", "value": { "conversation_id": "c1", "limit": 500 } },
     { "target": "command:messages.fetchOlder:result", "why": "messages is required", "value": { "end": true } },
     { "target": "command:media.read:params", "why": "length is at most 1 MiB", "value": { "media_id": "f1", "length": 1048577 } },

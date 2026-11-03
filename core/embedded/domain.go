@@ -256,6 +256,14 @@ func portalLogin(ctx context.Context, br *bridgev2.Bridge, portal *bridgev2.Port
 	return logins[0].ID, logins[0], nil
 }
 
+func (c *Core) conversationsTyping(ctx context.Context, p api.ConversationsTypingParams) (api.Empty, error) {
+	roomID, err := c.room(ctx, p.ConversationID)
+	if err != nil {
+		return api.Empty{}, err
+	}
+	return api.Empty{}, c.host.Matrix.SendTyping(ctx, roomID, p.Typing)
+}
+
 func (c *Core) conversationsMarkUnread(ctx context.Context, p api.ConversationsMarkUnreadParams) (api.Empty, error) {
 	roomID, err := c.room(ctx, p.ConversationID)
 	if err != nil {

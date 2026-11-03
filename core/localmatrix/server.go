@@ -74,6 +74,10 @@ type Server struct {
 	// writing by Stop: once Stop returns, no state is being stored.
 	stopLock sync.RWMutex
 	stopped  bool
+
+	// typing holds who is typing in each room, until when (typing.go).
+	typingLock sync.Mutex
+	typing     map[id.RoomID]map[id.UserID]time.Time
 }
 
 // New creates a Server that stores its data in db. Its tables are created or
@@ -187,6 +191,8 @@ type Update struct {
 	// ReadState is a room whose read state (ReadState) changed for the
 	// device user: read on another device, read here, or marked unread.
 	ReadState id.RoomID
+	// Typing is a room where someone started or stopped typing (Typing).
+	Typing id.RoomID
 }
 
 // BridgeState is the connection state reported by a bridge for one login, or

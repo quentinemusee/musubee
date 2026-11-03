@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "vitest";
 import type { Message } from "./core-api/types.gen";
-import { hasActions, isReactionKey, messageActions, MORE_REACTIONS, ownReaction, reactionLabel, replyQuote, replyTo, sameEmoji } from "./message";
+import { hasActions, isReactionKey, typingText, messageActions, MORE_REACTIONS, ownReaction, reactionLabel, replyQuote, replyTo, sameEmoji } from "./message";
 
 describe("reactionLabel", () => {
   test("says who reacted", () => {
@@ -16,6 +16,14 @@ describe("reactionLabel", () => {
 });
 
 describe("replyQuote", () => {
+  test("says who is typing (API 1.20)", () => {
+    expect(typingText([])).toBe("");
+    expect(typingText(["Alice"])).toBe("Alice is typing…");
+    expect(typingText(["Alice", "Bob"])).toBe("Alice and Bob are typing…");
+    expect(typingText(["Alice", "Bob", "Carol"])).toBe("Several people are typing…");
+    expect(typingText([""])).toBe("Someone is typing…");
+  });
+
   test("takes a typed reaction when it is short and trimmed", () => {
     expect(isReactionKey("🦄")).toBe(true);
     expect(isReactionKey("👍🏽")).toBe(true);
