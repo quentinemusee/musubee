@@ -702,3 +702,10 @@ To verify in the test session: T2.78 and T2.79 (cloud sprint, no test run; inter
 edit last (ui):     cd ui && npx vitest run src/message.test.ts
 in the app:         cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "Up in an empty composer|reactions, edits, deletions"
 ```
+
+To verify in the test session: T2.80 (cloud sprint, no test run; see ADR 0069):
+
+```
+start (core):       go test -tags=goolm -count=1 -run 'StartConversation' -v ./core/embedded/
+start in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "starts a conversation"
+```

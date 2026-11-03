@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.36"
+const APIVersion = "1.37"
 
 // Command names.
 const (
@@ -79,6 +79,11 @@ const (
 	// network's other apps shows here. The conversation is then sent again in a
 	// conversation.updated event, if its pin changed. Since API 1.24.
 	CommandConversationsPin = "conversations.pin"
+	// Finds someone on an account's network from what the user typed (a username,
+	// a phone number, an ID: each network takes its own) and opens the direct
+	// conversation with them, creating it when there is none. Only for accounts
+	// whose starts_conversations is set. Since API 1.37.
+	CommandConversationsStart = "conversations.start"
 	// Deletes a conversation for the user, on the network too: its history goes
 	// from this device and, as the network allows, from the user's other apps;
 	// the other people keep theirs. Only when Conversation.actions.delete_chat
@@ -269,6 +274,7 @@ var Commands = []CommandSpec{
 	{Name: CommandConversationsMarkUnread, Params: reflect.TypeFor[ConversationsMarkUnreadParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsMute, Params: reflect.TypeFor[ConversationsMuteParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsPin, Params: reflect.TypeFor[ConversationsPinParams](), Result: reflect.TypeFor[Empty]()},
+	{Name: CommandConversationsStart, Params: reflect.TypeFor[ConversationsStartParams](), Result: reflect.TypeFor[ConversationsStartResult]()},
 	{Name: CommandConversationsDelete, Params: reflect.TypeFor[ConversationsDeleteParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsLeave, Params: reflect.TypeFor[ConversationsLeaveParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsArchive, Params: reflect.TypeFor[ConversationsArchiveParams](), Result: reflect.TypeFor[Empty]()},
@@ -388,6 +394,9 @@ type NetworksListResult struct {
 
 // Account: An account of the user on one network.
 type Account struct {
+	// The account's network finds people from what the user types:
+	// conversations.start. Omitted when false. Since API 1.37.
+	StartsConversations bool `json:"starts_conversations,omitempty"`
 	// Opaque: user interfaces must not parse it.
 	AccountID string `json:"account_id"`
 	NetworkID string `json:"network_id"`
@@ -795,6 +804,18 @@ type ConversationsMuteParams struct {
 type ConversationsPinParams struct {
 	ConversationID string `json:"conversation_id"`
 	Pinned         bool   `json:"pinned"`
+}
+
+// ConversationsStartParams is $defs/ConversationsStartParams of the schema.
+type ConversationsStartParams struct {
+	AccountID string `json:"account_id"`
+	// What the user typed to find someone.
+	Identifier string `json:"identifier"`
+}
+
+// ConversationsStartResult is $defs/ConversationsStartResult of the schema.
+type ConversationsStartResult struct {
+	Conversation Conversation `json:"conversation"`
 }
 
 // ConversationsDeleteParams is $defs/ConversationsDeleteParams of the schema.

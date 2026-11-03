@@ -78,3 +78,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0066](0066-links-in-messages.md) | Links in messages: web addresses only, opened outside the app by the shell | accepted | T2.67 |
 | [0067](0067-pausing-notifications.md) | Pausing notifications: a time kept by the shells, next to the preview | accepted | T2.68 |
 | [0068](0068-saving-files-on-android.md) | Saving files on Android: the system's document picker, through the plugin | accepted | T2.76 |
+| [0069](0069-starting-conversations.md) | Starting a conversation: bridgev2's identifier resolution, from an account the user picks | accepted | T2.80 |

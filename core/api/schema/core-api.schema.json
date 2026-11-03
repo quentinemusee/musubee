@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.36",
+  "x-musubee-api-version": "1.37",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -214,6 +214,16 @@
           "properties": {
             "params": { "$ref": "#/$defs/ConversationsPinParams" },
             "result": { "$ref": "#/$defs/Empty" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "conversations.start": {
+          "description": "Finds someone on an account's network from what the user typed (a username, a phone number, an ID: each network takes its own) and opens the direct conversation with them, creating it when there is none. Only for accounts whose starts_conversations is set. Since API 1.37.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/ConversationsStartParams" },
+            "result": { "$ref": "#/$defs/ConversationsStartResult" }
           },
           "required": ["params", "result"],
           "additionalProperties": false
@@ -663,6 +673,10 @@
       "description": "An account of the user on one network.",
       "type": "object",
       "properties": {
+        "starts_conversations": {
+          "description": "The account's network finds people from what the user types: conversations.start. Omitted when false. Since API 1.37.",
+          "type": "boolean"
+        },
         "account_id": {
           "description": "Opaque: user interfaces must not parse it.",
           "type": "string"
@@ -1147,6 +1161,23 @@
         "pinned": { "type": "boolean" }
       },
       "required": ["conversation_id", "pinned"],
+      "additionalProperties": false
+    },
+    "ConversationsStartParams": {
+      "type": "object",
+      "properties": {
+        "account_id": { "type": "string" },
+        "identifier": { "description": "What the user typed to find someone.", "type": "string", "minLength": 1, "maxLength": 256 }
+      },
+      "required": ["account_id", "identifier"],
+      "additionalProperties": false
+    },
+    "ConversationsStartResult": {
+      "type": "object",
+      "properties": {
+        "conversation": { "$ref": "#/$defs/Conversation" }
+      },
+      "required": ["conversation"],
       "additionalProperties": false
     },
     "ConversationsDeleteParams": {

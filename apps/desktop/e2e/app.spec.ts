@@ -679,6 +679,32 @@ test("Up in an empty composer edits the user's latest message", async () => {
   await app.close();
 });
 
+test("the user starts a conversation with someone by name", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "start");
+  // Deleted first, so that starting it makes it anew.
+  await page.getByRole("button", { name: "Delayed Echo" }).click();
+  await page.getByRole("button", { name: "More…" }).click();
+  await page.getByRole("button", { name: "Delete…" }).click();
+  await page.getByRole("dialog", { name: "Delete the conversation with Delayed Echo?" }).getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.locator(".inbox-row").getByRole("button", { name: "Delayed Echo" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "New conversation…" }).click();
+  const dialog = page.getByRole("dialog", { name: "New conversation" });
+  await dialog.getByRole("textbox", { name: "To" }).fill("delayed echo");
+  await dialog.getByRole("button", { name: "Start" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Delayed Echo" })).toBeVisible();
+  await expect(page.locator(".inbox-row").getByRole("button", { name: "Delayed Echo" })).toBeVisible();
+
+  // Nobody by that name.
+  await page.getByRole("button", { name: "New conversation…" }).click();
+  await page.getByRole("dialog", { name: "New conversation" }).getByRole("textbox", { name: "To" }).fill("nobody at all");
+  await page.getByRole("dialog", { name: "New conversation" }).getByRole("button", { name: "Start" }).click();
+  await expect(page.getByRole("dialog", { name: "New conversation" }).getByRole("alert")).toContainText("could not start");
+  await app.close();
+});
+
 test("a group shows its members", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "members");

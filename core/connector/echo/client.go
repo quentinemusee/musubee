@@ -51,6 +51,7 @@ var (
 	_ bridgev2.TypingHandlingNetworkAPI      = (*client)(nil)
 	_ bridgev2.DeleteChatHandlingNetworkAPI  = (*client)(nil)
 	_ bridgev2.MembershipHandlingNetworkAPI  = (*client)(nil)
+	_ bridgev2.IdentifierResolvingNetworkAPI = (*client)(nil)
 )
 
 func newClient(connector *Connector, login *bridgev2.UserLogin) *client {
@@ -304,6 +305,36 @@ func (c *client) GetCapabilities(context.Context, *bridgev2.Portal) *event.RoomF
 		Reaction:      event.CapLevelFullySupported,
 		DeleteChat:    true,
 	}
+}
+
+// ResolveIdentifier finds an echo contact by its ID or its name, ignoring
+// case, and opens the direct conversation with it on request
+// (docs/ADR/0069).
+func (c *client) ResolveIdentifier(ctx context.Context, identifier string, createChat bool) (*bridgev2.ResolveIdentifierResponse, error) {
+	wanted := strings.TrimSpace(identifier)
+	var contact Contact
+	found := false
+	for _, candidate := range contactsOf(c.login) {
+		if string(candidate.ID) == wanted || strings.EqualFold(candidate.Name, wanted) {
+			contact, found = candidate, true
+			break
+		}
+	}
+	if !found {
+		return nil, fmt.Errorf("%w: no echo contact %q", bridgev2.ErrResolveIdentifierTryNext, wanted)
+	}
+	ghost, err := c.login.Bridge.GetGhostByID(ctx, contact.ID)
+	if err != nil {
+		return nil, err
+	}
+	resp := &bridgev2.ResolveIdentifierResponse{Ghost: ghost, UserID: contact.ID, UserInfo: userInfo(contact)}
+	if createChat {
+		resp.Chat = &bridgev2.CreateChatResponse{
+			PortalKey:  c.portalKey(networkid.PortalID(contact.ID)),
+			PortalInfo: c.chatInfo(contact),
+		}
+	}
+	return resp, nil
 }
 
 // HandleMatrixMembership accepts the user leaving a group (docs/ADR/0056);

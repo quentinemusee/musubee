@@ -1682,3 +1682,8 @@ kbd {
   text-align: start;
   cursor: pointer;
 }
+
+.new-conversation {
+  display: grid;
+  gap: 4px;
+}

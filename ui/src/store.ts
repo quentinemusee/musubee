@@ -676,6 +676,17 @@ export class Store {
     }
   }
 
+  /**
+   * Finds someone on an account's network and opens the conversation with
+   * them (API 1.37, docs/ADR/0069). Rejects with the core's reason, for the
+   * dialog that asked.
+   */
+  async startConversation(accountId: string, identifier: string): Promise<string> {
+    const { conversation } = await this.client.call("conversations.start", { account_id: accountId, identifier });
+    this.#set({ conversations: mergeConversations(this.#state.conversations, [conversation]) });
+    return conversation.conversation_id;
+  }
+
   /** Shows a problem in the app's error banner. */
   reportError(message: string): void {
     this.#set({ error: message });

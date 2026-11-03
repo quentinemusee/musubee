@@ -8,6 +8,7 @@ import { typingText } from "../message";
 import { Avatar } from "./Avatar";
 import { isMuted } from "../mute";
 import { openConversation } from "./navigation";
+import { NewConversation } from "./NewConversation";
 import { useAppState, useStore } from "./state";
 
 /**
@@ -33,6 +34,8 @@ export function Inbox() {
   const archived = useMemo(() => all.filter(isArchived), [all]);
   // "Unread only" (T2.74): the entries with unread messages or marked unread.
   const [unreadOnly, setUnreadOnly] = useState(false);
+  // The "New conversation" dialog (T2.80).
+  const [starting, setStarting] = useState(false);
   const entries = useMemo(() => {
     const listed = archiveShown ? archived : all.filter((e) => !isArchived(e));
     return unreadOnly ? listed.filter((e) => e.unread > 0 || e.markedUnread || e.key === current) : listed;
@@ -53,6 +56,9 @@ export function Inbox() {
     <section className="inbox" aria-labelledby="conversations-title">
       <div className="inbox-header">
         <h2 id="conversations-title">{archiveShown ? "Archived" : "Conversations"}</h2>
+        <button type="button" className="secondary" aria-haspopup="dialog" onClick={() => setStarting(true)}>
+          New conversation…
+        </button>
         <button type="button" className="secondary" aria-pressed={unreadOnly} onClick={() => setUnreadOnly(!unreadOnly)}>
           Unread only
         </button>
@@ -65,6 +71,7 @@ export function Inbox() {
           </button>
         ) : null}
       </div>
+      {starting ? <NewConversation onClose={() => setStarting(false)} /> : null}
       {archiveShown || archived.length > 0 ? (
         <button type="button" className="secondary archive-switch" aria-pressed={archiveShown} onClick={() => setArchiveShown(!archiveShown)}>
           {archiveShown ? "Back to conversations" : `Archived (${archived.length})`}

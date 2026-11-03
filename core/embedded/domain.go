@@ -99,6 +99,7 @@ func (c *Core) account(ctx context.Context, network networkid.BridgeID, login ne
 	if br := c.host.Bridge(network); br != nil {
 		if ul := br.GetCachedUserLoginByID(login); ul != nil {
 			account.Verification = verification(ul.Client)
+			account.StartsConversations = ul.Client != nil && startsConversations(ul)
 		}
 	}
 	account.State = accountState(state.StateEvent)
