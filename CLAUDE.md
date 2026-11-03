@@ -666,3 +666,10 @@ To verify in the test session: T2.62, T2.63 and T2.69 (cloud sprint, no test run
 ui units:           cd ui && npx vitest run src/message.test.ts src/shortcuts.test.ts
 thread in the app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "unread messages start|pinned|archived|deletes a conversation|leaves a group|its own color|shows its members"
 ```
+
+To verify in the test session: T2.70 and T2.71 (cloud sprint, no test run; interface only):
+
+```
+voice speed, lines: cd ui && npx vitest run src/playback.test.ts src/message.test.ts
+lines in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "line breaks"
+```
