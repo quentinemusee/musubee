@@ -329,6 +329,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.52 — Drafts that survive a restart** (E2.4)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.30 `conversations.setDraft` and `Conversation.draft` (ADR 0057): the user's room account data in the local server, saved a second after typing stops, read back after a restart. 🧪 `TestDraft` (localmatrix and embedded), `ui/src/store.test.ts`, the desktop e2e "an unsent text waits", `ui/src/inbox.test.ts` ("Draft:" in the inbox's previews).
 
+**T2.53 — Typing in the inbox** (E2.3)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). The inbox's preview says "Alice is typing…" while someone types (ADR 0048's events). 🧪 the desktop e2e "typing shows the echo contact typing back" (`cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "typing shows"`).
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).
