@@ -59,6 +59,13 @@ contextBridge.exposeInMainWorld("musubee", {
     ask(): Promise<boolean> {
       return Promise.resolve(true);
     },
+    // What they show of a message (docs/ADR/0051), kept by the main process.
+    preview(): Promise<string> {
+      return ipcRenderer.invoke("notifications:preview") as Promise<string>;
+    },
+    setPreview(preview: string): Promise<void> {
+      return ipcRenderer.invoke("notifications:setPreview", preview) as Promise<void>;
+    },
     onOpen(listener: (conversationId: string) => void): () => void {
       const handler = (_: IpcRendererEvent, conversationId: unknown) => {
         if (typeof conversationId === "string") {

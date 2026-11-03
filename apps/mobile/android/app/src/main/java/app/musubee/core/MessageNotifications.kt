@@ -167,7 +167,41 @@ class MessageNotifications(
         return listOf(post(conversationId, updated, silent = true))
     }
 
+    /** What a notification shows of its messages (docs/ADR/0051), as the interface names it. */
+    enum class Preview(val value: String) {
+        NAME_AND_TEXT("name_and_text"),
+        NAME_ONLY("name_only"),
+        NOTHING("nothing"),
+        ;
+
+        companion object {
+            /** A stored or requested value; null when unknown. */
+            fun of(value: String?): Preview? = values().firstOrNull { it.value == value }
+        }
+    }
+
     companion object {
+        /** The text a hidden message shows. */
+        const val HIDDEN_TEXT = "New message"
+
+        /** The title and sender of a notification that shows no name. */
+        const val HIDDEN_NAME = "Musubee"
+
+        /**
+         * A notification as [preview] lets it show: the sender's and the
+         * conversation's names without the text, or neither. The message
+         * IDs stay, so that edits and deletions still find their lines.
+         */
+        fun hide(post: Action.Post, preview: Preview): Action.Post = when (preview) {
+            Preview.NAME_AND_TEXT -> post
+            Preview.NAME_ONLY -> post.copy(lines = post.lines.map { it.copy(text = HIDDEN_TEXT) })
+            Preview.NOTHING -> post.copy(
+                title = HIDDEN_NAME,
+                group = false,
+                lines = post.lines.map { it.copy(sender = HIDDEN_NAME, text = HIDDEN_TEXT) },
+            )
+        }
+
         /** Whether the user muted the conversation, as of [now]: -1 is until unmuted. */
         fun muted(conversation: JSONObject, now: Long): Boolean {
             val until = conversation.optLong("muted_until_ms")

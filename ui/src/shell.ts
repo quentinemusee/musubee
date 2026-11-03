@@ -42,7 +42,17 @@ export interface ShellNotifications {
   ask(): Promise<boolean>;
   /** Calls listener with the conversation of each notification the user taps; returns a function that stops it. */
   onOpen(listener: (conversationId: string) => void): () => void;
+  /** What notifications show of a message (docs/ADR/0051); absent when the shell cannot choose. */
+  preview?(): Promise<NotificationPreview>;
+  /** Keeps what notifications show of a message, in the shell, for the next ones. */
+  setPreview?(preview: NotificationPreview): Promise<void>;
 }
+
+/**
+ * What a notification shows (docs/ADR/0051): the sender and the text, the
+ * sender only ("New message"), or neither ("Musubee: New message").
+ */
+export type NotificationPreview = "name_and_text" | "name_only" | "nothing";
 
 export interface Shell {
   core: ShellCore;

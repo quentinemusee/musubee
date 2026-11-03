@@ -1369,3 +1369,9 @@ button.flow:hover:not(:disabled) {
   background: var(--color-muted);
   color: var(--color-bg);
 }
+
+.settings-note {
+  margin: 0 0 var(--space);
+  color: var(--color-muted);
+  font-size: calc(13 * var(--text));
+}

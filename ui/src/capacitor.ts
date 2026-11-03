@@ -6,7 +6,8 @@
 // gives the interface the same window.musubee as the desktop's preload.
 
 import { registerPlugin, type PluginListenerHandle } from "@capacitor/core";
-import type { CoreStatus, Shell, ShellNotifications } from "./shell";
+import { parseNotificationPreview } from "./notification-preview";
+import type { CoreStatus, NotificationPreview, Shell, ShellNotifications } from "./shell";
 
 /** The plugin of apps/mobile/android (MusubeeCorePlugin.kt). */
 export interface MusubeeCorePlugin {
@@ -16,6 +17,9 @@ export interface MusubeeCorePlugin {
   startOver(): Promise<void>;
   /** Asks for Android's permission to post notifications (docs/ADR/0033). */
   askToNotify(): Promise<{ granted: boolean }>;
+  /** What notifications show of a message (docs/ADR/0051), kept in the app's preferences. */
+  notificationPreview(): Promise<{ preview: string }>;
+  setNotificationPreview(options: { preview: NotificationPreview }): Promise<void>;
   addListener(eventName: "event", listener: (event: object) => void): Promise<PluginListenerHandle>;
   /** A notification was tapped; kept by the plugin until a listener takes it. */
   addListener(eventName: "openConversation", listener: (event: { conversation_id: string }) => void): Promise<PluginListenerHandle>;
@@ -78,6 +82,8 @@ export function pluginShell(plugin: MusubeeCorePlugin): Shell {
   });
   const notifications: ShellNotifications = {
     ask: async () => (await plugin.askToNotify()).granted,
+    preview: async () => parseNotificationPreview((await plugin.notificationPreview()).preview),
+    setPreview: (preview) => plugin.setNotificationPreview({ preview }),
     onOpen(listener) {
       opens.add(listener);
       for (const conversationId of unopened.splice(0)) {

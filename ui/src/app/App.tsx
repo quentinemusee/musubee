@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Quentin Raimbaud
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useState } from "react";
+import { use, useState } from "react";
 import type { Account } from "../core-api/types.gen";
 import type { CoreStatus } from "../shell";
 import { AddAccount } from "./AddAccount";
@@ -9,9 +9,10 @@ import { AppearanceSettings } from "./AppearanceSettings";
 import { EmojiVerification } from "./EmojiVerification";
 import { VerifyDevice } from "./VerifyDevice";
 import { Inbox } from "./Inbox";
+import { NotificationSettings } from "./NotificationSettings";
 import { SearchField, SearchResults } from "./Search";
 import { useBackToInbox } from "./navigation";
-import { useAppState, useStore } from "./state";
+import { NotificationsContext, useAppState, useStore } from "./state";
 import { Thread } from "./Thread";
 
 /** What the login screen does: add an account, or log in to one again. */
@@ -21,6 +22,10 @@ export function App() {
   const store = useStore();
   const [adding, setAdding] = useState<Adding | null>(null);
   const [settings, setSettings] = useState(false);
+  const [notificationSettings, setNotificationSettings] = useState(false);
+  const notifications = use(NotificationsContext);
+  // Only a shell that keeps the choice offers it.
+  const preview = notifications?.preview !== undefined && notifications.setPreview !== undefined ? notifications : undefined;
   const loaded = useAppState((s) => s.loaded);
   const hasAccounts = useAppState((s) => s.accounts.length > 0);
   const view = useAppState((s) => (s.selected === undefined ? "inbox" : "thread"));
@@ -35,8 +40,16 @@ export function App() {
         <button type="button" className="secondary app-settings" aria-haspopup="dialog" onClick={() => setSettings(true)}>
           Appearance
         </button>
+        {preview === undefined ? null : (
+          <button type="button" className="secondary app-settings" aria-haspopup="dialog" onClick={() => setNotificationSettings(true)}>
+            Notifications
+          </button>
+        )}
       </header>
       {settings ? <AppearanceSettings onClose={() => setSettings(false)} /> : null}
+      {notificationSettings && preview !== undefined ? (
+        <NotificationSettings notifications={preview} onClose={() => setNotificationSettings(false)} />
+      ) : null}
       <ErrorBanner />
       {keyLost ? (
         <main className="app-main">

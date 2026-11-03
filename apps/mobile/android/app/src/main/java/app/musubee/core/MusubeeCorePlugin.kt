@@ -43,6 +43,8 @@ private const val NOTIFICATIONS = "notifications"
  * user for Android's permission to post them, and the "openConversation"
  * listener receives `{conversation_id}` when the user taps one; the event is
  * kept until a listener takes it, since a tap can start the app.
+ * `notificationPreview()` and `setNotificationPreview({preview})` read and
+ * keep what they show of a message (docs/ADR/0051).
  */
 @CapacitorPlugin(
     name = "MusubeeCore",
@@ -120,6 +122,24 @@ class MusubeeCorePlugin : Plugin() {
             return
         }
         requestPermissionForAlias(NOTIFICATIONS, call, "notificationsAnswered")
+    }
+
+    /** Resolves with `{preview}`: what notifications show of a message. */
+    @PluginMethod
+    fun notificationPreview(call: PluginCall) {
+        call.resolve(JSObject().put("preview", MessageNotifier.preview(context).value))
+    }
+
+    /** Keeps what notifications show of a message; rejects an unknown value. */
+    @PluginMethod
+    fun setNotificationPreview(call: PluginCall) {
+        val preview = MessageNotifications.Preview.of(call.getString("preview"))
+        if (preview == null) {
+            call.reject("unknown preview")
+            return
+        }
+        MessageNotifier.setPreview(context, preview)
+        call.resolve()
     }
 
     @PermissionCallback

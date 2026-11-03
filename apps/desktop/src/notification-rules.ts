@@ -12,6 +12,28 @@
 /** Messages older than this are never announced. */
 export const MAX_AGE_MS = 5 * 60_000;
 
+/** What a notification shows of a message (docs/ADR/0051), as the interface names it. */
+export type NotificationPreview = "name_and_text" | "name_only" | "nothing";
+
+const PREVIEWS: readonly NotificationPreview[] = ["name_and_text", "name_only", "nothing"];
+
+/** A stored or requested preview; null when unknown. */
+export function parsePreview(value: unknown): NotificationPreview | null {
+  return PREVIEWS.includes(value as NotificationPreview) ? (value as NotificationPreview) : null;
+}
+
+/** An announcement as the preview lets it show: names without the text, or neither. */
+export function hide(announced: Announcement, preview: NotificationPreview): Announcement {
+  switch (preview) {
+    case "name_and_text":
+      return announced;
+    case "name_only":
+      return { ...announced, body: "New message" };
+    case "nothing":
+      return { ...announced, title: "Musubee", body: "New message" };
+  }
+}
+
 /** A notification to show. */
 export interface Announcement {
   conversationId: string;

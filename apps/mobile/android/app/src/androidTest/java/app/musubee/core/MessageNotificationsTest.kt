@@ -149,6 +149,27 @@ class MessageNotificationsTest {
     }
 
     @Test
+    fun aPreviewHidesTheTextOrEverything() {
+        account()
+        message("secret plans", now + 1)
+        val post = conversation(1)[0] as MessageNotifications.Action.Post
+        assertEquals(post, MessageNotifications.hide(post, MessageNotifications.Preview.NAME_AND_TEXT))
+
+        val nameOnly = MessageNotifications.hide(post, MessageNotifications.Preview.NAME_ONLY)
+        assertEquals("Bob", nameOnly.title)
+        assertEquals(listOf("Bob" to "New message"), nameOnly.lines.map { it.sender to it.text })
+
+        val nothing = MessageNotifications.hide(post, MessageNotifications.Preview.NOTHING)
+        assertEquals("Musubee", nothing.title)
+        assertEquals(listOf("Musubee" to "New message"), nothing.lines.map { it.sender to it.text })
+        // The lines keep their messages, for edits and deletions.
+        assertEquals(post.lines.map { it.messageId }, nothing.lines.map { it.messageId })
+
+        assertEquals(MessageNotifications.Preview.NOTHING, MessageNotifications.Preview.of("nothing"))
+        assertEquals(null, MessageNotifications.Preview.of("everything"))
+    }
+
+    @Test
     fun aConversationMarkedUnreadKeepsItsNotification() {
         account()
         message("hi", now + 1)

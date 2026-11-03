@@ -19,7 +19,8 @@ import { APP_ORIGIN, APP_SCHEME, APP_URL, serveAppFile } from "./app-protocol.js
 import { CoreKeyError, CoreKeyLostError, loadCoreKey } from "./core-key.js";
 import { CoreProcess, type CoreStatus } from "./core-process.js";
 import { allowCheck, allowRequest } from "./permissions.js";
-import { announcement, KnownConversations } from "./notification-rules.js";
+import { announcement, hide, KnownConversations, parsePreview } from "./notification-rules.js";
+import { loadPreview, savePreview } from "./notification-settings.js";
 import { RequestValidator } from "./ipc.js";
 import { setAside } from "./start-over.js";
 
@@ -87,16 +88,19 @@ function main(): void {
   const shown = new Map<string, Notification>();
   // Names and mutes of the conversations, for the notifications.
   const conversations = new KnownConversations();
+  // What they show of a message, as the user chose (docs/ADR/0051).
+  let preview = loadPreview(app.getPath("userData"));
   core.onEvent((event) => {
     conversations.learnEvent(event);
     for (const window of windows) {
       window.webContents.send("core:event", event);
     }
     const focused = [...windows].some((window) => window.isFocused());
-    const announced = Notification.isSupported() ? announcement(event, Date.now(), focused, conversations) : null;
-    if (announced === null) {
+    const found = Notification.isSupported() ? announcement(event, Date.now(), focused, conversations) : null;
+    if (found === null) {
       return;
     }
+    const announced = hide(found, preview);
     shown.get(announced.conversationId)?.close();
     const notification = new Notification({ title: announced.title, body: announced.body });
     notification.on("click", () => {
@@ -154,6 +158,23 @@ function main(): void {
       conversations.learnResponse(response);
       return response;
     });
+  });
+  ipcMain.handle("notifications:preview", (event) => {
+    if (!trusted(event)) {
+      throw new Error("refused: not a Musubee window");
+    }
+    return preview;
+  });
+  ipcMain.handle("notifications:setPreview", (event, value: unknown) => {
+    if (!trusted(event)) {
+      throw new Error("refused: not a Musubee window");
+    }
+    const next = parsePreview(value);
+    if (next === null) {
+      throw new Error("refused: unknown notification preview");
+    }
+    savePreview(app.getPath("userData"), next);
+    preview = next;
   });
   ipcMain.handle("core:status", (event) => {
     if (!trusted(event)) {

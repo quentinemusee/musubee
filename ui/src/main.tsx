@@ -6,7 +6,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./app/App";
 import { applyAppearance, loadAppearance, pageStorage } from "./appearance";
 import { openConversation } from "./app/navigation";
-import { StoreContext } from "./app/state";
+import { NotificationsContext, StoreContext } from "./app/state";
 import { followNotifications } from "./notifications";
 import type { Shell } from "./shell";
 import { Store } from "./store";
@@ -47,7 +47,9 @@ void findShell().then((shell) => {
   root.render(
     <StrictMode>
       <StoreContext value={store}>
-        <App />
+        <NotificationsContext value={shell.notifications}>
+          <App />
+        </NotificationsContext>
       </StoreContext>
     </StrictMode>,
   );

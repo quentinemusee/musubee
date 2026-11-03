@@ -458,6 +458,26 @@ test("the user mutes a conversation, kept after a restart, then unmutes it", asy
   await app.close();
 });
 
+test("the user chooses what notifications show, kept by the main process after a restart", async () => {
+  const dataDir = newDataDir();
+  let { app, page } = await launch(dataDir);
+  await page.getByRole("button", { name: "Notifications" }).click();
+  const dialog = page.getByRole("dialog", { name: "Notifications" });
+  await expect(dialog.getByRole("radio", { name: "Name and message" })).toBeChecked();
+  await dialog.getByRole("radio", { name: "No name or message" }).check();
+  await dialog.getByRole("button", { name: "Done" }).click();
+  await expect(dialog).toHaveCount(0);
+  // The renderer cannot store anything else.
+  const refused = await page.evaluate(() => window.musubee!.notifications!.setPreview!("everything" as never).then(() => "kept", () => "refused"));
+  expect(refused).toBe("refused");
+
+  await app.close();
+  ({ app, page } = await launch(dataDir));
+  await page.getByRole("button", { name: "Notifications" }).click();
+  await expect(page.getByRole("dialog", { name: "Notifications" }).getByRole("radio", { name: "No name or message" })).toBeChecked();
+  await app.close();
+});
+
 test("log out of an account: it goes away with its conversations", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "leaving");
@@ -548,9 +568,17 @@ test("the interface is isolated, and the main process checks what it sends", asy
       module: typeof w["module"],
       shell: Object.keys(window.musubee ?? {}),
       core: Object.keys(window.musubee?.core ?? {}).toSorted(),
+      notifications: Object.keys(window.musubee?.notifications ?? {}).toSorted(),
     };
   });
-  expect(globals).toEqual({ require: "undefined", process: "undefined", module: "undefined", shell: ["core"], core: ["call", "onEvent", "onStatus", "startOver"] });
+  expect(globals).toEqual({
+    require: "undefined",
+    process: "undefined",
+    module: "undefined",
+    shell: ["core", "notifications"],
+    core: ["call", "onEvent", "onStatus", "startOver"],
+    notifications: ["ask", "onOpen", "preview", "setPreview"],
+  });
 
   // Requests the schema refuses get the core API's own errors.
   const codes = await page.evaluate(async () => {

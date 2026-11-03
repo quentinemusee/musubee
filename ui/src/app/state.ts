@@ -2,9 +2,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { createContext, use, useSyncExternalStore } from "react";
+import type { ShellNotifications } from "../shell";
 import type { State, Store } from "../store";
 
 export const StoreContext = createContext<Store | null>(null);
+
+/** The shell's notifications, when it posts some (docs/ADR/0033, 0047). */
+export const NotificationsContext = createContext<ShellNotifications | undefined>(undefined);
 
 export function useStore(): Store {
   const store = use(StoreContext);

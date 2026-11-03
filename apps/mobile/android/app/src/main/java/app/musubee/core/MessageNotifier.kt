@@ -24,7 +24,8 @@ import org.json.JSONObject
  * event of the core, on the event thread.
  *
  * On the lock screen, a notification hides its content: it says "New
- * message" only. It never logs a message's content.
+ * message" only. Elsewhere, it shows what the user chose ([preview],
+ * docs/ADR/0051). It never logs a message's content.
  */
 class MessageNotifier(private val context: Context) {
     private val rules = MessageNotifications(
@@ -61,8 +62,9 @@ class MessageNotifier(private val context: Context) {
         }
     }
 
-    private fun post(post: MessageNotifications.Action.Post) {
+    private fun post(action: MessageNotifications.Action.Post) {
         if (!manager.areNotificationsEnabled()) return
+        val post = MessageNotifications.hide(action, preview(context))
         // A change of a notification that the user dismissed stays dismissed.
         if (post.silent && manager.activeNotifications.none { it.tag == post.conversationId && it.id == NOTIFICATION_ID }) return
         val me = Person.Builder().setName("You").build()
@@ -111,7 +113,7 @@ class MessageNotifier(private val context: Context) {
 
     /** Keeps [MessageNotifications.Watermarks] in the app's preferences. */
     private class PreferenceWatermarks(context: Context) : MessageNotifications.Watermarks {
-        private val preferences = context.getSharedPreferences("notifications", Context.MODE_PRIVATE)
+        private val preferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
 
         override fun since(accountId: String, now: Long): Long {
             val key = "since.$accountId"
@@ -127,6 +129,19 @@ class MessageNotifier(private val context: Context) {
 
     companion object {
         private const val TAG = "MusubeeNotifications"
+        private const val PREFERENCES = "notifications"
+        private const val PREVIEW = "preview"
+
+        /** What notifications show of a message, as the user chose (docs/ADR/0051). */
+        fun preview(context: Context): MessageNotifications.Preview =
+            MessageNotifications.Preview.of(
+                context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).getString(PREVIEW, null),
+            ) ?: MessageNotifications.Preview.NAME_AND_TEXT
+
+        /** Keeps what notifications show; the next notifications follow it. */
+        fun setPreview(context: Context, preview: MessageNotifications.Preview) {
+            context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().putString(PREVIEW, preview.value).apply()
+        }
         const val CHANNEL_ID = "messages"
         private const val NOTIFICATION_ID = 2
 

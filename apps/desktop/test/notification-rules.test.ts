@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { describe, expect, test } from "vitest";
-import { announcement, KnownConversations, MAX_AGE_MS, messageSummary } from "../src/notification-rules.ts";
+import { announcement, hide, KnownConversations, MAX_AGE_MS, messageSummary, parsePreview } from "../src/notification-rules.ts";
 
 const now = 1_800_000_000_000;
 const added = (message: object, type = "message.added") =>
@@ -58,5 +58,15 @@ describe("desktop notifications", () => {
     known.learnResponse("not json");
     known.learnResponse(JSON.stringify({ id: 6, error: { code: "not_found", message: "no" } }));
     expect(announcement(added({}), now, false, known)?.title).toBe("Alice in Book club");
+  });
+
+  test("hide the text, or the names too, as the user chose (ADR 0051)", () => {
+    const announced = { conversationId: "c.1", title: "Alice in Book club", body: "secret plans" };
+    expect(hide(announced, "name_and_text")).toEqual(announced);
+    expect(hide(announced, "name_only")).toEqual({ conversationId: "c.1", title: "Alice in Book club", body: "New message" });
+    expect(hide(announced, "nothing")).toEqual({ conversationId: "c.1", title: "Musubee", body: "New message" });
+    expect(parsePreview("nothing")).toBe("nothing");
+    expect(parsePreview("everything")).toBeNull();
+    expect(parsePreview(undefined)).toBeNull();
   });
 });

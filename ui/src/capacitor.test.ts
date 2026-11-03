@@ -14,10 +14,16 @@ function scriptedPlugin(
 ) {
   const listeners = new Map<string, (event: never) => void>();
   let granted = false;
+  let preview = "";
   const plugin: MusubeeCorePlugin = {
     call: ({ request }) => answer(request as { id: number; command: string }),
     startOver,
     askToNotify: () => Promise.resolve({ granted }),
+    notificationPreview: () => Promise.resolve({ preview }),
+    setNotificationPreview: (options) => {
+      preview = options.preview;
+      return Promise.resolve();
+    },
     addListener: (eventName: string, listener: (event: never) => void) => {
       listeners.set(eventName, listener);
       return Promise.resolve({ remove: () => Promise.resolve() });
@@ -100,5 +106,13 @@ describe("pluginShell", () => {
     expect(await shell.notifications!.ask()).toBe(false);
     grant();
     expect(await shell.notifications!.ask()).toBe(true);
+  });
+
+  test("keeps what notifications show in the plugin, defaulting to everything", async () => {
+    const { plugin } = scriptedPlugin(() => Promise.resolve({}));
+    const notifications = pluginShell(plugin).notifications!;
+    expect(await notifications.preview?.()).toBe("name_and_text");
+    await notifications.setPreview?.("nothing");
+    expect(await notifications.preview?.()).toBe("nothing");
   });
 });
