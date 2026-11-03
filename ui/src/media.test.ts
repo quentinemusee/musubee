@@ -3,7 +3,24 @@
 
 import { describe, expect, test } from "vitest";
 import type { MessageMedia } from "./core-api/types.gen";
-import { decodeBase64, formatDuration, formatSize, inlineType, MEDIA_PART, MediaCache, readMedia, SAVE_TYPE, summary, type ReadPart } from "./media";
+import {
+  decodeBase64,
+  encodeBase64,
+  formatDuration,
+  formatSize,
+  inlineType,
+  MAX_UPLOAD_BYTES,
+  MEDIA_PART,
+  MediaCache,
+  readMedia,
+  SAVE_TYPE,
+  sendChoice,
+  sendProblem,
+  summary,
+  uploadBlob,
+  type AppendPart,
+  type ReadPart,
+} from "./media";
 
 const media = (mime_type: string, extra: Partial<MessageMedia> = {}): MessageMedia => ({ media_id: "f.1", mime_type, ...extra });
 
@@ -104,5 +121,52 @@ describe("MediaCache", () => {
     await expect(cache.get("f.1", "image/png")).rejects.toThrow("not_found");
     fail = false;
     expect((await cache.get("f.1", "image/png")).size).toBe(1);
+  });
+});
+
+describe("sending", () => {
+  const all = { image: { caption: true, max_size: 1000 }, video: {}, audio: {}, voice: {}, file: { max_size: 500 } };
+
+  test("sends a file as what it is when the network takes that kind, as a file otherwise", () => {
+    expect(sendChoice("image/png", all)?.kind).toBe("image");
+    expect(sendChoice("image/svg+xml", all)?.kind).toBe("file");
+    expect(sendChoice("video/mp4", all)?.kind).toBe("video");
+    expect(sendChoice("audio/ogg", all)?.kind).toBe("audio");
+    expect(sendChoice("application/pdf", all)?.kind).toBe("file");
+    expect(sendChoice("image/png", { file: {} })?.kind).toBe("file");
+    expect(sendChoice("image/png", { video: {} })).toBeNull();
+    expect(sendChoice("image/png", undefined)).toBeNull();
+  });
+
+  test("says why a file cannot go", () => {
+    const image = sendChoice("image/png", all);
+    expect(sendProblem(10, image, true)).toBeNull();
+    expect(sendProblem(1001, image, false)).toBe("The file is too large: this conversation takes up to 1 KB.");
+    expect(sendProblem(0, image, false)).toBe("The file is empty.");
+    expect(sendProblem(10, sendChoice("application/pdf", all), true)).toContain("no text");
+    expect(sendProblem(10, null, false)).toBe("This conversation does not take files.");
+    expect(sendProblem(MAX_UPLOAD_BYTES + 1, sendChoice("video/mp4", all), false)).toContain("too large");
+  });
+
+  test("encodes base64", () => {
+    expect(encodeBase64(new Uint8Array([0, 1, 2, 255]))).toBe("AAEC/w==");
+    const large = new Uint8Array(100_000).map((_, i) => i % 256);
+    expect([...decodeBase64(encodeBase64(large))]).toEqual([...large]);
+  });
+
+  test("gives a Blob to the core in parts of at most 1 MiB", async () => {
+    const parts: { upload_id?: string; bytes: number }[] = [];
+    let held = 0;
+    const append: AppendPart = async (params) => {
+      const bytes = decodeBase64(params.data).length;
+      parts.push({ ...(params.upload_id === undefined ? {} : { upload_id: params.upload_id }), bytes });
+      held += bytes;
+      return { upload_id: "u.1", size: held };
+    };
+    const progress: number[] = [];
+    const uploadId = await uploadBlob(append, new Blob([new Uint8Array(MEDIA_PART + 5)]), (sent) => progress.push(sent));
+    expect(uploadId).toBe("u.1");
+    expect(parts).toEqual([{ bytes: MEDIA_PART }, { upload_id: "u.1", bytes: 5 }]);
+    expect(progress).toEqual([MEDIA_PART, MEDIA_PART + 5]);
   });
 });

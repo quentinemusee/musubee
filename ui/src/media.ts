@@ -5,7 +5,7 @@
 // of them, which ones it shows inline, and reading their bytes from the
 // core into Blobs, kept in a small cache.
 
-import type { Message, MessageKind, MessageMedia } from "./core-api/types.gen";
+import type { MediaAction, MediaActions, Message, MessageKind, MessageMedia } from "./core-api/types.gen";
 
 /** The most media.read returns at once (API 1.9). */
 export const MEDIA_PART = 1_048_576;
@@ -209,4 +209,87 @@ export class MediaCache {
       }
     }
   }
+}
+
+/** Encodes bytes in base64 (RFC 4648, with padding). */
+export function encodeBase64(bytes: Uint8Array): string {
+  let binary = "";
+  // In slices: String.fromCharCode takes its bytes as arguments.
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
+
+/** How a file the user picked is sent, and what the network takes of it. */
+export interface SendChoice {
+  kind: "image" | "video" | "audio" | "voice" | "file";
+  action: MediaAction;
+}
+
+/**
+ * How to send a file of this type: as what it is when the network takes
+ * that kind (a photo as an image, a video as a video), as a file otherwise;
+ * null when the network takes neither. An image is sent as one only in a
+ * type shown inline (inlineType): an SVG goes as a file.
+ */
+export function sendChoice(type: string, media: MediaActions | undefined): SendChoice | null {
+  if (media === undefined) {
+    return null;
+  }
+  const plain = type.split(";")[0]?.trim().toLowerCase() ?? "";
+  const family = plain.split("/")[0];
+  let kind: SendChoice["kind"] = "file";
+  if (family === "image" && INLINE_TYPES["image"]?.includes(plain) === true) {
+    kind = "image";
+  } else if (family === "video" || family === "audio") {
+    kind = family;
+  }
+  const action = media[kind];
+  if (action !== undefined) {
+    return { kind, action };
+  }
+  return media.file === undefined ? null : { kind: "file", action: media.file };
+}
+
+/** Why a file cannot be sent with this choice, for the user, or null if it can. */
+export function sendProblem(size: number, choice: SendChoice | null, hasCaption: boolean): string | null {
+  if (choice === null) {
+    return "This conversation does not take files.";
+  }
+  if (size === 0) {
+    return "The file is empty.";
+  }
+  const max = Math.min(choice.action.max_size ?? MAX_UPLOAD_BYTES, MAX_UPLOAD_BYTES);
+  if (size > max) {
+    return `The file is too large: this conversation takes up to ${formatSize(max)}.`;
+  }
+  if (hasCaption && choice.action.caption !== true) {
+    return "This conversation takes no text with this file: send the text on its own.";
+  }
+  return null;
+}
+
+/** The largest media the core takes (uploads.append, API 1.10). */
+export const MAX_UPLOAD_BYTES = 104_857_600;
+
+/** Adds a part to an upload: the core's uploads.append. */
+export type AppendPart = (params: { upload_id?: string; data: string }) => Promise<{ upload_id: string; size: number }>;
+
+/**
+ * Gives a Blob to the core in parts of MEDIA_PART, reporting the bytes
+ * given so far; returns the upload's ID.
+ */
+export async function uploadBlob(append: AppendPart, blob: Blob, onProgress?: (sent: number) => void): Promise<string> {
+  let uploadId: string | undefined;
+  for (let offset = 0; offset < blob.size; offset += MEDIA_PART) {
+    const bytes = new Uint8Array(await blob.slice(offset, offset + MEDIA_PART).arrayBuffer());
+    const result = await append(uploadId === undefined ? { data: encodeBase64(bytes) } : { upload_id: uploadId, data: encodeBase64(bytes) });
+    uploadId = result.upload_id;
+    onProgress?.(result.size);
+  }
+  if (uploadId === undefined) {
+    throw new Error("the file is empty");
+  }
+  return uploadId;
 }

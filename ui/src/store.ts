@@ -8,7 +8,7 @@
 // replaced on every change; components select the part they show.
 
 import { CoreClient, parseEvent } from "./core-api/client";
-import { MediaCache } from "./media";
+import { MediaCache, sendChoice, sendProblem, uploadBlob } from "./media";
 import type { Account, Conversation, Event, Message, Network, Person } from "./core-api/types.gen";
 import { mergePlan } from "./merge";
 import { replyTo } from "./message";
@@ -49,6 +49,16 @@ export interface State {
    */
   history: Readonly<Record<string, HistoryState>>;
   selected?: string;
+  /** A media the user sends, while its bytes go to the core (API 1.10). */
+  upload?: UploadState;
+}
+
+export interface UploadState {
+  conversationId: string;
+  name: string;
+  /** Bytes given to the core so far. */
+  sent: number;
+  size: number;
 }
 
 export type HistoryState = { cursor: string } | "loading" | "start";
@@ -324,6 +334,58 @@ export class Store {
       }
     } catch (error) {
       this.#set({ error: `Could not send the message: ${describe(error)}` });
+    }
+  }
+
+  /**
+   * Sends a file to the selected conversation (API 1.10), with a caption if
+   * not empty, as an answer if given: as a photo, video or audio when the
+   * network takes that kind, as a file otherwise. Resolves with whether it
+   * was sent; a problem shows as the app's error.
+   */
+  async sendMedia(file: File, caption: string, answered?: string): Promise<boolean> {
+    const conversationId = this.#state.selected;
+    if (conversationId === undefined || this.#state.upload !== undefined) {
+      return false;
+    }
+    const conversation = this.#state.conversations.find((c) => c.conversation_id === conversationId);
+    const choice = sendChoice(file.type, conversation?.actions?.media);
+    const problem = sendProblem(file.size, choice, caption !== "");
+    if (choice === null || problem !== null) {
+      this.#set({ error: problem ?? "This conversation does not take files." });
+      return false;
+    }
+    const progress = (sent: number) => this.#set({ upload: { conversationId, name: file.name, sent, size: file.size } });
+    progress(0);
+    let uploadId: string | undefined;
+    try {
+      const size = choice.kind === "image" ? await imageSize(file) : undefined;
+      uploadId = await uploadBlob((params) => this.client.call("uploads.append", params), file, progress);
+      const { message } = await this.client.call("messages.sendMedia", {
+        conversation_id: conversationId,
+        upload_id: uploadId,
+        kind: choice.kind,
+        mime_type: file.type,
+        file_name: file.name || "file",
+        ...(caption === "" ? {} : { caption }),
+        ...(size === undefined ? {} : size),
+        ...(answered === undefined ? {} : { reply_to: answered }),
+      });
+      uploadId = undefined;
+      const known = this.#state.messages[message.conversation_id]?.some((m) => m.message_id === message.message_id);
+      if (!known) {
+        this.#upsertMessage(message);
+      }
+      return true;
+    } catch (error) {
+      if (uploadId !== undefined) {
+        this.client.call("uploads.cancel", { upload_id: uploadId }).catch(() => undefined);
+      }
+      this.#set({ error: `Could not send ${file.name || "the file"}: ${describe(error)}` });
+      return false;
+    } finally {
+      const { upload: _, ...rest } = this.#state;
+      this.#replace(rest);
     }
   }
 
@@ -696,4 +758,19 @@ export function mergeMessages(base: readonly Message[], newer: readonly Message[
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** The size of an image, when the browser can decode it; the core takes the image without. */
+async function imageSize(file: Blob): Promise<{ width: number; height: number } | undefined> {
+  if (typeof createImageBitmap !== "function") {
+    return undefined;
+  }
+  try {
+    const bitmap = await createImageBitmap(file);
+    const size = { width: bitmap.width, height: bitmap.height };
+    bitmap.close();
+    return size.width > 0 && size.height > 0 ? size : undefined;
+  } catch {
+    return undefined;
+  }
 }

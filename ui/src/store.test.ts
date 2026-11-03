@@ -275,6 +275,42 @@ describe("Store", () => {
     expect(store.getState().error).toBeUndefined();
   });
 
+  test("sends a file in parts with its caption, and refuses what the network does not take", async () => {
+    const appended: unknown[] = [];
+    const sent: unknown[] = [];
+    const shell = scriptedShell({
+      ...coreState([{ ...conversation("c1", "Adam"), actions: { media: { image: { caption: true }, file: { max_size: 4 } } } }]),
+      "uploads.append": (p: unknown) => {
+        appended.push(p);
+        return { upload_id: "u.1", size: 3 };
+      },
+      "messages.sendMedia": (p: unknown) => {
+        sent.push(p);
+        return { message: message("m3", 3, { from_me: true, status: "sending", kind: "image", media: { media_id: "f.1", mime_type: "image/png" } }) };
+      },
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    await store.select("c1");
+
+    const photo = new File([new Uint8Array([1, 2, 3])], "a.png", { type: "image/png" });
+    expect(await store.sendMedia(photo, "look", "m1")).toBe(true);
+    expect(appended).toEqual([{ data: "AQID" }]);
+    expect(sent).toEqual([
+      { conversation_id: "c1", upload_id: "u.1", kind: "image", mime_type: "image/png", file_name: "a.png", caption: "look", reply_to: "m1" },
+    ]);
+    expect(store.getState().messages["c1"]?.at(-1)?.message_id).toBe("m3");
+    expect(store.getState().upload).toBeUndefined();
+
+    // A PDF goes as a file, which takes no caption here, and 4 bytes at most.
+    const pdf = new File([new Uint8Array(5)], "plan.pdf", { type: "application/pdf" });
+    expect(await store.sendMedia(pdf, "")).toBe(false);
+    expect(store.getState().error).toContain("too large");
+    expect(sent).toHaveLength(1);
+  });
+
   test("sends the user's changes to messages, and reports a refusal", async () => {
     const params: Record<string, unknown> = {};
     const record = (command: string) => (p: unknown) => {

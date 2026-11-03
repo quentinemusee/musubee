@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Quentin Raimbaud
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent } from "react";
-import type { Message } from "../core-api/types.gen";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ClipboardEvent, type FormEvent, type KeyboardEvent } from "react";
+import type { MediaActions, Message } from "../core-api/types.gen";
+import { formatSize } from "../media";
 import { accountLabel } from "../merge";
 import { replyQuote, replyTo } from "../message";
 import { MessageList } from "./MessageList";
@@ -91,7 +92,7 @@ export function Thread() {
           actions={conversation.actions}
           handlers={handlers}
         />
-        <Composer draft={draft} onDraftDone={() => setDraft(undefined)} />
+        <Composer draft={draft} onDraftDone={() => setDraft(undefined)} media={conversation.actions?.media} />
       </Fragment>
     </section>
   );
@@ -135,10 +136,22 @@ interface Draft {
   message: Message;
 }
 
-function Composer({ draft, onDraftDone }: { draft: Draft | undefined; onDraftDone: () => void }) {
+interface ComposerProps {
+  draft: Draft | undefined;
+  onDraftDone: () => void;
+  /** The media the conversation takes (API 1.10); none: no attaching. */
+  media: MediaActions | undefined;
+}
+
+function Composer({ draft, onDraftDone, media }: ComposerProps) {
   const store = useStore();
   const [text, setText] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  // The file the user attached, sent with the text as its caption.
+  const [file, setFile] = useState<File>();
+  const upload = useAppState((s) => s.upload);
+  const canAttach = media !== undefined && draft?.mode !== "edit";
   // A new draft: an edit starts from the message's text, and leaving an
   // edit clears it (React's "adjust state on a prop change" pattern).
   const [shownDraft, setShownDraft] = useState(draft);
@@ -160,6 +173,20 @@ function Composer({ draft, onDraftDone }: { draft: Draft | undefined; onDraftDon
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const message = text.trim();
+    if (file !== undefined && canAttach) {
+      if (upload !== undefined) {
+        return;
+      }
+      const answered = draft?.message.message_id;
+      void store.sendMedia(file, message, answered).then((sent) => {
+        if (sent) {
+          setFile(undefined);
+          setText("");
+          onDraftDone();
+        }
+      });
+      return;
+    }
     if (message === "") {
       return;
     }
@@ -177,6 +204,22 @@ function Composer({ draft, onDraftDone }: { draft: Draft | undefined; onDraftDon
   function cancel() {
     onDraftDone();
     input.current?.focus();
+  }
+
+  function attach(picked: File | undefined) {
+    if (picked !== undefined) {
+      setFile(picked);
+      input.current?.focus();
+    }
+  }
+
+  // A pasted image or file is attached, as chat apps do.
+  function onPaste(event: ClipboardEvent<HTMLInputElement>) {
+    const pasted = event.clipboardData.files[0];
+    if (pasted !== undefined && canAttach) {
+      event.preventDefault();
+      attach(pasted);
+    }
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -200,7 +243,40 @@ function Composer({ draft, onDraftDone }: { draft: Draft | undefined; onDraftDon
           </button>
         </div>
       ) : null}
+      {file !== undefined && canAttach ? (
+        <div className="composer-file">
+          <p className="composer-draft-text">
+            <span className="composer-draft-what">{upload === undefined ? "Attached" : `Sending… ${Math.round((upload.sent / Math.max(upload.size, 1)) * 100)}%`}</span>
+            <span className="media-file-name">{file.name || "file"}</span>
+            <span className="media-file-size">{formatSize(file.size)}</span>
+          </p>
+          {upload === undefined ? (
+            <button type="button" className="secondary" onClick={() => setFile(undefined)}>
+              Remove<span className="visually-hidden"> {file.name}</span>
+            </button>
+          ) : (
+            <progress max={upload.size} value={upload.sent} aria-label={`Sending ${file.name}`} />
+          )}
+        </div>
+      ) : null}
       <form className="composer-form" onSubmit={submit}>
+        {canAttach ? (
+          <>
+            <button type="button" className="secondary composer-attach" aria-label="Attach a file" onClick={() => picker.current?.click()}>
+              <span aria-hidden="true">📎</span>
+            </button>
+            <input
+              ref={picker}
+              type="file"
+              hidden
+              tabIndex={-1}
+              onChange={(event) => {
+                attach(event.target.files?.[0]);
+                event.target.value = "";
+              }}
+            />
+          </>
+        ) : null}
         <label htmlFor="composer-text" className="visually-hidden">
           {draft?.mode === "edit" ? "New text of your message" : "Message"}
         </label>
@@ -209,12 +285,13 @@ function Composer({ draft, onDraftDone }: { draft: Draft | undefined; onDraftDon
           id="composer-text"
           type="text"
           autoComplete="off"
-          placeholder="Write a message…"
+          placeholder={file === undefined ? "Write a message…" : "Add a caption…"}
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
         />
-        <button type="submit" disabled={text.trim() === ""}>
+        <button type="submit" disabled={upload !== undefined || (text.trim() === "" && (file === undefined || !canAttach))}>
           {draft?.mode === "edit" ? "Save" : "Send"}
         </button>
       </form>

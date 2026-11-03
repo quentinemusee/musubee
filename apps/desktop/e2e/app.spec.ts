@@ -266,6 +266,36 @@ test("the thread shows photos, GIFs and voice messages, and saves files", async 
   await app.close();
 });
 
+test("the user sends a photo with a caption, and a file", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "sender");
+  const log = page.getByRole("log");
+  const composer = page.getByRole("textbox", { name: "Message" });
+  // A real PNG, 1 by 1, as a photo the user picks.
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+
+  await page.locator('input[type="file"]').setInputFiles({ name: "dot.png", mimeType: "image/png", buffer: png });
+  await expect(page.getByText("Attached")).toBeVisible();
+  await composer.fill("a tiny photo");
+  await page.getByRole("button", { name: "Send" }).click();
+  const mine = log.locator('.message[data-from-me="true"]', { hasText: "a tiny photo" });
+  await expect(mine).toContainText("Sent");
+  await expect(mine.getByRole("img", { name: "a tiny photo" })).toBeVisible();
+  // The echo network sends it back, as its own copy.
+  const echoed = log.locator('.message[data-from-me="false"]', { hasText: "a tiny photo" });
+  await expect(echoed.getByRole("img", { name: "a tiny photo" })).toBeVisible();
+  await expect(page.getByText("Attached")).toHaveCount(0);
+
+  // A file the network takes as a file; removing an attached file keeps the text.
+  await page.locator('input[type="file"]').setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("notes") });
+  await page.getByRole("button", { name: "Remove notes.txt" }).click();
+  await expect(page.getByText("Attached")).toHaveCount(0);
+  await page.locator('input[type="file"]').setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("notes") });
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(log.locator('.message[data-from-me="true"] .media[data-kind="file"]')).toContainText("notes.txt");
+  await app.close();
+});
+
 test("log out of an account: it goes away with its conversations", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "leaving");
