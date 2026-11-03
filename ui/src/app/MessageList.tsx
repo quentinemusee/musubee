@@ -1,11 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Quentin Raimbaud
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { VList, type VListHandle } from "virtua";
 import type { ConversationActions, Message } from "../core-api/types.gen";
 import { summary } from "../media";
 import type { HistoryState } from "../store";
+import { dayStarts } from "../message";
+import { useNow } from "./Inbox";
 import { MessageRow, type MessageHandlers } from "./MessageRow";
 import { useAppState, useStore } from "./state";
 
@@ -114,6 +116,10 @@ export function MessageList({ messages, history, onOlder, labelledBy, onBottomCh
     }
   }, [messages, current.shift]);
 
+  // A divider above the first message of each day (T2.72).
+  const now = useNow();
+  const days = useMemo(() => dayStarts(messages, now), [messages, now]);
+
   // Older messages on the device, or the network's (API 1.13).
   const canLoad = typeof history === "object" || history === "network";
   function loadIfNeeded() {
@@ -165,6 +171,7 @@ export function MessageList({ messages, history, onOlder, labelledBy, onBottomCh
               seen={seen?.[message.message_id]}
               highlighted={message.message_id === highlighted}
               unreadFromHere={message.message_id === firstUnread}
+              day={days[message.message_id]}
             />
           ) : (
             <MessageRow
@@ -175,6 +182,7 @@ export function MessageList({ messages, history, onOlder, labelledBy, onBottomCh
               via={together.via[message.conversation_id]}
               seen={seen?.[message.message_id]}
               highlighted={message.message_id === highlighted}
+              day={days[message.message_id]}
             />
           )
         }

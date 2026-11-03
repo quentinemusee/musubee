@@ -70,13 +70,15 @@ export interface MessageRowProps {
   highlighted?: boolean;
   /** The first message that was unread when the thread opened: "New messages" above it. */
   unreadFromHere?: boolean;
+  /** The day this message starts in the thread (T2.72): its divider goes above it. */
+  day?: string | undefined;
 }
 
 /**
  * One message of a thread: a full-width row holding the bubble. The row has
  * no margin, so that a virtualized list can measure it whole.
  */
-export const MessageRow = memo(function MessageRow({ message, actions, handlers, via, seen, highlighted = false, unreadFromHere = false }: MessageRowProps) {
+export const MessageRow = memo(function MessageRow({ message, actions, handlers, via, seen, highlighted = false, unreadFromHere = false, day }: MessageRowProps) {
   const deleted = message.deleted === true;
   const allowed = messageActions(message, handlers === undefined ? undefined : actions);
   const [menu, setMenu] = useState<"closed" | "open" | "confirm-delete">("closed");
@@ -97,6 +99,7 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers,
 
   return (
     <div className="message-row" data-message-id={message.message_id} data-highlighted={highlighted}>
+      {day === undefined ? null : <h3 className="day-divider">{day}</h3>}
       {unreadFromHere ? (
         <div className="unread-divider">New messages</div>
       ) : null}

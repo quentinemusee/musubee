@@ -1619,3 +1619,12 @@ kbd {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* The first message of a day (T2.72). */
+.day-divider {
+  margin: var(--space) 0;
+  color: var(--color-muted);
+  font-size: calc(12 * var(--text));
+  font-weight: 600;
+  text-align: center;
+}

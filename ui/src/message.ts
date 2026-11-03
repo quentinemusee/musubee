@@ -222,3 +222,43 @@ export function firstUnread(messages: readonly Message[], count: number): string
 export function sendsOnEnter(event: Pick<KeyboardEvent, "key" | "shiftKey" | "ctrlKey" | "altKey" | "metaKey" | "isComposing">, touch: boolean): boolean {
   return event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !event.isComposing && !touch;
 }
+
+/**
+ * What a day's divider says in a thread (T2.72): "Today", "Yesterday",
+ * the weekday within a week, else the date (with the year when it is not
+ * this one), in the user's language.
+ */
+export function dayLabel(ms: number, now: number, locale?: string): string {
+  const day = new Date(ms);
+  day.setHours(0, 0, 0, 0);
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((today.getTime() - day.getTime()) / 86_400_000);
+  if (days === 0) {
+    return "Today";
+  }
+  if (days === 1) {
+    return "Yesterday";
+  }
+  if (days > 1 && days < 7) {
+    return day.toLocaleDateString(locale, { weekday: "long" });
+  }
+  return day.toLocaleDateString(
+    locale,
+    day.getFullYear() === today.getFullYear() ? { weekday: "long", day: "numeric", month: "long" } : { day: "numeric", month: "long", year: "numeric" },
+  );
+}
+
+/** By message ID, the label of the day that each message starts (the first of its day in the list). */
+export function dayStarts(messages: readonly Message[], now: number, locale?: string): Record<string, string> {
+  const starts: Record<string, string> = {};
+  let previous = "";
+  for (const message of messages) {
+    const day = new Date(message.timestamp_ms).toDateString();
+    if (day !== previous) {
+      starts[message.message_id] = dayLabel(message.timestamp_ms, now, locale);
+      previous = day;
+    }
+  }
+  return starts;
+}

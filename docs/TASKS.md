@@ -383,6 +383,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.71 — Messages of several lines** (E2.4)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). The composer is a text area: Enter sends and Shift+Enter starts a line with a keyboard; on a touch screen Enter starts a line and the button sends; never during an input method's composition. Messages show their line breaks. 🧪 `ui/src/message.test.ts` (`sendsOnEnter`), the desktop e2e "a message keeps its line breaks".
 
+**T2.72 — Days in the thread** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). A divider above the first message of each day: "Today", "Yesterday", the weekday within a week, else the date. 🧪 `ui/src/message.test.ts` (`dayLabel`, `dayStarts`: `cd ui && npx vitest run src/message.test.ts`).
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

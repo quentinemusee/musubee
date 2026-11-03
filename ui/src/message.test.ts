@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "vitest";
 import type { Message } from "./core-api/types.gen";
-import { canForward, firstUnread, hasActions, sendsOnEnter, isReactionKey, seenLabel, typingText, messageActions, MORE_REACTIONS, ownReaction, reactionLabel, replyQuote, replyTo, sameEmoji } from "./message";
+import { canForward, dayLabel, dayStarts, firstUnread, hasActions, sendsOnEnter, isReactionKey, seenLabel, typingText, messageActions, MORE_REACTIONS, ownReaction, reactionLabel, replyQuote, replyTo, sameEmoji } from "./message";
 
 describe("reactionLabel", () => {
   test("says who reacted", () => {
@@ -191,4 +191,21 @@ test("sendsOnEnter: Enter alone sends, with a keyboard, outside a composition", 
   expect(sendsOnEnter(key("Enter", { ctrlKey: true }), false)).toBe(false);
   expect(sendsOnEnter(key("Enter"), true)).toBe(false);
   expect(sendsOnEnter(key("a"), false)).toBe(false);
+});
+
+test("dayLabel: today, yesterday, a weekday, a date", () => {
+  const now = new Date(2026, 10, 3, 10, 0).getTime();
+  expect(dayLabel(new Date(2026, 10, 3, 1, 0).getTime(), now, "en-GB")).toBe("Today");
+  expect(dayLabel(new Date(2026, 10, 2, 23, 0).getTime(), now, "en-GB")).toBe("Yesterday");
+  expect(dayLabel(new Date(2026, 9, 30, 12, 0).getTime(), now, "en-GB")).toBe("Friday");
+  expect(dayLabel(new Date(2026, 9, 1, 12, 0).getTime(), now, "en-GB")).toBe("Thursday 1 October");
+  expect(dayLabel(new Date(2025, 9, 1, 12, 0).getTime(), now, "en-GB")).toBe("1 October 2025");
+});
+
+const at = (id: string, d: Date): Message => ({ ...unreadTestMessage(id, false), timestamp_ms: d.getTime() });
+
+test("dayStarts: the first message of each day", () => {
+  const now = new Date(2026, 10, 3, 10, 0).getTime();
+  const messages = [at("a", new Date(2026, 10, 2, 9)), at("b", new Date(2026, 10, 2, 21)), at("c", new Date(2026, 10, 3, 8))];
+  expect(dayStarts(messages, now, "en-GB")).toEqual({ a: "Yesterday", c: "Today" });
 });
