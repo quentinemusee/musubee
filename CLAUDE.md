@@ -466,3 +466,11 @@ To verify in the test session: T2.27 (cloud sprint, no test run; see ADR 0043):
 waiting messages:   go test -tags=goolm -count=1 -run 'WaitForTheirAccount|OfflineLogin' -v ./core/embedded/
 waiting in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "without network"
 ```
+
+To verify in the test session: T2.28 (cloud sprint, no test run; see ADR 0044). The Synapse journey runs on CI only:
+
+```
+recovery (core):    go test -tags=goolm -count=1 -run 'VerifyNeedsAMatrixAccount' -v ./core/embedded/
+recovery journey:   go test -tags=goolm,integration -count=1 -run 'RecoveryKey' -v ./infra/matrixtest/     (needs Docker)
+recovery (ui):      cd ui && npx vitest run src/store.test.ts src/core-api/contract.test.ts
+```

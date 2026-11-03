@@ -251,7 +251,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 
 **T2.28 — Key backup and recovery** (E2.8)
 - Deliverable: a Matrix account's recovery key verifies Musubee's device and brings back its encrypted history; Musubee's new room keys go to the account's backup.
-- Status: **proposed, waiting for the maintainer** (ADR 0044: scope, setting recovery up for accounts without it, uploading by default, where in the interface). No code yet. Telegram and Signal need no key backup: Telegram keeps the history on its servers, and Signal never gives it to a linked device.
+- Acceptance: a wrong key changes nothing; the key is never stored nor logged; other clients see the device cross-signed; new room keys reach the backup. Telegram and Signal need no key backup: Telegram keeps the history on its servers, and Signal never gives it to a linked device.
+- 🧪 Test: the Synapse journey (recovery set up as another Matrix app does, a wrong key, the right one, the cross-signature, an upload, no key in the files); the core's refusal for other networks; contract examples; Vitest for the store.
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.15 adds `accounts.verify` and `Account.verification` (ADR 0044, decided at the maintainer's request: Matrix only, no setting recovery up in Musubee yet, uploads on by default, on the account's line). The Matrix connector verifies with the recovery key, restores the backup after checking its key, keeps the backup key in the pickled crypto store, and uploads the room keys the backup lacks after each sync. Left: setting secure backup up from Musubee, interactive verification with another device, re-decrypting messages that failed before the verification.
 
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.

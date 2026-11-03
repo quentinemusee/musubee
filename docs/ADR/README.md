@@ -53,4 +53,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0041](0041-history-from-the-networks.md) | History from the networks: batches before the stored messages, older history only on request | accepted | T2.25 |
 | [0042](0042-one-thread-per-person.md) | One thread per person: the interface interleaves a person's conversations, and never skips a message | accepted | T2.26 |
 | [0043](0043-messages-wait-for-their-account.md) | Messages sent without network wait on the device until their account connects | accepted | T2.27 |
-| [0044](0044-matrix-key-backup-and-recovery.md) | Key backup and recovery: a Matrix account's recovery key verifies Musubee and opens its history | proposed | T2.28 |
+| [0044](0044-matrix-key-backup-and-recovery.md) | Key backup and recovery: a Matrix account's recovery key verifies Musubee and opens its history | accepted | T2.28 |

@@ -1,9 +1,9 @@
 # ADR 0044 — Key backup and recovery: a Matrix account's recovery key verifies Musubee and opens its history
 
-- **Status**: proposed (waiting for the maintainer's answers below; no code yet)
+- **Status**: accepted (the maintainer asked the design assistant to take the decisions, 2026-11-03)
 - **Date**: 2026-11-03
 - **Task**: T2.28 (E2.8)
-- **Deciders**: Claude Code (design assistant); the maintainer decides
+- **Deciders**: Claude Code (design assistant), at the maintainer's request; to be reviewed by the maintainer
 
 ## Context
 
@@ -47,29 +47,38 @@ mautrix-go has `crypto/verificationhelper`.
 ### Option D — Musubee's own backup of its whole database
 - Cons: duplicates Matrix's mechanism for Matrix, and is useless for the networks that keep or refuse history (see the table); a separate decision with sync (ADR 0017).
 
-## Proposed decision
+## Decision
 
-**Option A now; Option B as a follow-up if the maintainer wants it; C later.**
+**Option A.** The questions asked of the maintainer, answered at their request:
 
-- **API**: `accounts.verify` (`account_id`, `recovery_key`) → `{ verified, keys_imported }`; `Account.verification` (`unverified`, `verified`, `not_supported`) for Matrix accounts; errors `invalid_params` (malformed key), `unauthorized` (wrong key), `network`.
-- **Core** (`core/connector/matrix`): the client gains `Verify(ctx, recoveryKey)`; uploads new inbound sessions in batches after each sync while a trusted backup version is known (stored as the machine's `KeyBackupVersion`); a sync that finds the backup's version changed stops uploading until the user verifies again.
-- **Interface**: in the account's line, "Verify this device…" opens a dialog explaining what a recovery key is ("the key your Matrix app gave you when you set up secure backup"), a password-type field (never logged, never stored, cleared after use), and the outcome.
-- **Logs**: never the recovery key, never secrets; counts only.
-- **Tests**: the Synapse journey sets up recovery for alice with mautrix-go (`GenerateAndUploadCrossSigningKeys` with her password, a backup), has bob's messages encrypted before Musubee's login, logs Musubee in, checks they are undecryptable, verifies with the key, and checks that they decrypt, that bob's client sees the device as cross-signed, and that a message Musubee received is in the backup.
+1. **Scope**: Matrix accounts only (see the table above).
+2. **Setting recovery up** (Option B): not now. Musubee uses an account's existing recovery; an account without secure backup is told to set it up in another Matrix app (Element). Showing a recovery key once and asking for the account's password are left for a later decision.
+3. **Uploading to the backup**: on by default once the device is verified with the recovery key: the backup is the user's, and they asked for it in their other app.
+4. **Where**: on the account's line in the sidebar, with the account's other actions.
 
-## Questions for the maintainer
+- **API 1.15**: `accounts.verify` (`account_id`, `recovery_key`) → `backup_restored`; `Account.verification` (`verified`, `unverified`), omitted for other networks and while unknown. A wrong or malformed key is `invalid_params`, an account without secure backup or of another network `unsupported`, any other failure `network` (its message names no key).
+- **Matrix connector** (`core/connector/matrix/recovery.go`):
+  - opens the default secret storage key with the recovery key (`VerifyRecoveryKey`), fetches the cross-signing keys, signs the device and the master key (as `VerifyWithRecoveryKey` does, with the key opened once);
+  - reads the backup key (`m.megolm_backup.v1`) from secret storage, keeps it with `PutSecret` (pickled with the key derived from the core's master key), restores the latest backup (`DownloadAndStoreLatestKeyBackup`, which first checks that the backup's public key is the key's), and remembers its version (`SetKeyBackupVersion`);
+  - after each sync, uploads in batches of 100 the room keys that this backup version lacks (`GetGroupSessionsWithoutKeyBackupVersion`), each exported from its first known index and encrypted to the backup's public key (`backup.EncryptSessionData`), then marks them (`SetGroupSessionKeyBackupVersion`); a newer backup version (`M_WRONG_ROOM_KEYS_VERSION`) stops the uploads until the user verifies again;
+  - remembers whether the device is verified (read once the encryption starts, and set by a verification), so that listing accounts makes no request.
+- **Interface**: "Verify this device…" on an unverified Matrix account's line; a dialog with a password-type field (not remembered, not spell-checked, cleared once used); the outcome says whether the backup came back; "Verified device" afterwards.
+- **Logs**: never the recovery key nor a secret; counts and errors only.
 
-1. **Scope**: Matrix accounts only, as above? (Telegram and Signal do not need it; see the table.)
-2. **Option B**: should Musubee also set recovery up for accounts without it (showing a recovery key once, asking the account's password)? Or leave that to Element for now?
-3. **Uploading to the backup**: on by default once the device is verified (proposed), or a separate switch?
-4. **Where in the interface**: the account's line in the sidebar (proposed), or a settings screen per account?
-
-## Consequences (if accepted as proposed)
+## Consequences
 
 - A Matrix user who reinstalls Musubee, or adds it next to Element, gets their history back with their recovery key, and is trusted by their contacts' clients.
 - Without a recovery key, nothing changes: new devices still start without history.
 - The recovery key passes through the interface and the core in memory only; a compromised device at that moment could read it, as with any Matrix client.
 
+- Messages that failed to decrypt before the verification stay as "Unable to decrypt" notices: the core replaced them when they came (T2.2), and the Matrix connector has no history fetching yet (ADR 0041) to bring them back. New messages, and history fetched later, decrypt with the restored keys.
+
 ## Verification
 
-Nothing is implemented; the claims above about mautrix-go are **verified by reading** mautrix-go v0.31.0 (`crypto/cross_sign_ssss.go`, `crypto/keybackup.go`, `crypto/ssss/`, `crypto/backup/`, `crypto/sql_store.go`, `client.go`), 2026-11-03.
+| Claim | Status | Evidence |
+|---|---|---|
+| What mautrix-go v0.31.0 offers and lacks, as described above | **verified by reading** (`crypto/cross_sign_ssss.go`, `crypto/keybackup.go`, `crypto/ssss/`, `crypto/backup/`, `crypto/sql_store.go`, `client.go`), 2026-11-03 | |
+| A wrong key is refused; the right one verifies the device (its cross-signature on the server), restores the backup, and a room key received afterwards reaches the backup; the key is in neither the log nor the database | **implemented, unverified** (CI only: Synapse) | `infra/matrixtest/recovery_integration_test.go` `TestMatrixRecoveryKey` |
+| Other networks have no verification, and refuse it | **implemented, unverified** | `core/embedded/recovery_test.go` |
+| The contract: the new command and fields have examples, valid for Go's and TypeScript's validators | **implemented, unverified** | `core/api` `TestExamplesCoverTheSchema`; `ui/src/core-api/contract.test.ts` |
+| The store verifies and marks the account verified | **implemented, unverified** | `ui/src/store.test.ts` |
