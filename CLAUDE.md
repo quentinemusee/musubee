@@ -673,3 +673,10 @@ To verify in the test session: T2.70 and T2.71 (cloud sprint, no test run; inter
 voice speed, lines: cd ui && npx vitest run src/playback.test.ts src/message.test.ts
 lines in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "line breaks"
 ```
+
+To verify in the test session: T2.72 and T2.73 (cloud sprint, no test run; interface only):
+
+```
+days (ui):          cd ui && npx vitest run src/message.test.ts
+names in search:    cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "search finds"
+```
