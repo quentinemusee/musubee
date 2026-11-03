@@ -132,6 +132,27 @@ export class Store {
   /** The conversations whose latest messages select() is reading. */
   readonly #reading = new Set<string>();
 
+  /**
+   * What the user wrote and did not send, by conversation: kept while the
+   * app runs, never stored (unsent text stays off the disk). Not state:
+   * nothing renders it but the composer that wrote it.
+   */
+  readonly #drafts = new Map<string, string>();
+
+  /** The text the user left in a conversation's composer, or "". */
+  draftOf(conversationId: string): string {
+    return this.#drafts.get(conversationId) ?? "";
+  }
+
+  /** Keeps (or forgets, when empty) the text left in a conversation's composer. */
+  keepDraft(conversationId: string, text: string): void {
+    if (text === "") {
+      this.#drafts.delete(conversationId);
+    } else {
+      this.#drafts.set(conversationId, text);
+    }
+  }
+
   /** The persons the user reads together (docs/ADR/0042), remembered per device. */
   readonly #togetherPersons: Set<string>;
   readonly #togetherStorage: TogetherStorage | undefined;

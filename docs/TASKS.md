@@ -290,6 +290,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.39 — Go to the message found** (E2.4)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). A search result opens its conversation at the message, read up to 20 pages back, centred and outlined for two seconds (ADR 0046's consequences). 🧪 `ui/src/store.test.ts` ("reveals a message").
 
+**T2.40 — Drafts** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). Each conversation's composer keeps the text the user left there while the app runs, in memory only (unsent text stays off the disk); an edit's text never replaces it. 🧪 `apps/desktop/e2e/app.spec.ts`, "an unsent text waits". Left: drafts that survive a restart (sealed in the core's database, if wanted).
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

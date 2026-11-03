@@ -272,7 +272,17 @@ function Composer({ draft, onDraftDone, media, writingWith }: ComposerProps) {
     [typingStore, typingIn],
   );
   const store = useStore();
-  const [text, setText] = useState("");
+  // The composer is made anew per conversation: it starts from what the
+  // user left there (T2.40), and keeps what they write.
+  const draftIn = useAppState((s) => s.selected);
+  const [text, setTextState] = useState(() => (draftIn === undefined ? "" : store.draftOf(draftIn)));
+  // An edit's text is not a draft.
+  function setText(value: string) {
+    setTextState(value);
+    if (draftIn !== undefined && draft?.mode !== "edit") {
+      store.keepDraft(draftIn, value);
+    }
+  }
   const input = useRef<HTMLInputElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   // The file the user attached, sent with the text as its caption.
@@ -322,9 +332,10 @@ function Composer({ draft, onDraftDone, media, writingWith }: ComposerProps) {
   if (draft !== shownDraft) {
     setShownDraft(draft);
     if (draft?.mode === "edit") {
-      setText(draft.message.text);
+      setTextState(draft.message.text);
     } else if (shownDraft?.mode === "edit") {
-      setText("");
+      // Back to what the user was writing before the edit.
+      setTextState(draftIn === undefined ? "" : store.draftOf(draftIn));
     }
   }
   // Either kind of draft takes the focus.

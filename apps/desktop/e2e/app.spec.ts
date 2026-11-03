@@ -427,6 +427,18 @@ test("typing shows the echo contact typing back, then stopping", async () => {
   await app.close();
 });
 
+test("an unsent text waits in its conversation's composer", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "drafts");
+  const composer = page.getByRole("textbox", { name: "Message" });
+  await composer.fill("half a thought");
+  await page.getByRole("button", { name: "Delayed Echo" }).click();
+  await expect(composer).toHaveValue("");
+  await page.getByRole("button", { name: "Instant Echo" }).click();
+  await expect(composer).toHaveValue("half a thought");
+  await app.close();
+});
+
 test("log out of an account: it goes away with its conversations", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "leaving");
