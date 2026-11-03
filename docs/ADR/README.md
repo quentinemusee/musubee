@@ -73,3 +73,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0061](0061-avatars.md) | Avatars: the room's picture from bridgev2, or initials on the name's hue | accepted | T2.59 |
 | [0062](0062-unread-mentions.md) | Unread mentions: counted by the local server from m.mentions | accepted | T2.60 |
 | [0063](0063-conversation-colors.md) | A conversation's or a person's own color: the app's accents, per thread, kept per device | accepted | T2.61 |
+| [0064](0064-notification-actions.md) | Notification actions on Android: reply and mark read through the core service, after unlocking | accepted | T2.64 |

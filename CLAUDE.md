@@ -630,3 +630,9 @@ To verify in the test session: T2.61 (cloud sprint, no test run; see ADR 0063):
 colors (ui):        cd ui && npx vitest run src/conversation-accent.test.ts
 colors in the app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "its own color"
 ```
+
+To verify in the test session: T2.64 (cloud sprint, not even compiled: no Android SDK; see ADR 0064). By hand on the Pixel 8 Pro: reply to an echo contact from its notification, then mark another read, with the phone locked (it must ask to unlock) and unlocked.
+
+```
+android build:      cd apps/mobile/android && ./gradlew :app:assembleDebug
+```

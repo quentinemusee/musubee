@@ -359,6 +359,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.62 — "More…" in the thread's header** (E2.3)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). The header keeps the name, "Mute…" and "Person…"; "More…" holds Mark unread, Pin, Color…, Archive, Members…, Leave… and Delete…, and Escape closes it. 🧪 the desktop e2e tests of those actions open it first.
 
+**T2.64 — Reply and mark read from an Android notification** (E2.6)
+- Outcome: **implemented, not compiled** (cloud sprint, no Android SDK). "Reply" (inline text) and "Mark as read" on message notifications, handled by `CoreService`, after unlocking (ADR 0064). 🧪 by hand: build, then reply to an echo contact from a notification on the Pixel 8 Pro, locked and unlocked.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).
