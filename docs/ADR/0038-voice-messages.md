@@ -71,7 +71,7 @@ API 1.11 adds `MediaAction.mime_types`, the types a network takes for each kind 
 ## Consequences
 
 - Telegram gets voice messages in MP4 from the desktop and Android: **assumed** to show as voice messages there, not run against Telegram in T2.22.
-- Signal gets no voice messages from Musubee until the AAC repackaging: the recording goes as an attachment if Signal takes its type, and the user is told otherwise. **Unknown** whether Signal takes MP4 audio as an attachment (`m.audio` and `m.file` types of its room features: to read).
+- Signal gets no voice messages from Musubee until the AAC repackaging: its room features take `audio/aac`, `audio/mpeg`, `audio/mp3` and `audio/flac` as audio, and any type as a file, so a recording in MP4 goes as a file (read in our copy of mautrix-signal, `pkg/connector/capabilities.go`).
 - On Android the first recording asks for the microphone; a user who refuses for good must allow it in the system's settings, which the error says.
 - iOS (later) records in MP4 AAC with WKWebView; nothing here is specific to Chromium but the order of containers.
 - A browser without `MediaRecorder` shows no microphone button.
