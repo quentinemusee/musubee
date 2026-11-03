@@ -34,7 +34,7 @@ Sources: SQLite, "The LIKE, GLOB, REGEXP, MATCH, and extract operators" (`LIKE �
 
 - A result opens its conversation at its newest message, not at the message found: jumping to a message needs the thread to read the history around it, a later task.
 - File names of media without a caption are not found (the caption is the text searched).
-- "É" does not find "é": SQLite's LIKE folds ASCII only.
+- An accented capital letter does not find its lowercase form: SQLite's LIKE folds ASCII letters only.
 
 ## Verification
 
