@@ -452,3 +452,10 @@ older history:      go test -tags=goolm -count=1 -run 'FetchOlder' -v ./core/emb
 history (ui):       cd ui && npx vitest run src/store.test.ts src/core-api/contract.test.ts
 history in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "older history"
 ```
+
+To verify in the test session: T2.26 (cloud sprint, no test run; see ADR 0042):
+
+```
+person's thread:    cd ui && npx vitest run src/together.test.ts src/store.test.ts
+thread in the app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "one thread"
+```

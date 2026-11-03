@@ -237,6 +237,12 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 - 🧪 Test: local server tests of batches (backward, forward, an empty room); the core's journey through the echo network's history; contract examples; Vitest for the store; a desktop Playwright journey to the oldest message.
 - Outcome: **implemented, unverified** (cloud sprint, no test run). Backfill is on (ADR 0041): the latest 50 messages of a new conversation, up to 500 on a catch-up, read when older than a day. The local server takes bridgev2's batches (`BatchSend`), putting older history at negative stream orders below every room's. API 1.13 adds `messages.fetchOlder`, which runs one backward batch by hand when the interface reaches the oldest message on the device; the echo network gives ContactInstant 60 older messages. Left: whether the forward backfill adds `FLOOD_WAIT` to the Telegram CI runs (to watch), Matrix accounts' history (`FetchMessages`), offline sending.
 
+**T2.26 — One thread per person** (E2.5)
+- Deliverable: a person's conversations from several networks read as one thread, written with the network the user chooses.
+- Acceptance: messages in time order, each saying its network; scrolling up never shows a message in the middle of what was already shown; answering goes through the answered message's network; every conversation shown is read.
+- 🧪 Test: Vitest for the interleaving and the store; a desktop Playwright journey with two merged echo accounts.
+- Outcome: **implemented, unverified** (cloud sprint, no test run). "All together" above the switcher interleaves a person's conversations in the interface, from each conversation's pages (ADR 0042): while one has unread older history, the others' older messages wait, and scrolling up reads it next. Messages say "via" their network; the switcher then chooses where the user writes ("Write with …"); answering or editing moves there. Left: remembering the choice after a restart, related groups.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).
