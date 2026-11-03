@@ -521,12 +521,18 @@ func (c *Core) messages(ctx context.Context, roomID id.RoomID, events []*event.E
 	if err != nil {
 		return nil, err
 	}
+	// The messages the user starred here (API 1.36, docs/ADR/0065).
+	starred, err := c.host.Matrix.Starred(ctx, roomID)
+	if err != nil {
+		return nil, err
+	}
 	messages := make([]api.Message, 0, len(events))
 	for _, evt := range events {
 		msg, err := c.message(ctx, evt, relations[evt.ID])
 		if err != nil {
 			return nil, err
 		}
+		_, msg.Starred = starred[evt.ID]
 		messages = append(messages, msg)
 	}
 	return messages, nil

@@ -641,6 +641,10 @@ func (c *Core) dispatch(ctx context.Context, command string, params json.RawMess
 		return handle(ctx, params, c.conversationsSetDraft)
 	case api.CommandConversationsArchive:
 		return handle(ctx, params, c.conversationsArchive)
+	case api.CommandMessagesStar:
+		return handle(ctx, params, c.messagesStar)
+	case api.CommandMessagesStarred:
+		return handle(ctx, params, c.messagesStarred)
 	case api.CommandConversationsTyping:
 		return handle(ctx, params, c.conversationsTyping)
 	case api.CommandMessagesList:

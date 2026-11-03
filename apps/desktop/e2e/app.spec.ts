@@ -559,6 +559,25 @@ test("a conversation keeps its own color after a restart", async () => {
   await app.close();
 });
 
+test("a starred message is listed with the others, and opens its conversation", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "starred");
+  await page.getByRole("textbox", { name: "Message" }).fill("keep this");
+  await page.getByRole("button", { name: "Send" }).click();
+  const sent = page.locator('.message[data-from-me="true"]').filter({ hasText: "keep this" }).first();
+  await expect(sent).toContainText("Sent");
+  await sent.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("button", { name: "Star", exact: true }).click();
+  await expect(sent).toContainText("Starred");
+
+  await page.getByRole("button", { name: "Starred", exact: true }).click();
+  const list = page.getByRole("region", { name: "Starred" });
+  await expect(list.getByRole("button", { name: /keep this/ })).toBeVisible();
+  await list.getByRole("button", { name: /keep this/ }).click();
+  await expect(page.locator(".message-row[data-highlighted=\"true\"]")).toContainText("keep this");
+  await app.close();
+});
+
 test("a group shows its members", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "members");

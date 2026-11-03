@@ -1043,3 +1043,80 @@ func (s *Server) Archive(ctx context.Context, roomID id.RoomID, at int64) (bool,
 	s.publish(Update{ReadState: roomID})
 	return true, nil
 }
+
+// starred is the account data that keeps the messages the user starred in
+// a room (docs/ADR/0065): when each was starred, in Unix milliseconds.
+type starred struct {
+	Events map[id.EventID]int64 `json:"events"`
+}
+
+// Star stars or unstars a message for the user, on this device only, and
+// reports whether it changed.
+func (s *Server) Star(ctx context.Context, roomID id.RoomID, eventID id.EventID, star bool) (bool, error) {
+	var st starred
+	if _, err := s.store.getRoomAccountData(ctx, s.userID, roomID, accountDataStarred, &st); err != nil {
+		return false, err
+	}
+	if _, was := st.Events[eventID]; was == star {
+		return false, nil
+	}
+	if st.Events == nil {
+		st.Events = map[id.EventID]int64{}
+	}
+	if star {
+		st.Events[eventID] = time.Now().UnixMilli()
+	} else {
+		delete(st.Events, eventID)
+	}
+	return true, s.store.setRoomAccountData(ctx, s.userID, roomID, accountDataStarred, &st)
+}
+
+// Starred returns the messages the user starred in a room, with when.
+func (s *Server) Starred(ctx context.Context, roomID id.RoomID) (map[id.EventID]int64, error) {
+	var st starred
+	_, err := s.store.getRoomAccountData(ctx, s.userID, roomID, accountDataStarred, &st)
+	return st.Events, err
+}
+
+// StarredMessage is a message the user starred.
+type StarredMessage struct {
+	RoomID  id.RoomID
+	EventID id.EventID
+	At      int64
+}
+
+// AllStarred returns the messages the user starred in every room, the most
+// recently starred first.
+func (s *Server) AllStarred(ctx context.Context) ([]StarredMessage, error) {
+	rows, err := s.store.db.Query(ctx,
+		`SELECT room_id, content FROM local_room_account_data WHERE user_id=$1 AND data_type=$2`, s.userID, accountDataStarred)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var all []StarredMessage
+	for rows.Next() {
+		var roomID id.RoomID
+		var content string
+		if err = rows.Scan(&roomID, &content); err != nil {
+			return nil, err
+		}
+		var st starred
+		if json.Unmarshal([]byte(content), &st) != nil {
+			continue
+		}
+		for eventID, at := range st.Events {
+			all = append(all, StarredMessage{RoomID: roomID, EventID: eventID, At: at})
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	slices.SortFunc(all, func(a, b StarredMessage) int {
+		if a.At != b.At {
+			return cmp.Compare(b.At, a.At)
+		}
+		return cmp.Compare(b.EventID, a.EventID)
+	})
+	return all, nil
+}

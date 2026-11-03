@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.35",
+  "x-musubee-api-version": "1.36",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -384,6 +384,26 @@
           "properties": {
             "params": { "$ref": "#/$defs/MessagesSendMediaParams" },
             "result": { "$ref": "#/$defs/MessagesSendResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "messages.star": {
+          "description": "Stars a message, or unstars it, on this device only: no network learns it. Returns the message as it now is. Since API 1.36.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/MessagesStarParams" },
+            "result": { "$ref": "#/$defs/MessagesSendResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "messages.starred": {
+          "description": "Lists the starred messages of every conversation, the most recently starred first, up to 500. Since API 1.36.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/Empty" },
+            "result": { "$ref": "#/$defs/MessagesStarredResult" }
           },
           "required": ["params", "result"],
           "additionalProperties": false
@@ -1256,6 +1276,10 @@
     "Message": {
       "type": "object",
       "properties": {
+        "starred": {
+          "description": "The user starred the message (messages.star). Omitted when false. Since API 1.36.",
+          "type": "boolean"
+        },
         "sender_avatar_id": {
           "description": "The sender's picture, to read with media.read; for messages of others only. Omitted when they have none. Since API 1.33.",
           "type": "string"
@@ -1625,6 +1649,23 @@
         "upload_id": { "type": "string" }
       },
       "required": ["upload_id"],
+      "additionalProperties": false
+    },
+    "MessagesStarParams": {
+      "type": "object",
+      "properties": {
+        "message_id": { "type": "string" },
+        "starred": { "type": "boolean" }
+      },
+      "required": ["message_id", "starred"],
+      "additionalProperties": false
+    },
+    "MessagesStarredResult": {
+      "type": "object",
+      "properties": {
+        "messages": { "type": "array", "items": { "$ref": "#/$defs/Message" } }
+      },
+      "required": ["messages"],
       "additionalProperties": false
     },
     "MessagesForwardParams": {

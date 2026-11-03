@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.35"
+const APIVersion = "1.36"
 
 // Command names.
 const (
@@ -170,6 +170,12 @@ const (
 	// messages.send, the message is stored at once with status sending; its
 	// delivery is reported later by message.updated events. Since API 1.10.
 	CommandMessagesSendMedia = "messages.sendMedia"
+	// Stars a message, or unstars it, on this device only: no network learns it.
+	// Returns the message as it now is. Since API 1.36.
+	CommandMessagesStar = "messages.star"
+	// Lists the starred messages of every conversation, the most recently starred
+	// first, up to 500. Since API 1.36.
+	CommandMessagesStarred = "messages.starred"
 	// Sends a copy of a message to a conversation, on any network: its latest
 	// text, or its media (from this device's storage) with its caption, when that
 	// conversation's actions take that kind. The copy is a new message of the
@@ -280,6 +286,8 @@ var Commands = []CommandSpec{
 	{Name: CommandUploadsAppend, Params: reflect.TypeFor[UploadsAppendParams](), Result: reflect.TypeFor[UploadsAppendResult]()},
 	{Name: CommandUploadsCancel, Params: reflect.TypeFor[UploadsCancelParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandMessagesSendMedia, Params: reflect.TypeFor[MessagesSendMediaParams](), Result: reflect.TypeFor[MessagesSendResult]()},
+	{Name: CommandMessagesStar, Params: reflect.TypeFor[MessagesStarParams](), Result: reflect.TypeFor[MessagesSendResult]()},
+	{Name: CommandMessagesStarred, Params: reflect.TypeFor[Empty](), Result: reflect.TypeFor[MessagesStarredResult]()},
 	{Name: CommandMessagesForward, Params: reflect.TypeFor[MessagesForwardParams](), Result: reflect.TypeFor[MessagesSendResult]()},
 	{Name: CommandMediaRead, Params: reflect.TypeFor[MediaReadParams](), Result: reflect.TypeFor[MediaReadResult]()},
 	{Name: CommandPersonsList, Params: reflect.TypeFor[Empty](), Result: reflect.TypeFor[PersonsListResult]()},
@@ -877,6 +885,9 @@ type ConversationEvent struct {
 
 // Message is $defs/Message of the schema.
 type Message struct {
+	// The user starred the message (messages.star). Omitted when false. Since API
+	// 1.36.
+	Starred bool `json:"starred,omitempty"`
 	// The sender's picture, to read with media.read; for messages of others only.
 	// Omitted when they have none. Since API 1.33.
 	SenderAvatarID string `json:"sender_avatar_id,omitempty"`
@@ -1113,6 +1124,17 @@ type UploadsAppendResult struct {
 // UploadsCancelParams is $defs/UploadsCancelParams of the schema.
 type UploadsCancelParams struct {
 	UploadID string `json:"upload_id"`
+}
+
+// MessagesStarParams is $defs/MessagesStarParams of the schema.
+type MessagesStarParams struct {
+	MessageID string `json:"message_id"`
+	Starred   bool   `json:"starred"`
+}
+
+// MessagesStarredResult is $defs/MessagesStarredResult of the schema.
+type MessagesStarredResult struct {
+	Messages []Message `json:"messages"`
 }
 
 // MessagesForwardParams is $defs/MessagesForwardParams of the schema.

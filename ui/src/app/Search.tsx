@@ -82,18 +82,7 @@ export function SearchResults() {
       </output>
       <ul>
         {search.results.map((message) => (
-          <li key={message.message_id}>
-            <button type="button" className="search-result" onClick={() => void store.reveal(message)}>
-              <span className="search-result-head">
-                <span className="search-result-name">{name(message) || "Unnamed conversation"}</span>
-                <time dateTime={new Date(message.timestamp_ms).toISOString()}>{activityLabel(message.timestamp_ms, now)}</time>
-              </span>
-              <span className="search-result-text">
-                {message.from_me ? "You: " : message.sender_name ? `${message.sender_name}: ` : ""}
-                {summary(message)}
-              </span>
-            </button>
-          </li>
+          <MessageResult key={message.message_id} message={message} name={name(message)} now={now} />
         ))}
       </ul>
       {typeof search.more === "object" ? (
@@ -101,6 +90,55 @@ export function SearchResults() {
           More results
         </button>
       ) : null}
+    </section>
+  );
+}
+
+/** A message found or starred: its conversation, time and text; opens it at the message. */
+function MessageResult({ message, name, now }: { message: Message; name: string; now: number }) {
+  const store = useStore();
+  return (
+    <li>
+      <button type="button" className="search-result" onClick={() => void store.reveal(message)}>
+        <span className="search-result-head">
+          <span className="search-result-name">{name || "Unnamed conversation"}</span>
+          <time dateTime={new Date(message.timestamp_ms).toISOString()}>{activityLabel(message.timestamp_ms, now)}</time>
+        </span>
+        <span className="search-result-text">
+          {message.from_me ? "You: " : message.sender_name ? `${message.sender_name}: ` : ""}
+          {summary(message)}
+        </span>
+      </button>
+    </li>
+  );
+}
+
+/** The starred messages (API 1.36, docs/ADR/0065), in place of the inbox. */
+export function StarredMessages() {
+  const store = useStore();
+  const starred = useAppState((s) => s.starred);
+  const conversations = useAppState((s) => s.conversations);
+  const now = useNow();
+  if (starred === undefined) {
+    return null;
+  }
+  const name = (message: Message) => conversations.find((c) => c.conversation_id === message.conversation_id)?.name ?? "";
+  return (
+    <section className="search-results" aria-labelledby="starred-title">
+      <div className="inbox-header">
+        <h2 id="starred-title">Starred</h2>
+        <button type="button" className="secondary" onClick={() => store.hideStarred()}>
+          Back to conversations
+        </button>
+      </div>
+      <output className="hint">{starred === "loading" ? "Reading…" : starred.length === 0 ? "No starred messages. Star one from its menu." : ""}</output>
+      {starred === "loading" ? null : (
+        <ul>
+          {starred.map((message) => (
+            <MessageResult key={message.message_id} message={message} name={name(message)} now={now} />
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

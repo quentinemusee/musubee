@@ -40,6 +40,8 @@ export interface MessageHandlers {
   delete(message: Message): void;
   /** Sends a copy elsewhere (API 1.26); absent where the thread cannot choose a conversation. */
   forward?(message: Message): void;
+  /** Stars or unstars it (API 1.36). */
+  star?(message: Message, starred: boolean): void;
 }
 
 /** The answered message, quoted above an answer. */
@@ -80,7 +82,8 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers,
   const forwardable = handlers?.forward !== undefined && canForward(message);
   // Copying needs only text and a page allowed to write the clipboard.
   const copyable = handlers !== undefined && !deleted && message.text !== "" && navigator.clipboard !== undefined;
-  const showMenu = menu !== "closed" && (hasActions(allowed) || forwardable || copyable) && handlers !== undefined;
+  const starrable = handlers?.star !== undefined && !deleted && (message.status === "sent" || message.status === "received");
+  const showMenu = menu !== "closed" && (hasActions(allowed) || forwardable || copyable || starrable) && handlers !== undefined;
 
   function close(refocus: boolean) {
     setMenu("closed");
@@ -165,7 +168,13 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers,
               {message.status === "sent" && seen !== undefined ? <span className="seen"> · {seen}</span> : null}
             </span>
           ) : null}
-          {hasActions(allowed) || forwardable || copyable ? (
+          {message.starred === true ? (
+            <span className="starred">
+              <span aria-hidden="true">★</span>
+              <span className="visually-hidden">Starred</span>
+            </span>
+          ) : null}
+          {hasActions(allowed) || forwardable || copyable || starrable ? (
             <button
               ref={toggle}
               type="button"
@@ -188,6 +197,7 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers,
           allowed={allowed}
           forwardable={forwardable}
           copyable={copyable}
+          starrable={starrable}
           handlers={handlers}
           confirmDelete={menu === "confirm-delete"}
           onConfirmDelete={() => setMenu("confirm-delete")}
@@ -206,6 +216,7 @@ interface MessageMenuProps {
   allowed: MessageActions;
   forwardable: boolean;
   copyable: boolean;
+  starrable: boolean;
   handlers: MessageHandlers;
   confirmDelete: boolean;
   onConfirmDelete: () => void;
@@ -219,7 +230,7 @@ interface MessageMenuProps {
  * it, and so do moving the focus out and pressing elsewhere. Deleting asks
  * first.
  */
-function MessageMenu({ id, toggle, message, allowed, forwardable, copyable, handlers, confirmDelete, onConfirmDelete, onClose }: MessageMenuProps) {
+function MessageMenu({ id, toggle, message, allowed, forwardable, copyable, starrable, handlers, confirmDelete, onConfirmDelete, onClose }: MessageMenuProps) {
   const ref = useRef<HTMLFieldSetElement>(null);
   const outside = (target: unknown) => target instanceof Node && !(ref.current?.contains(target) ?? false) && !(toggle.current?.contains(target) ?? false);
 
@@ -366,6 +377,11 @@ function MessageMenu({ id, toggle, message, allowed, forwardable, copyable, hand
             {allowed.edit ? (
               <button type="button" className="secondary" onClick={() => run(() => handlers.edit(message), false)}>
                 Edit
+              </button>
+            ) : null}
+            {starrable ? (
+              <button type="button" className="secondary" onClick={() => run(() => handlers.star?.(message, message.starred !== true))}>
+                {message.starred === true ? "Unstar" : "Star"}
               </button>
             ) : null}
             {copyable ? (

@@ -114,6 +114,7 @@ export function Thread() {
       },
       delete: (message) => void store.deleteMessage(message),
       forward: (message) => setForwarding(message),
+      star: (message, starred) => void store.star(message, starred),
     }),
     [store],
   );

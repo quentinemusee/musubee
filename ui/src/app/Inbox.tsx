@@ -48,6 +48,9 @@ export function Inbox() {
     <section className="inbox" aria-labelledby="conversations-title">
       <div className="inbox-header">
         <h2 id="conversations-title">{archiveShown ? "Archived" : "Conversations"}</h2>
+        <button type="button" className="secondary" onClick={() => void store.showStarred()}>
+          Starred
+        </button>
         {anyUnread ? (
           <button type="button" className="secondary" onClick={() => void store.markAllRead()}>
             Mark all read

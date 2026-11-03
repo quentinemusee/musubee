@@ -1574,3 +1574,7 @@ kbd {
   margin-bottom: 4px;
   font-size: calc(13 * var(--text));
 }
+
+.starred {
+  color: var(--color-accent);
+}

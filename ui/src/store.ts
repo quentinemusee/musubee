@@ -73,6 +73,8 @@ export interface State {
   typing?: Readonly<Record<string, readonly string[]>>;
   /** A search of the messages (API 1.17), while the user searches. */
   search?: SearchState;
+  /** The starred messages shown in place of the inbox (API 1.36), or "loading". */
+  starred?: readonly Message[] | "loading";
   /** The conversation the search looks in (API 1.17's conversation_id); none: every one. */
   searchIn?: string;
   /** A media the user sends, while its bytes go to the core (API 1.10). */
@@ -984,6 +986,44 @@ export class Store {
       this.#replace(cleared);
       await this.searchMessages(query);
     }
+  }
+
+  /** Stars or unstars a message (API 1.36): at once in the thread, back if the core refuses. */
+  async star(message: Message, starred: boolean): Promise<void> {
+    const { starred: _, ...rest } = message;
+    this.#upsertMessage(starred ? { ...rest, starred: true } : rest);
+    try {
+      const result = await this.client.call("messages.star", { message_id: message.message_id, starred });
+      this.#upsertMessage(result.message);
+      const list = this.#state.starred;
+      if (Array.isArray(list)) {
+        const others = list.filter((m) => m.message_id !== message.message_id);
+        this.#set({ starred: starred ? [result.message, ...others] : others });
+      }
+    } catch (error) {
+      this.#upsertMessage(message);
+      this.#set({ error: `Could not ${starred ? "star" : "unstar"} the message: ${describe(error)}` });
+    }
+  }
+
+  /** Shows the starred messages in place of the inbox, read from the core. */
+  async showStarred(): Promise<void> {
+    this.#set({ starred: "loading" });
+    try {
+      const { messages } = await this.client.call("messages.starred", {});
+      if (this.#state.starred !== undefined) {
+        this.#set({ starred: messages });
+      }
+    } catch (error) {
+      this.hideStarred();
+      this.#set({ error: `Could not read the starred messages: ${describe(error)}` });
+    }
+  }
+
+  /** Back to the inbox. */
+  hideStarred(): void {
+    const { starred: _, ...rest } = this.#state;
+    this.#replace(rest);
   }
 
   /** Reads the next page of the current search's results. */

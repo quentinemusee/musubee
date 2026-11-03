@@ -601,6 +601,30 @@ describe("Store", () => {
     expect(store.getState().searchIn).toBeUndefined();
   });
 
+  test("stars a message, and lists the starred ones in place of the inbox", async () => {
+    const m1 = message("m1", 1, { text: "keep this" });
+    const shell = scriptedShell({
+      ...coreState([conversation("c1", "Adam", 1)]),
+      "messages.list": () => ({ messages: [m1] }),
+      "messages.star": (params) => ({ message: { ...m1, ...((params as { starred: boolean }).starred ? { starred: true } : {}) } }),
+      "messages.starred": () => ({ messages: [{ ...m1, starred: true }] }),
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    await store.select("c1");
+    await store.star(m1, true);
+    expect(store.getState().messages["c1"]?.[0]?.starred).toBe(true);
+    await store.showStarred();
+    expect(store.getState().starred).toEqual([{ ...m1, starred: true }]);
+    await store.star({ ...m1, starred: true }, false);
+    expect(store.getState().starred).toEqual([]);
+    expect(store.getState().messages["c1"]?.[0]?.starred).toBeUndefined();
+    store.hideStarred();
+    expect(store.getState().starred).toBeUndefined();
+  });
+
   test("reads older messages page by page, one page at a time", async () => {
     // 250 messages, m0 to m249; the core pages them from the newest.
     const all = Array.from({ length: 250 }, (_, i) => message(`m${i}`, i));

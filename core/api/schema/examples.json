@@ -186,6 +186,9 @@
     { "target": "command:uploads.cancel:result", "value": {} },
     { "target": "command:messages.sendMedia:params", "value": { "conversation_id": "c1", "upload_id": "u1", "kind": "image", "mime_type": "image/png", "file_name": "photo.png", "caption": "Look", "width": 640, "height": 480, "reply_to": "m2" } },
     { "target": "command:messages.forward:params", "value": { "message_id": "m8", "conversation_id": "c2" } },
+    { "target": "command:messages.star:params", "value": { "message_id": "m8", "starred": true } },
+    { "target": "command:messages.starred:params", "value": {} },
+    { "target": "command:messages.starred:result", "value": { "messages": [] } },
     { "target": "command:messages.sendMedia:params", "value": { "conversation_id": "c1", "upload_id": "u2", "kind": "voice", "mime_type": "audio/ogg", "file_name": "voice.ogg", "duration_ms": 3200 } },
     { "target": "command:messages.sendMedia:result", "value": { "message": {
       "message_id": "m8", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1791496806000, "kind": "image", "text": "Look", "status": "sending",
@@ -223,7 +226,7 @@
       "message_id": "m4", "conversation_id": "c1", "from_me": false, "sender_name": "Bot", "timestamp_ms": 1791496802000, "kind": "unsupported", "text": "A sticker", "status": "received"
     } } },
     { "target": "event:message.added", "value": { "message": {
-      "message_id": "m9", "conversation_id": "c4", "from_me": false, "sender_name": "Alice", "timestamp_ms": 1791496803000, "kind": "text", "text": "@Ada look", "status": "received", "mentions_me": true, "sender_avatar_id": "f10"
+      "message_id": "m9", "conversation_id": "c4", "from_me": false, "sender_name": "Alice", "timestamp_ms": 1791496803000, "kind": "text", "text": "@Ada look", "status": "received", "mentions_me": true, "sender_avatar_id": "f10", "starred": true
     } } },
     { "target": "event:message.updated", "value": { "message": {
       "message_id": "m3", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1791496801000, "kind": "text", "text": "Hello 👋", "status": "failed", "error": "The contact refused the message"

@@ -10,7 +10,7 @@ import { EmojiVerification } from "./EmojiVerification";
 import { VerifyDevice } from "./VerifyDevice";
 import { Inbox } from "./Inbox";
 import { NotificationSettings } from "./NotificationSettings";
-import { SearchField, SearchResults } from "./Search";
+import { SearchField, SearchResults, StarredMessages } from "./Search";
 import { useBackToInbox } from "./navigation";
 import { NotificationsContext, useAppState, useStore } from "./state";
 import { Shortcuts } from "./Shortcuts";
@@ -32,6 +32,7 @@ export function App() {
   const view = useAppState((s) => (s.selected === undefined ? "inbox" : "thread"));
   const keyLost = useAppState((s) => s.status.state === "failed" && s.status.keyLost === true);
   const searching = useAppState((s) => s.search !== undefined);
+  const starredShown = useAppState((s) => s.starred !== undefined);
   useBackToInbox(store);
   return (
     <div className="app">
@@ -76,7 +77,7 @@ export function App() {
               Add an account
             </button>
             <SearchField />
-            {searching ? <SearchResults /> : <Inbox />}
+            {searching ? <SearchResults /> : starredShown ? <StarredMessages /> : <Inbox />}
           </nav>
           <main className="app-main">
             <Thread />
