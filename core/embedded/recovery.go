@@ -8,6 +8,8 @@ import (
 	"errors"
 	"strings"
 
+	"maunium.net/go/mautrix/bridgev2/networkid"
+
 	"github.com/quentinemusee/musubee/core/api"
 	"github.com/quentinemusee/musubee/core/connector/matrix"
 )
@@ -74,4 +76,64 @@ func (c *Core) accountsVerify(ctx context.Context, p api.AccountsVerifyParams) (
 		return api.AccountsVerifyResult{}, newError(api.ErrorCodeNetwork, "could not verify this device: %v", err)
 	}
 	return api.AccountsVerifyResult{BackupRestored: restored}, nil
+}
+
+// interactiveVerifier is implemented by network clients that verify their
+// device with another device (the Matrix connector, docs/ADR/0049).
+type interactiveVerifier interface {
+	StartVerification(ctx context.Context) error
+	AcceptVerification(ctx context.Context) error
+	ConfirmVerification(ctx context.Context) error
+	CancelVerification(ctx context.Context) error
+}
+
+// onVerification passes a step of a Matrix account's verification to the
+// interface (API 1.22). The emoji are no secret: both screens show them.
+func (c *Core) onVerification(login networkid.UserLoginID, state matrix.VerificationState) {
+	data := api.VerificationEvent{
+		AccountID: accountID(matrixBridge, login),
+		Step:      api.VerificationStep(state.Step),
+		Reason:    state.Reason,
+	}
+	for _, e := range state.Emoji {
+		data.Emoji = append(data.Emoji, api.VerificationEmoji{Emoji: e.Emoji, Name: e.Name})
+	}
+	c.pushEvent(&api.Event{Type: api.EventAccountVerification, Data: data})
+}
+
+func (c *Core) accountsVerification(ctx context.Context, p api.AccountsVerificationParams) (api.Empty, error) {
+	network, loginID, err := parseAccountID(p.AccountID)
+	if err != nil {
+		return api.Empty{}, err
+	}
+	br := c.host.Bridge(network)
+	if br == nil || !c.hasNetwork(network) {
+		return api.Empty{}, newError(api.ErrorCodeNotFound, "no account %q", p.AccountID)
+	}
+	login := br.GetCachedUserLoginByID(loginID)
+	if login == nil {
+		return api.Empty{}, newError(api.ErrorCodeNotFound, "no account %q", p.AccountID)
+	}
+	verifier, ok := login.Client.(interactiveVerifier)
+	if !ok {
+		return api.Empty{}, newError(api.ErrorCodeUnsupported, "this account's network has no device verification")
+	}
+	switch p.Action {
+	case api.VerificationActionStart:
+		err = verifier.StartVerification(ctx)
+	case api.VerificationActionAccept:
+		err = verifier.AcceptVerification(ctx)
+	case api.VerificationActionConfirm:
+		err = verifier.ConfirmVerification(ctx)
+	case api.VerificationActionCancel:
+		err = verifier.CancelVerification(ctx)
+	default:
+		return api.Empty{}, newError(api.ErrorCodeInvalidParams, "unknown action %q", p.Action)
+	}
+	if errors.Is(err, matrix.ErrNoVerification) {
+		return api.Empty{}, newError(api.ErrorCodeInvalidParams, "no verification at the step this action needs")
+	} else if err != nil {
+		return api.Empty{}, newError(api.ErrorCodeNetwork, "the verification failed: %v", err)
+	}
+	return api.Empty{}, nil
 }

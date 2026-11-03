@@ -18,6 +18,7 @@ import (
 	"go.mau.fi/util/dbutil"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
+	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/crypto"
 	"maunium.net/go/mautrix/sqlstatestore"
 )
@@ -34,6 +35,9 @@ type Config struct {
 	// DeviceName is the name of the core's device in the user's session
 	// list. "Musubee" if empty.
 	DeviceName string
+	// OnVerification is told each step of a login's interactive
+	// verification (verification.go). Optional.
+	OnVerification func(login networkid.UserLoginID, state VerificationState)
 }
 
 // Connector is the bridgev2.NetworkConnector of Matrix accounts.

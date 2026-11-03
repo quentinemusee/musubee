@@ -75,6 +75,8 @@ type client struct {
 
 	// The uploads to the key backup (recovery.go).
 	recovery recovery
+	// The interactive verification in progress (verification.go).
+	verification verification
 
 	// Fields of the sync goroutine only.
 	healthy bool
@@ -223,8 +225,12 @@ func (c *client) setUp(ctx context.Context) bool {
 		c.initialized = true
 		c.ready = true
 		c.lock.Unlock()
-		// Whether other clients trust this device (recovery.go).
+		// Whether other clients trust this device (recovery.go), and
+		// verifying it with another device (verification.go).
 		c.checkVerified(ctx)
+		if err := c.startVerifier(ctx); err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to start the device verification")
+		}
 	}
 	var directs event.DirectChatsEventContent
 	err := c.cli.GetAccountData(ctx, event.AccountDataDirectChats.Type, &directs)

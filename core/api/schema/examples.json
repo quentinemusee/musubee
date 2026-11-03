@@ -131,6 +131,10 @@
     { "target": "command:messages.send:result", "value": { "message": {
       "message_id": "m9", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1791496807000, "kind": "text", "text": "On the train", "status": "queued"
     } } },
+    { "target": "command:accounts.verification:params", "value": { "account_id": "a4", "action": "start" } },
+    { "target": "command:accounts.verification:result", "value": {} },
+    { "target": "event:account.verification", "value": { "account_id": "a4", "step": "emoji", "emoji": [ { "emoji": "🐶", "name": "Dog" }, { "emoji": "🔑", "name": "Key" } ] } },
+    { "target": "event:account.verification", "value": { "account_id": "a4", "step": "cancelled", "reason": "The emoji did not match" } },
     { "target": "command:accounts.verify:params", "value": { "account_id": "a4", "recovery_key": "EsTc 1234 abcd" } },
     { "target": "command:accounts.verify:result", "value": { "backup_restored": true } },
     { "target": "command:messages.list:result", "value": { "messages": [
@@ -247,6 +251,7 @@
       { "conversation_id": "c1", "account_id": "a1", "network_id": "echo", "name": "x", "kind": "direct", "activity_ms": 1, "actions": { "media": { "file": { "max_size": 0 } } } }
     ] } },
     { "target": "command:accounts.verify:params", "why": "recovery_key is not empty", "value": { "account_id": "a4", "recovery_key": "" } },
+    { "target": "command:accounts.verification:params", "why": "unknown action", "value": { "account_id": "a4", "action": "skip" } },
     { "target": "command:accounts.list:result", "why": "unknown verification", "value": { "accounts": [ { "account_id": "a4", "network_id": "matrix", "name": "", "state": "connected", "verification": "trusted" } ] } },
     { "target": "command:messages.search:params", "why": "query is not empty", "value": { "query": "" } },
     { "target": "command:conversations.markUnread:params", "why": "conversation_id is required", "value": {} },

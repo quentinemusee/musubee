@@ -193,7 +193,7 @@ func (c *Core) start(cfg Config) error {
 		return err
 	}
 	c.networks = append(c.networks, echoBridge)
-	if _, err = host.AddNetwork(matrixBridge, matrix.New(matrix.Config{PickleKey: key.Derive(secrets.PurposeMatrixPickleKey)})); err != nil {
+	if _, err = host.AddNetwork(matrixBridge, matrix.New(matrix.Config{PickleKey: key.Derive(secrets.PurposeMatrixPickleKey), OnVerification: c.onVerification})); err != nil {
 		return err
 	}
 	c.networks = append(c.networks, matrixBridge)
@@ -623,6 +623,8 @@ func (c *Core) dispatch(ctx context.Context, command string, params json.RawMess
 		return handle(ctx, params, c.messagesSend)
 	case api.CommandAccountsVerify:
 		return handle(ctx, params, c.accountsVerify)
+	case api.CommandAccountsVerification:
+		return handle(ctx, params, c.accountsVerification)
 	case api.CommandMessagesSearch:
 		return handle(ctx, params, c.messagesSearch)
 	case api.CommandMessagesFetchOlder:

@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.21",
+  "x-musubee-api-version": "1.22",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -104,6 +104,16 @@
           "properties": {
             "params": { "$ref": "#/$defs/AccountsVerifyParams" },
             "result": { "$ref": "#/$defs/AccountsVerifyResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "accounts.verification": {
+          "description": "Verifies this device for a Matrix account by comparing emoji with another device of the account: start asks the other devices; accept takes another device's request; confirm says the emoji match; cancel ends it (they did not match, or the user gave up). Each step comes as an account.verification event. Fails with unsupported for other networks, and invalid_params for an action that does not fit the current step. Since API 1.22.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/AccountsVerificationParams" },
+            "result": { "$ref": "#/$defs/Empty" }
           },
           "required": ["params", "result"],
           "additionalProperties": false
@@ -410,6 +420,10 @@
           "description": "An account was added or its connection state changed.",
           "$ref": "#/$defs/AccountEvent"
         },
+        "account.verification": {
+          "description": "A step of an account's interactive verification (accounts.verification). Since API 1.22.",
+          "$ref": "#/$defs/VerificationEvent"
+        },
         "conversation.typing": {
           "description": "Who is typing in a conversation changed: the names of those typing now (none: nobody). Not stored: after a restart nobody types. Since API 1.20.",
           "$ref": "#/$defs/TypingEvent"
@@ -612,6 +626,52 @@
         "account_id": { "type": "string" }
       },
       "required": ["account_id"],
+      "additionalProperties": false
+    },
+    "AccountsVerificationParams": {
+      "type": "object",
+      "properties": {
+        "account_id": { "type": "string" },
+        "action": { "$ref": "#/$defs/VerificationAction" }
+      },
+      "required": ["account_id", "action"],
+      "additionalProperties": false
+    },
+    "VerificationEvent": {
+      "type": "object",
+      "properties": {
+        "account_id": { "type": "string" },
+        "step": { "$ref": "#/$defs/VerificationStep" },
+        "emoji": {
+          "description": "For emoji: the seven emoji to compare, in order.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/VerificationEmoji" }
+        },
+        "reason": {
+          "description": "For cancelled: why, when the other device said.",
+          "type": "string"
+        }
+      },
+      "required": ["account_id", "step"],
+      "additionalProperties": false
+    },
+    "VerificationAction": {
+      "description": "start, accept, confirm or cancel (accounts.verification).",
+      "type": "string",
+      "enum": ["start", "accept", "confirm", "cancel"]
+    },
+    "VerificationStep": {
+      "description": "incoming: another device of the account asks to verify this one (accept or cancel). waiting: waiting for the other device. emoji: compare the emoji with the other device's (confirm or cancel). confirmed: confirmed here, waiting for the other device. done: this device is verified. cancelled: ended without verifying.",
+      "type": "string",
+      "enum": ["incoming", "waiting", "emoji", "confirmed", "done", "cancelled"]
+    },
+    "VerificationEmoji": {
+      "type": "object",
+      "properties": {
+        "emoji": { "type": "string" },
+        "name": { "description": "Its English name, as Matrix clients show it.", "type": "string" }
+      },
+      "required": ["emoji", "name"],
       "additionalProperties": false
     },
     "AccountsVerifyParams": {

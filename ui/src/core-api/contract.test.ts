@@ -122,7 +122,7 @@ describe("the generated types", () => {
   // The mapped types make the compiler require one example per command and
   // per event: a command added to the schema breaks the typecheck here.
   const commands: { [K in CommandName]: Commands[K] } = {
-    "core.hello": { params: {}, result: { api_version: "1.21", core_version: "dev" } },
+    "core.hello": { params: {}, result: { api_version: "1.22", core_version: "dev" } },
     "networks.list": {
       params: {},
       result: { networks: [{ network_id: "echo", name: "Echo", login_flows: [{ flow_id: "username", name: "Username", description: "" }] }] },
@@ -189,6 +189,7 @@ describe("the generated types", () => {
     "conversations.typing": { params: { conversation_id: "c.1", typing: true }, result: {} },
     "conversations.markRead": { params: { conversation_id: "c.1", message_id: "m.1" }, result: {} },
     "messages.list": { params: { conversation_id: "c.1", limit: 50 }, result: { messages: [message], before: "k.1" } },
+    "accounts.verification": { params: { account_id: "a.2", action: "confirm" }, result: {} },
     "accounts.verify": { params: { account_id: "a.2", recovery_key: "EsTc 1234" }, result: { backup_restored: true } },
     "messages.search": { params: { query: "hello", conversation_id: "c.1", limit: 20, before: "k.2" }, result: { messages: [message], before: "k.1" } },
     "messages.fetchOlder": { params: { conversation_id: "c.1", limit: 20 }, result: { messages: [message], before: "k.0", end: true } },
@@ -235,6 +236,7 @@ describe("the generated types", () => {
     "debug.stats": { params: {}, result: { heap_alloc_bytes: 1, heap_sys_bytes: 2, goroutines: 3 } },
   };
   const events: { [K in EventType]: Events[K] } = {
+    "account.verification": { account_id: "a.2", step: "emoji", emoji: [{ emoji: "🐶", name: "Dog" }] },
     "conversation.typing": { conversation_id: "c.1", names: ["Instant Echo"] },
     "account.updated": { account: { account_id: "a.1", network_id: "echo", name: "alice", state: "transient_disconnect", error: "No network" } },
     "conversation.updated": { conversation: { ...conversation, person_id: "h.1" } },

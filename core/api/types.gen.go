@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.21"
+const APIVersion = "1.22"
 
 // Command names.
 const (
@@ -26,6 +26,13 @@ const (
 	// invalid_params for a key that is not the account's, and unsupported for an
 	// account without secure backup or of another network. Since API 1.15.
 	CommandAccountsVerify = "accounts.verify"
+	// Verifies this device for a Matrix account by comparing emoji with another
+	// device of the account: start asks the other devices; accept takes another
+	// device's request; confirm says the emoji match; cancel ends it (they did
+	// not match, or the user gave up). Each step comes as an account.verification
+	// event. Fails with unsupported for other networks, and invalid_params for an
+	// action that does not fit the current step. Since API 1.22.
+	CommandAccountsVerification = "accounts.verification"
 	// Logs an account out of its network and removes it from this device, with
 	// the conversations only it reached. The account first appears once more, in
 	// an account.updated event with the state logged_out. Since API 1.1.
@@ -154,6 +161,9 @@ const (
 const (
 	// An account was added or its connection state changed.
 	EventAccountUpdated = "account.updated"
+	// A step of an account's interactive verification (accounts.verification).
+	// Since API 1.22.
+	EventAccountVerification = "account.verification"
 	// Who is typing in a conversation changed: the names of those typing now
 	// (none: nobody). Not stored: after a restart nobody types. Since API 1.20.
 	EventConversationTyping = "conversation.typing"
@@ -190,6 +200,7 @@ var Commands = []CommandSpec{
 	{Name: CommandNetworksList, Params: reflect.TypeFor[Empty](), Result: reflect.TypeFor[NetworksListResult]()},
 	{Name: CommandAccountsList, Params: reflect.TypeFor[Empty](), Result: reflect.TypeFor[AccountsListResult]()},
 	{Name: CommandAccountsVerify, Params: reflect.TypeFor[AccountsVerifyParams](), Result: reflect.TypeFor[AccountsVerifyResult]()},
+	{Name: CommandAccountsVerification, Params: reflect.TypeFor[AccountsVerificationParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandAccountsLogout, Params: reflect.TypeFor[AccountsLogoutParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandLoginStart, Params: reflect.TypeFor[LoginStartParams](), Result: reflect.TypeFor[LoginStep]()},
 	{Name: CommandLoginSubmit, Params: reflect.TypeFor[LoginSubmitParams](), Result: reflect.TypeFor[LoginStep]()},
@@ -224,6 +235,7 @@ var Commands = []CommandSpec{
 // Events lists every event with the type of its data.
 var Events = []EventSpec{
 	{Type: EventAccountUpdated, Data: reflect.TypeFor[AccountEvent]()},
+	{Type: EventAccountVerification, Data: reflect.TypeFor[VerificationEvent]()},
 	{Type: EventConversationTyping, Data: reflect.TypeFor[TypingEvent]()},
 	{Type: EventConversationUpdated, Data: reflect.TypeFor[ConversationEvent]()},
 	{Type: EventMessageAdded, Data: reflect.TypeFor[MessageEvent]()},
@@ -373,6 +385,57 @@ type AccountEvent struct {
 // AccountsLogoutParams is $defs/AccountsLogoutParams of the schema.
 type AccountsLogoutParams struct {
 	AccountID string `json:"account_id"`
+}
+
+// AccountsVerificationParams is $defs/AccountsVerificationParams of the
+// schema.
+type AccountsVerificationParams struct {
+	AccountID string             `json:"account_id"`
+	Action    VerificationAction `json:"action"`
+}
+
+// VerificationEvent is $defs/VerificationEvent of the schema.
+type VerificationEvent struct {
+	AccountID string           `json:"account_id"`
+	Step      VerificationStep `json:"step"`
+	// For emoji: the seven emoji to compare, in order.
+	Emoji []VerificationEmoji `json:"emoji,omitempty"`
+	// For cancelled: why, when the other device said.
+	Reason string `json:"reason,omitempty"`
+}
+
+// VerificationAction: start, accept, confirm or cancel
+// (accounts.verification).
+type VerificationAction string
+
+const (
+	VerificationActionStart   VerificationAction = "start"
+	VerificationActionAccept  VerificationAction = "accept"
+	VerificationActionConfirm VerificationAction = "confirm"
+	VerificationActionCancel  VerificationAction = "cancel"
+)
+
+// VerificationStep: incoming: another device of the account asks to verify
+// this one (accept or cancel). waiting: waiting for the other device. emoji:
+// compare the emoji with the other device's (confirm or cancel). confirmed:
+// confirmed here, waiting for the other device. done: this device is verified.
+// cancelled: ended without verifying.
+type VerificationStep string
+
+const (
+	VerificationStepIncoming  VerificationStep = "incoming"
+	VerificationStepWaiting   VerificationStep = "waiting"
+	VerificationStepEmoji     VerificationStep = "emoji"
+	VerificationStepConfirmed VerificationStep = "confirmed"
+	VerificationStepDone      VerificationStep = "done"
+	VerificationStepCancelled VerificationStep = "cancelled"
+)
+
+// VerificationEmoji is $defs/VerificationEmoji of the schema.
+type VerificationEmoji struct {
+	Emoji string `json:"emoji"`
+	// Its English name, as Matrix clients show it.
+	Name string `json:"name"`
 }
 
 // AccountsVerifyParams is $defs/AccountsVerifyParams of the schema.

@@ -21,4 +21,6 @@ func TestVerifyNeedsAMatrixAccount(t *testing.T) {
 	}
 	callFails(t, c, api.CommandAccountsVerify, api.AccountsVerifyParams{AccountID: account, RecoveryKey: "EsTc 1234"}, api.ErrorCodeUnsupported)
 	callFails(t, c, api.CommandAccountsVerify, api.AccountsVerifyParams{AccountID: "a.nope", RecoveryKey: "EsTc 1234"}, api.ErrorCodeNotFound)
+	// Nor interactive verification (API 1.22).
+	callFails(t, c, api.CommandAccountsVerification, api.AccountsVerificationParams{AccountID: account, Action: api.VerificationActionStart}, api.ErrorCodeUnsupported)
 }
