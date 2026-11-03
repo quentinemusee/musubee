@@ -70,7 +70,7 @@ mautrix-go has `crypto/verificationhelper`.
 - A Matrix user who reinstalls Musubee, or adds it next to Element, gets their history back with their recovery key, and is trusted by their contacts' clients.
 - Without a recovery key, nothing changes: new devices still start without history.
 - The recovery key passes through the interface and the core in memory only; a compromised device at that moment could read it, as with any Matrix client.
-- Messages that failed to decrypt before the verification stay as "Unable to decrypt" notices: the core replaced them when they came (T2.2), and the Matrix connector has no history fetching yet (ADR 0041) to bring them back. New messages, and history fetched later, decrypt with the restored keys.
+- Messages that failed to decrypt before the verification stay as "Unable to decrypt" notices: the core replaced them when they came (T2.2). New messages, and the older history fetched afterwards (ADR 0045, since T2.29), decrypt with the restored keys.
 
 ## Verification
 

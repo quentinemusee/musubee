@@ -255,6 +255,11 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 - 🧪 Test: the Synapse journey (recovery set up as another Matrix app does, a wrong key, the right one, the cross-signature, an upload, no key in the files); the core's refusal for other networks; contract examples; Vitest for the store.
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.15 adds `accounts.verify` and `Account.verification` (ADR 0044, decided at the maintainer's request: Matrix only, no setting recovery up in Musubee yet, uploads on by default, on the account's line). The Matrix connector verifies with the recovery key, restores the backup after checking its key, keeps the backup key in the pickled crypto store, and uploads the room keys the backup lacks after each sync. Left: setting secure backup up from Musubee, interactive verification with another device, re-decrypting messages that failed before the verification.
 
+**T2.29 — A Matrix account's history** (E2.3, E2.8)
+- Deliverable: scrolling up in a Matrix conversation brings its history from the homeserver, decrypted with the keys the device has (a restored backup's too).
+- 🧪 Test: the Synapse journey (bob's messages from before alice's Musubee, once each, in order).
+- Outcome: **implemented, unverified** (cloud sprint, no test run). The Matrix connector implements `FetchMessages` (ADR 0045): backward pages of `/messages` from the oldest bridged message, decrypted, media copied; messages without keys show as undecryptable. Left: edits, reactions and redactions in older history; a test of decryption with restored keys.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

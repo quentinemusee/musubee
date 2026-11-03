@@ -474,3 +474,9 @@ recovery (core):    go test -tags=goolm -count=1 -run 'VerifyNeedsAMatrixAccount
 recovery journey:   go test -tags=goolm,integration -count=1 -run 'RecoveryKey' -v ./infra/matrixtest/     (needs Docker)
 recovery (ui):      cd ui && npx vitest run src/store.test.ts src/core-api/contract.test.ts
 ```
+
+To verify in the test session: T2.29 (cloud sprint, no test run; see ADR 0045). On CI only:
+
+```
+matrix history:     go test -tags=goolm,integration -count=1 -run 'MatrixHistory' -v ./infra/matrixtest/     (needs Docker)
+```
