@@ -317,6 +317,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.48 — Forward a message** (E2.4)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.26 `messages.forward` (ADR 0054): the core copies a message's latest text, or its stored media with its caption, into any conversation, through the checks of sending; "Forward…" in a message's menu. 🧪 `TestForward`, `ui/src/message.test.ts`, the desktop e2e "the user forwards a message". Left: several messages at once; Telegram's own forward.
 
+**T2.49 — A group's members** (E2.3)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.27 `conversations.members`: the room's joined members without the bridge's bot, the user first; "Members…" in a group's header. No ADR: a read of what the local server already stores. 🧪 `TestMembers`, the desktop e2e "a group shows its members". Left: following membership changes live; avatars.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

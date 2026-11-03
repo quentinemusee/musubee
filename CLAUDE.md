@@ -565,3 +565,10 @@ To verify in the test session: T2.48 (cloud sprint, no test run; see ADR 0054):
 forward (core):     go test -tags=goolm -count=1 -run 'Forward|SendMedia' -v ./core/embedded/
 forward in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "forwards a message"      (ui: npx vitest run src/message.test.ts)
 ```
+
+To verify in the test session: T2.49 (cloud sprint, no test run):
+
+```
+members (core):     go test -tags=goolm -count=1 -run 'Members' -v ./core/embedded/
+members in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "shows its members"
+```
