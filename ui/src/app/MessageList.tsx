@@ -78,7 +78,8 @@ export function MessageList({ messages, history, onOlder, labelledBy, onBottomCh
     }
   }, [messages, current.shift]);
 
-  const canLoad = typeof history === "object";
+  // Older messages on the device, or the network's (API 1.13).
+  const canLoad = typeof history === "object" || history === "network";
   function loadIfNeeded() {
     const handle = ref.current;
     // Near the top, or a short conversation that does not fill the

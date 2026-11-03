@@ -378,6 +378,24 @@ test("the user picks a theme, an accent and a text size, kept after a restart", 
   await app.close();
 });
 
+test("scrolling up brings the network's older history, to its start", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "history");
+  const log = page.getByRole("log");
+  await page.getByRole("textbox", { name: "Message" }).fill("hello");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(log.locator('.message[data-from-me="false"]', { hasText: "hello" })).toHaveCount(1);
+
+  // Each time the top is reached, the core asks the echo network for a
+  // page (messages.fetchOlder), until its oldest message.
+  const oldest = log.getByText("Old message 0", { exact: true });
+  await expect(async () => {
+    await log.evaluate((element) => element.scrollTo({ top: 0 }));
+    await expect(oldest).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 30_000 });
+  await app.close();
+});
+
 test("log out of an account: it goes away with its conversations", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "leaving");

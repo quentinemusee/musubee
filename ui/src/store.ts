@@ -7,7 +7,7 @@
 // useSyncExternalStore, with no state library. One immutable snapshot,
 // replaced on every change; components select the part they show.
 
-import { CoreClient, parseEvent } from "./core-api/client";
+import { CoreApiError, CoreClient, parseEvent } from "./core-api/client";
 import { accepts, MediaCache, sendChoice, sendProblem, uploadBlob } from "./media";
 import type { Account, Conversation, Event, Message, Network, Person } from "./core-api/types.gen";
 import { mergePlan } from "./merge";
@@ -44,8 +44,9 @@ export interface State {
   messages: Readonly<Record<string, readonly Message[]>>;
   /**
    * Where the history of each conversation read so far stops: a cursor for
-   * the older messages, "loading" while they are read, or "start" when the
-   * first message was read.
+   * the older messages on the device, "network" once they are all read and
+   * the network may have older ones (API 1.13), "loading" while they are
+   * read, or "start" when the first message was read.
    */
   history: Readonly<Record<string, HistoryState>>;
   selected?: string;
@@ -69,7 +70,7 @@ export interface UploadState {
   size: number;
 }
 
-export type HistoryState = { cursor: string } | "loading" | "start";
+export type HistoryState = { cursor: string } | "loading" | "network" | "start";
 export type InboxState = { cursor: string } | "loading" | "end";
 
 /** How many older messages loadOlder() reads at once. */
@@ -277,8 +278,11 @@ export class Store {
   async loadOlder(): Promise<void> {
     const conversationId = this.#state.selected;
     const history = conversationId === undefined ? undefined : this.#state.history[conversationId];
-    if (conversationId === undefined || history === undefined || typeof history === "string") {
+    if (conversationId === undefined || history === undefined || history === "loading" || history === "start") {
       return;
+    }
+    if (history === "network") {
+      return this.#fetchOlder(conversationId);
     }
     const generation = this.#generation;
     this.#set({ history: { ...this.#state.history, [conversationId]: "loading" } });
@@ -295,6 +299,40 @@ export class Store {
       if (generation === this.#generation) {
         this.#set({ history: { ...this.#state.history, [conversationId]: history }, error: `Could not read older messages: ${describe(error)}` });
       }
+    }
+  }
+  /**
+   * Asks the network for the history before the oldest message on the
+   * device (API 1.13). Once the network has no more, or gives nothing, or
+   * the core cannot ask (an older core), the history starts there.
+   */
+  async #fetchOlder(conversationId: string): Promise<void> {
+    const generation = this.#generation;
+    this.#set({ history: { ...this.#state.history, [conversationId]: "loading" } });
+    try {
+      const result = await this.client.call("messages.fetchOlder", { conversation_id: conversationId, limit: OLDER_PAGE });
+      if (generation !== this.#generation) {
+        return;
+      }
+      let next: HistoryState = "network";
+      if (result.before !== undefined) {
+        next = { cursor: result.before };
+      } else if (result.end === true || result.messages.length === 0) {
+        next = "start";
+      }
+      this.#set({
+        messages: { ...this.#state.messages, [conversationId]: mergeMessages(this.#state.messages[conversationId] ?? [], result.messages) },
+        history: { ...this.#state.history, [conversationId]: next },
+      });
+    } catch (error) {
+      if (generation !== this.#generation) {
+        return;
+      }
+      if (error instanceof CoreApiError && error.code === "unknown_command") {
+        this.#set({ history: { ...this.#state.history, [conversationId]: "start" } });
+        return;
+      }
+      this.#set({ history: { ...this.#state.history, [conversationId]: "network" }, error: `Could not read older messages: ${describe(error)}` });
     }
   }
 
@@ -739,7 +777,7 @@ function inboxAfter(cursor: string | undefined): InboxState {
 }
 
 function historyAfter(cursor: string | undefined): HistoryState {
-  return cursor === undefined ? "start" : { cursor };
+  return cursor === undefined ? "network" : { cursor };
 }
 
 /** How far from the newest message mergeMessages looks for a message to replace. */

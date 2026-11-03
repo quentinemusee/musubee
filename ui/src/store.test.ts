@@ -438,13 +438,58 @@ describe("Store", () => {
     await store.loadOlder();
     const messages = store.getState().messages["c1"]!;
     expect(messages.map((m) => m.message_id)).toEqual(all.map((m) => m.message_id));
+    // The device's history is read; the network's comes next, which this
+    // core cannot give (an older core): the history starts there.
+    expect(store.getState().history["c1"]).toBe("network");
+    await store.loadOlder();
     expect(store.getState().history["c1"]).toBe("start");
+    expect(store.getState().error).toBeUndefined();
     await store.loadOlder();
     expect(requests).toEqual([
       { conversation_id: "c1" },
       { conversation_id: "c1", before: "200", limit: OLDER_PAGE },
       { conversation_id: "c1", before: "100", limit: OLDER_PAGE },
     ]);
+  });
+
+  test("asks the network for older history once the device's is read (API 1.13)", async () => {
+    const fetched: unknown[] = [];
+    let pages = [
+      { messages: [message("m-2", -2), message("m-1", -1)], before: "k-3" },
+      { messages: [], end: true },
+    ];
+    const shell = scriptedShell({
+      ...coreState([conversation("c1", "Adam")]),
+      "messages.list": (params) => {
+        const { before } = params as { before?: string };
+        return before === "k-3" ? { messages: [message("m-3", -3)] } : { messages: [message("m1", 1)] };
+      },
+      "messages.fetchOlder": (params) => {
+        fetched.push(params);
+        const [page, ...rest] = pages;
+        pages = rest;
+        return page;
+      },
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    await store.select("c1");
+    expect(store.getState().history["c1"]).toBe("network");
+
+    await store.loadOlder();
+    expect(fetched).toEqual([{ conversation_id: "c1", limit: OLDER_PAGE }]);
+    expect(ids(store.getState().messages["c1"]!)).toEqual(["m-2:-2:received", "m-1:-1:received", "m1:1:received"]);
+    // What the network gave beyond the page is on the device, behind a cursor.
+    expect(store.getState().history["c1"]).toEqual({ cursor: "k-3" });
+    await store.loadOlder();
+    expect(store.getState().history["c1"]).toBe("network");
+    await store.loadOlder();
+    expect(store.getState().history["c1"]).toBe("start");
+    expect(ids(store.getState().messages["c1"]!)[0]).toBe("m-3:-3:received");
+    await store.loadOlder();
+    expect(fetched).toHaveLength(2);
   });
 
   test("keeps the history cursor when reading older messages fails", async () => {
@@ -590,7 +635,7 @@ describe("Store's events", () => {
     shell.emit("message.added", { message: message("m10", 10) });
     await selecting;
     expect(ids(store.getState().messages["c1"]!)).toEqual(["m1:1:received", "m2:2:received", "m10:10:received"]);
-    expect(store.getState().history["c1"]).toBe("start");
+    expect(store.getState().history["c1"]).toBe("network");
   });
 });
 
