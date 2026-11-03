@@ -459,3 +459,10 @@ To verify in the test session: T2.26 (cloud sprint, no test run; see ADR 0042):
 person's thread:    cd ui && npx vitest run src/together.test.ts src/store.test.ts
 thread in the app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "one thread"
 ```
+
+To verify in the test session: T2.27 (cloud sprint, no test run; see ADR 0043):
+
+```
+waiting messages:   go test -tags=goolm -count=1 -run 'WaitForTheirAccount|OfflineLogin' -v ./core/embedded/
+waiting in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "without network"
+```

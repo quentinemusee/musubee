@@ -243,6 +243,12 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 - 🧪 Test: Vitest for the interleaving and the store; a desktop Playwright journey with two merged echo accounts.
 - Outcome: **implemented, unverified** (cloud sprint, no test run). "All together" above the switcher interleaves a person's conversations in the interface, from each conversation's pages (ADR 0042): while one has unread older history, the others' older messages wait, and scrolling up reads it next. Messages say "via" their network; the switcher then chooses where the user writes ("Write with …"); answering or editing moves there. Left: remembering the choice after a restart, related groups.
 
+**T2.27 — Send without network** (E2.3)
+- Deliverable: a message written while its account is not connected waits on the device and goes when the account connects, even after a restart.
+- Acceptance: the user sees that it waits; the messages go in the order they were written, once each.
+- 🧪 Test: the core's journey of an echo account going away and coming back; the offline account's journeys in the core and the desktop app.
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.14 adds the status `queued` (ADR 0043): the local server holds the message (a pending status with a reason of its own) instead of handing it to the bridge, and the core releases the held messages when an account turns connected, oldest first, each once. The interface says "Waiting for the network". Left: cancelling a waiting message; reactions, edits and deletions still need the network.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).
