@@ -44,7 +44,12 @@ export function loadAccents(storage: AppearanceStorage | undefined): Record<stri
 }
 
 /** Keeps an accent, or forgets it (undefined: the app's); a storage that refuses keeps it for this run only. */
-export function saveAccent(storage: AppearanceStorage | undefined, accents: Record<string, Accent>, key: string, accent: Accent | undefined): Record<string, Accent> {
+export function saveAccent(
+  storage: AppearanceStorage | undefined,
+  accents: Record<string, Accent>,
+  key: string,
+  accent: Accent | undefined,
+): Record<string, Accent> {
   const { [key]: _, ...rest } = accents;
   const next = accent === undefined ? rest : { ...rest, [key]: accent };
   try {
