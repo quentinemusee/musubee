@@ -14,11 +14,12 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, ipcMain, protocol, safeStorage, session, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, ipcMain, Notification, protocol, safeStorage, session, type IpcMainInvokeEvent } from "electron";
 import { APP_ORIGIN, APP_SCHEME, APP_URL, serveAppFile } from "./app-protocol.js";
 import { CoreKeyError, CoreKeyLostError, loadCoreKey } from "./core-key.js";
 import { CoreProcess, type CoreStatus } from "./core-process.js";
 import { allowCheck, allowRequest } from "./permissions.js";
+import { announcement } from "./notification-rules.js";
 import { RequestValidator } from "./ipc.js";
 import { setAside } from "./start-over.js";
 
@@ -81,10 +82,39 @@ function main(): void {
       window.webContents.send("core:status", { seq: statusSeq, status });
     }
   });
+  // The last notification of each conversation: a new message replaces it,
+  // so that a conversation never stacks notifications (docs/ADR/0047).
+  const shown = new Map<string, Notification>();
   core.onEvent((event) => {
     for (const window of windows) {
       window.webContents.send("core:event", event);
     }
+    const focused = [...windows].some((window) => window.isFocused());
+    const announced = Notification.isSupported() ? announcement(event, Date.now(), focused) : null;
+    if (announced === null) {
+      return;
+    }
+    shown.get(announced.conversationId)?.close();
+    const notification = new Notification({ title: announced.title, body: announced.body });
+    notification.on("click", () => {
+      const [window] = windows;
+      if (window === undefined) {
+        return;
+      }
+      if (window.isMinimized()) {
+        window.restore();
+      }
+      window.show();
+      window.focus();
+      window.webContents.send("notifications:open", announced.conversationId);
+    });
+    notification.on("close", () => {
+      if (shown.get(announced.conversationId) === notification) {
+        shown.delete(announced.conversationId);
+      }
+    });
+    shown.set(announced.conversationId, notification);
+    notification.show();
   });
 
   if (process.env["MUSUBEE_E2E"] === "1") {

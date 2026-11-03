@@ -494,3 +494,9 @@ search (core):      go test -tags=goolm -count=1 -run 'SearchMessages' -v ./core
 search, together:   cd ui && npx vitest run src/store.test.ts src/core-api/contract.test.ts
 search in the app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "search finds"
 ```
+
+To verify in the test session: T2.33 (cloud sprint, no test run; see ADR 0047). Also by hand: a message from an echo contact while the window is in the background shows a notification that opens it.
+
+```
+desktop notices:    cd apps/desktop && npx vitest run test/notification-rules.test.ts
+```

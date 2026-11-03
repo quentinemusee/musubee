@@ -269,6 +269,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.32 — Search the messages** (E2.4)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.17 `messages.search` (ADR 0046): LIKE over the stored and edited text, checked against the latest text; a "Search messages" field in the sidebar lists the results in place of the inbox and opens their conversation. Left: jumping to the message found, FTS5 when histories grow, non-ASCII case folding. Also looked at: `TestServeRunsTheCore`'s Windows failure (`core.db` still open at cleanup): `Host.Stop` already waits up to 5 s for the database's connections and logs "Database connections still open after closing it" otherwise; if it fails again, that line in the test's log says whether bridgev2's leftover handlers held a connection longer.
 
+**T2.33 — Desktop notifications** (E2.3)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). The desktop main process announces recent messages from others while no window is focused, one notification per conversation, and a click opens the conversation (ADR 0047). 🧪 `apps/desktop/test/notification-rules.test.ts`; by hand on Windows. Left: a setting to hide the text, conversation names in the title.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

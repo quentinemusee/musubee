@@ -4,8 +4,8 @@
 // The preload script: the only bridge between the interface and the main
 // process (docs/ADR/0013-desktop-shell.md). It runs sandboxed, so it is
 // CommonJS and may require nothing but Electron's renderer modules. It
-// exposes window.musubee.core (ui/src/shell.ts) and nothing else: never
-// ipcRenderer itself.
+// exposes window.musubee.core and window.musubee.notifications
+// (ui/src/shell.ts) and nothing else: never ipcRenderer itself.
 
 import electron = require("electron");
 import type { IpcRendererEvent } from "electron";
@@ -51,6 +51,24 @@ contextBridge.exposeInMainWorld("musubee", {
     },
     startOver(): Promise<void> {
       return ipcRenderer.invoke("core:startOver") as Promise<void>;
+    },
+  },
+  // The main process shows the notifications (docs/ADR/0047); desktop
+  // systems need no permission for them.
+  notifications: {
+    ask(): Promise<boolean> {
+      return Promise.resolve(true);
+    },
+    onOpen(listener: (conversationId: string) => void): () => void {
+      const handler = (_: IpcRendererEvent, conversationId: unknown) => {
+        if (typeof conversationId === "string") {
+          listener(conversationId);
+        }
+      };
+      ipcRenderer.on("notifications:open", handler);
+      return () => {
+        ipcRenderer.removeListener("notifications:open", handler);
+      };
     },
   },
 });

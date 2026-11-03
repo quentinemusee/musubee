@@ -56,3 +56,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0044](0044-matrix-key-backup-and-recovery.md) | Key backup and recovery: a Matrix account's recovery key verifies Musubee and opens its history | accepted | T2.28 |
 | [0045](0045-matrix-history.md) | A Matrix room's history: paged from the homeserver on request, decrypted with the device's keys | accepted | T2.29 |
 | [0046](0046-searching-messages.md) | Searching messages: LIKE over the local storage, checked against the latest text | accepted | T2.32 |
+| [0047](0047-desktop-notifications.md) | Desktop notifications: the main process announces recent messages while the app is in the background | accepted | T2.33 |
