@@ -17,6 +17,7 @@ import {
   THEMES,
   type Appearance,
 } from "../appearance";
+import { shortcutList } from "../shortcuts";
 
 /**
  * The appearance settings, in a modal dialog (docs/ADR/0040): theme,
@@ -90,6 +91,17 @@ export function AppearanceSettings({ onClose }: { onClose: () => void }) {
           </label>
         ))}
       </fieldset>
+      <h3 className="settings-subtitle">Keyboard shortcuts</h3>
+      <dl className="shortcuts">
+        {shortcutList(/mac|iphone|ipad/i.test(navigator.platform)).map(({ keys, what }) => (
+          <div key={what}>
+            <dt>
+              <kbd>{keys}</kbd>
+            </dt>
+            <dd>{what}</dd>
+          </div>
+        ))}
+      </dl>
       <div className="settings-buttons">
         <button type="button" onClick={() => dialog.current?.close()}>
           Done

@@ -49,3 +49,13 @@ export function adjacentConversation(entries: readonly InboxEntry[], selected: s
   const target = index < 0 ? entries[0] : entries[shortcut === "next" ? index + 1 : index - 1];
   return target?.conversations[0]?.conversation_id;
 }
+
+/** The shortcuts as the help lists them, with the keys of this system. */
+export function shortcutList(mac: boolean): { keys: string; what: string }[] {
+  return [
+    { keys: mac ? "⌘ K" : "Ctrl+K", what: "Search messages" },
+    { keys: mac ? "⌥ ↑" : "Alt+Up", what: "Previous conversation" },
+    { keys: mac ? "⌥ ↓" : "Alt+Down", what: "Next conversation" },
+    { keys: "Escape", what: "Close a menu or a dialog" },
+  ];
+}

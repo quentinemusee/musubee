@@ -21,7 +21,7 @@ Sources: WCAG 2.2, success criterion 2.1.4 (character key shortcuts: shortcuts m
 ## Consequences
 
 - No single-character shortcuts, so nothing to turn off (WCAG 2.1.4).
-- The shortcuts are not listed in the app yet; a help panel is a later task.
+- The appearance dialog lists them, with the keys of the system (⌘ and ⌥ on macOS), since T2.63.
 - On Android, hardware keyboards get them too, through the WebView.
 
 ## Verification

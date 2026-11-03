@@ -333,7 +333,7 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 - Outcome: **implemented, unverified** (cloud sprint, no test run). The inbox's preview says "Alice is typing…" while someone types (ADR 0048's events). 🧪 the desktop e2e "typing shows the echo contact typing back" (`cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "typing shows"`).
 
 **T2.54 — Keyboard shortcuts** (E2.3)
-- Outcome: **implemented, unverified** (cloud sprint, no test run). Ctrl+K (Cmd+K) focuses the search; Alt+Up and Alt+Down move between conversations (ADR 0058). 🧪 `ui/src/shortcuts.test.ts`, the desktop e2e "keyboard shortcuts". Left: a list of the shortcuts in the app.
+- Outcome: **implemented, unverified** (cloud sprint, no test run). Ctrl+K (Cmd+K) focuses the search; Alt+Up and Alt+Down move between conversations (ADR 0058). 🧪 `ui/src/shortcuts.test.ts`, the desktop e2e "keyboard shortcuts". Since T2.63 the appearance dialog lists them.
 
 **T2.55 — Mark all read** (E2.3)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). "Mark all read" above the inbox while a conversation is unread: each read on the network as one conversation is (ADR 0023). 🧪 `ui/src/store.test.ts` ("marks every unread conversation read": `cd ui && npx vitest run src/store.test.ts`).

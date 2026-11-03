@@ -4,7 +4,7 @@
 import { describe, expect, test } from "vitest";
 import type { Conversation } from "./core-api/types.gen";
 import type { InboxEntry } from "./inbox";
-import { adjacentConversation, shortcutOf } from "./shortcuts";
+import { adjacentConversation, shortcutList, shortcutOf } from "./shortcuts";
 
 const press = (key: string, mods: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean }> = {}) => ({
   key,
@@ -55,4 +55,9 @@ describe("adjacentConversation", () => {
     expect(adjacentConversation(entries, "c3", "next")).toBeUndefined();
     expect(adjacentConversation([], undefined, "next")).toBeUndefined();
   });
+});
+
+test("the help lists the keys of the system", () => {
+  expect(shortcutList(false)[0]).toEqual({ keys: "Ctrl+K", what: "Search messages" });
+  expect(shortcutList(true)[0]).toEqual({ keys: "⌘ K", what: "Search messages" });
 });
