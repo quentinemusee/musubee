@@ -658,7 +658,9 @@ func receivedMedia(t *testing.T, ctx context.Context, c *embedded.Core, events c
 	t.Helper()
 	photo := bytes.Repeat([]byte("not really a PNG "), 4096)
 	file := attachment.NewEncryptedFile()
-	sealed := file.Encrypt(photo)
+	// Encrypted in a copy: photo stays the plaintext to compare with.
+	sealed := bytes.Clone(photo)
+	file.EncryptInPlace(sealed)
 	upload, err := bob.cli.UploadBytes(ctx, sealed, "application/octet-stream")
 	if err != nil {
 		t.Fatalf("bob uploading the photo: %v", err)

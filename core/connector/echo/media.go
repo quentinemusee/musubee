@@ -103,7 +103,7 @@ func makePNG() ([]byte, error) {
 	img := image.NewRGBA(image.Rect(0, 0, ImageWidth, ImageHeight))
 	for y := range ImageHeight {
 		for x := range ImageWidth {
-			img.Set(x, y, color.RGBA{R: uint8(x * 255 / ImageWidth), G: uint8(y * 255 / ImageHeight), B: 160, A: 255}) //nolint:gosec // Below 256.
+			img.Set(x, y, color.RGBA{R: uint8(x * 255 / ImageWidth), G: uint8(y * 255 / ImageHeight), B: 160, A: 255})
 		}
 	}
 	var buf bytes.Buffer
