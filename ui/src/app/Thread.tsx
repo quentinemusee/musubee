@@ -8,6 +8,7 @@ import { canRecord, VoiceRecorder, type Recording } from "../recorder";
 import { accountLabel } from "../merge";
 import { firstUnread, replyQuote, replyTo, seenLabel, sendsOnEnter, typingText } from "../message";
 import { accentKey } from "../conversation-accent";
+import { exportFileName, exportText } from "../export";
 import { AccentButton } from "./AccentButton";
 import { SEARCH_FIELD_ID } from "./Shortcuts";
 import { Avatar } from "./Avatar";
@@ -22,6 +23,7 @@ import { closeConversation } from "./navigation";
 import { PersonPanel } from "./PersonPanel";
 import { PrivacyNote } from "./PrivacyNote";
 import { togetherView } from "../together";
+import type { Store } from "../store";
 import { useAppState, useStore } from "./state";
 
 const noMessages: readonly Message[] = [];
@@ -222,6 +224,16 @@ export function Thread() {
                 }}
               >
                 Search here
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setMoreFor(undefined);
+                  void exportConversation(store, selected, person?.name ?? (conversation.name || "Unnamed conversation"));
+                }}
+              >
+                Export as text
               </button>
               <button
                 type="button"
@@ -678,4 +690,24 @@ function TypingLine({ conversationId }: { conversationId: string }) {
       {typingText(names)}
     </output>
   );
+}
+
+/**
+ * Saves a conversation's stored messages as a text file (T2.75), as the
+ * browser saves a download: the user chooses where, or it goes to the
+ * downloads folder.
+ */
+async function exportConversation(store: Store, conversationId: string, name: string): Promise<void> {
+  try {
+    const messages = await store.allStoredMessages(conversationId);
+    const url = URL.createObjectURL(new Blob([exportText(name, messages)], { type: "text/plain;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = exportFileName(name);
+    link.rel = "noopener";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (error) {
+    store.reportError(`Could not export the conversation: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }

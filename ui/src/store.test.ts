@@ -625,6 +625,28 @@ describe("Store", () => {
     expect(store.getState().starred).toBeUndefined();
   });
 
+  test("reads every stored message of a conversation for an export, page by page", async () => {
+    const all = Array.from({ length: 450 }, (_, i) => message(`m${i}`, i));
+    const asked: unknown[] = [];
+    const shell = scriptedShell({
+      ...coreState([conversation("c1", "Adam")]),
+      "messages.list": (params) => {
+        asked.push(params);
+        const { before, limit } = params as { before?: string; limit: number };
+        const end = before === undefined ? all.length : Number(before);
+        const start = Math.max(0, end - limit);
+        return { messages: all.slice(start, end), ...(start > 0 ? { before: String(start) } : {}) };
+      },
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    const messages = await store.allStoredMessages("c1");
+    expect(messages.map((m) => m.message_id)).toEqual(all.map((m) => m.message_id));
+    expect(asked).toHaveLength(3);
+  });
+
   test("reads older messages page by page, one page at a time", async () => {
     // 250 messages, m0 to m249; the core pages them from the newest.
     const all = Array.from({ length: 250 }, (_, i) => message(`m${i}`, i));

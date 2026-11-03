@@ -392,6 +392,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.74 — Unread only** (E2.3)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). "Unread only" above the inbox keeps the entries with unread messages or marked unread, and the one open. 🧪 the desktop e2e "the inbox shows only unread conversations" (`npx playwright test app.spec.ts -g "only unread"`).
 
+**T2.75 — Export a conversation** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). "Export as text" in the thread's "More…" saves the messages stored on the device as a .txt file, one line per message, media named but not included. 🧪 `ui/src/export.test.ts`, `ui/src/store.test.ts` (`cd ui && npx vitest run src/export.test.ts src/store.test.ts`). By hand: the desktop's save dialog; Android's WebView may not save a Blob download (as for media files): to check.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

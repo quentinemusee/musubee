@@ -113,6 +113,8 @@ export const REVEAL_PAGES = 20;
 
 /** How many older messages loadOlder() reads at once. */
 export const OLDER_PAGE = 100;
+/** How many messages an export reads at once: the core's largest page. */
+export const EXPORT_PAGE = 200;
 /** How many conversations a page of the conversation list holds. */
 export const INBOX_PAGE = 50;
 
@@ -671,6 +673,29 @@ export class Store {
       }
     } catch (error) {
       this.#set({ error: `Could not send the message: ${describe(error)}` });
+    }
+  }
+
+  /** Shows a problem in the app's error banner. */
+  reportError(message: string): void {
+    this.#set({ error: message });
+  }
+
+  /**
+   * Every message of a conversation stored on the device, the oldest
+   * first, read page by page (T2.75, for an export). Older history still
+   * on the network is not fetched.
+   */
+  async allStoredMessages(conversationId: string): Promise<Message[]> {
+    let messages: Message[] = [];
+    let before: string | undefined;
+    for (;;) {
+      const result = await this.client.call("messages.list", { conversation_id: conversationId, limit: EXPORT_PAGE, ...(before === undefined ? {} : { before }) });
+      messages = mergeMessages(messages, result.messages);
+      if (result.before === undefined || result.messages.length === 0) {
+        return messages;
+      }
+      before = result.before;
     }
   }
 
