@@ -338,6 +338,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.55 — Mark all read** (E2.3)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). "Mark all read" above the inbox while a conversation is unread: each read on the network as one conversation is (ADR 0023). 🧪 `ui/src/store.test.ts` ("marks every unread conversation read": `cd ui && npx vitest run src/store.test.ts`).
 
+**T2.56 — Unread count on the desktop icon** (E2.3)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). The main process counts unread messages of the conversations it knows, muted ones left out, and sets it on the app's icon (macOS, Linux launchers; ADR 0059). 🧪 `apps/desktop/test/notification-rules.test.ts` (`cd apps/desktop && npx vitest run test/notification-rules.test.ts`). Left: Windows' taskbar overlay.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

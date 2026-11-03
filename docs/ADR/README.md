@@ -68,3 +68,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0056](0056-leaving-groups.md) | Leaving a group: the user's leave event to the bridge, confirmed by its status | accepted | T2.51 |
 | [0057](0057-drafts.md) | Drafts: kept by the core with the messages, saved a moment after typing | accepted | T2.52 |
 | [0058](0058-keyboard-shortcuts.md) | Keyboard shortcuts: few, conventional, and never in a dialog's way | accepted | T2.54 |
+| [0059](0059-unread-badge.md) | The unread count on the desktop app's icon: counted by the main process | accepted | T2.56 |

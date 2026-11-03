@@ -82,6 +82,8 @@ export function messageSummary(message: AnnouncedMessage): string {
 interface KnownConversation {
   name: string;
   group: boolean;
+  /** Unread messages (API 1.4); a conversation marked unread with none counts one. */
+  unread: number;
   /** The conversation's muted_until_ms (API 1.23): -1 until unmuted, 0 not muted. */
   mutedUntil: number;
 }
@@ -122,15 +124,42 @@ export class KnownConversations {
     if (typeof value !== "object" || value === null) {
       return;
     }
-    const conversation = value as { conversation_id?: unknown; name?: unknown; kind?: unknown; muted_until_ms?: unknown };
+    const conversation = value as {
+      conversation_id?: unknown;
+      name?: unknown;
+      kind?: unknown;
+      muted_until_ms?: unknown;
+      unread_count?: unknown;
+      marked_unread?: unknown;
+    };
     if (typeof conversation.conversation_id !== "string") {
       return;
     }
     this.#known.set(conversation.conversation_id, {
       name: typeof conversation.name === "string" ? conversation.name : "",
       group: conversation.kind === "group",
+      unread: typeof conversation.unread_count === "number" && conversation.unread_count > 0 ? conversation.unread_count : conversation.marked_unread === true ? 1 : 0,
       mutedUntil: typeof conversation.muted_until_ms === "number" ? conversation.muted_until_ms : 0,
     });
+  }
+
+  /**
+   * What the app's icon shows (docs/ADR/0059): the unread messages of the
+   * conversations known, muted ones left out, as the inbox counts them.
+   */
+  unreadTotal(now: number): number {
+    let total = 0;
+    for (const [conversationId, known] of this.#known) {
+      if (!this.muted(conversationId, now)) {
+        total += known.unread;
+      }
+    }
+    return total;
+  }
+
+  /** Forgets a deleted conversation (API 1.25). */
+  forget(conversationId: string): void {
+    this.#known.delete(conversationId);
   }
 
   /** Whether the user muted the conversation, as of now. */

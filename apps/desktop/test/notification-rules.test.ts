@@ -77,4 +77,27 @@ describe("desktop notifications", () => {
     expect(deletedConversation(added({}))).toBeNull();
     expect(deletedConversation("not json")).toBeNull();
   });
+
+  test("count the unread messages for the app's icon, without muted conversations (ADR 0059)", () => {
+    const known = new KnownConversations();
+    expect(known.unreadTotal(now)).toBe(0);
+    known.learnResponse(
+      JSON.stringify({
+        id: 1,
+        result: {
+          conversations: [
+            { conversation_id: "c.1", name: "Alice", kind: "direct", unread_count: 3 },
+            { conversation_id: "c.2", name: "Bob", kind: "direct", marked_unread: true },
+            { conversation_id: "c.3", name: "Club", kind: "group", unread_count: 40, muted_until_ms: -1 },
+            { conversation_id: "c.4", name: "Cy", kind: "direct" },
+          ],
+        },
+      }),
+    );
+    expect(known.unreadTotal(now)).toBe(4);
+    known.learnEvent(updated({ unread_count: 0 }));
+    expect(known.unreadTotal(now)).toBe(1);
+    known.forget("c.2");
+    expect(known.unreadTotal(now)).toBe(0);
+  });
 });

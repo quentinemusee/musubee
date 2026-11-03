@@ -90,6 +90,16 @@ function main(): void {
   const conversations = new KnownConversations();
   // What they show of a message, as the user chose (docs/ADR/0051).
   let preview = loadPreview(app.getPath("userData"));
+  // The unread count on the app's icon (docs/ADR/0059), where the system
+  // shows one (macOS, and Linux desktops with Unity's launcher API).
+  let badge = 0;
+  const showBadge = () => {
+    const total = conversations.unreadTotal(Date.now());
+    if (total !== badge) {
+      badge = total;
+      app.setBadgeCount(total);
+    }
+  };
   core.onEvent((event) => {
     conversations.learnEvent(event);
     for (const window of windows) {
@@ -98,7 +108,11 @@ function main(): void {
     // A deleted conversation's notification would open nothing.
     const deleted = deletedConversation(event);
     if (deleted !== null) {
+      conversations.forget(deleted);
       shown.get(deleted)?.close();
+    }
+    showBadge();
+    if (deleted !== null) {
       return;
     }
     const focused = [...windows].some((window) => window.isFocused());
@@ -162,6 +176,7 @@ function main(): void {
     }
     return core.call(checked.request).then((response) => {
       conversations.learnResponse(response);
+      showBadge();
       return response;
     });
   });
