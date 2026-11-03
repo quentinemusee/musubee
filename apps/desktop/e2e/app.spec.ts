@@ -410,6 +410,11 @@ test("search finds a message in any conversation and opens it", async () => {
   await expect(results.getByRole("listitem").first()).toContainText("Instant Echo");
   await results.getByRole("button").first().click();
   await expect(page.getByRole("heading", { name: "Instant Echo" })).toBeVisible();
+  // A conversation's name is found too, above the messages (T2.73).
+  await page.getByRole("searchbox", { name: "Search messages" }).fill("delayed");
+  const byName = page.getByRole("region", { name: "Messages with “delayed”" }).getByRole("list", { name: "Conversations" });
+  await byName.getByRole("button", { name: "Delayed Echo" }).click();
+  await expect(page.getByRole("heading", { name: "Delayed Echo" })).toBeVisible();
   // Escape ends the search: the inbox is back.
   await page.getByRole("searchbox", { name: "Search messages" }).press("Escape");
   await expect(results).toHaveCount(0);

@@ -386,6 +386,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.72 — Days in the thread** (E2.4)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). A divider above the first message of each day: "Today", "Yesterday", the weekday within a week, else the date. 🧪 `ui/src/message.test.ts` (`dayLabel`, `dayStarts`: `cd ui && npx vitest run src/message.test.ts`).
 
+**T2.73 — Conversations in the search** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). Searching lists, above the messages, up to five conversations whose name matches (ignoring case and accents, as the merge panel does); a click opens one. 🧪 the desktop e2e "search finds".
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

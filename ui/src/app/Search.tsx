@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import type { Message } from "../core-api/types.gen";
 import { activityLabel } from "../inbox";
 import { summary } from "../media";
+import { normalizeName } from "../merge";
+import { openConversation } from "./navigation";
 import { useNow } from "./Inbox";
 import { SEARCH_FIELD_ID } from "./Shortcuts";
 import { useAppState, useStore } from "./state";
@@ -61,6 +63,9 @@ export function SearchField() {
   );
 }
 
+/** How many conversations a search lists by name, above the messages. */
+const MAX_NAMED = 5;
+
 /** The messages found, in place of the inbox while the user searches. */
 export function SearchResults() {
   const store = useStore();
@@ -71,8 +76,23 @@ export function SearchResults() {
     return null;
   }
   const name = (message: Message) => conversations.find((c) => c.conversation_id === message.conversation_id)?.name ?? "";
+  // Conversations whose name matches come first (T2.73): finding a person
+  // is the most common search.
+  const wanted = normalizeName(search.query);
+  const named = conversations.filter((c) => normalizeName(c.name).includes(wanted)).slice(0, MAX_NAMED);
   return (
     <section className="search-results" aria-label={`Messages with “${search.query}”`}>
+      {named.length === 0 ? null : (
+        <ul className="search-conversations" aria-label="Conversations">
+          {named.map((c) => (
+            <li key={c.conversation_id}>
+              <button type="button" className="search-result" onClick={() => openConversation(store, c.conversation_id)}>
+                <span className="search-result-name">{c.name || "Unnamed conversation"}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <output className="hint">
         {search.more === "loading" && search.results.length === 0
           ? "Searching…"
