@@ -551,3 +551,10 @@ To verify in the test session: T2.46 (cloud sprint, no test run; see ADR 0052):
 pins (core):        go test -tags=goolm -count=1 -run 'Pin' -v ./core/localmatrix/ ./core/embedded/
 pins in the app:    cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "pinned conversation"      (ui: npx vitest run src/store.test.ts)
 ```
+
+To verify in the test session: T2.47 (cloud sprint, no test run; see ADR 0053):
+
+```
+delete (core):      go test -tags=goolm -count=1 -run 'DeleteChat' -v ./core/embedded/
+delete in the app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "deletes a conversation"      (ui: npx vitest run src/store.test.ts)
+```

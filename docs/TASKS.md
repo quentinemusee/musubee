@@ -311,6 +311,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.46 — Pin conversations** (E2.3)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.24 `conversations.pin` and `Conversation.pinned` (ADR 0052): Matrix's favourite tag, both ways through bridgev2; the first page of `conversations.list` starts with every pin; "Pin" in the thread. 🧪 `TestPin` (localmatrix and embedded), `ui/src/store.test.ts`, the desktop e2e "a pinned conversation stays at the top".
 
+**T2.47 — Delete a conversation** (E2.3)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.25 `conversations.delete`, `conversation.deleted` and `ConversationActions.delete_chat` (ADR 0053): bridgev2's delete chat for direct conversations, waited for until the room goes; "Delete…" with a confirmation; notifications go too. 🧪 `TestDeleteChat`, `ui/src/store.test.ts`, `MessageNotificationsTest`, the desktop e2e "the user deletes a conversation". Left: leaving groups, deleting for everyone.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).
