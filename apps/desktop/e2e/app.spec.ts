@@ -666,10 +666,20 @@ test("the user chooses what notifications show, kept by the main process after a
   const refused = await page.evaluate(() => window.musubee!.notifications!.setPreview!("everything" as never).then(() => "kept", () => "refused"));
   expect(refused).toBe("refused");
 
+  // A pause (ADR 0067), kept too.
+  await page.getByRole("button", { name: "Notifications" }).click();
+  await page.getByRole("dialog", { name: "Notifications" }).getByRole("button", { name: "For 1 hour" }).click();
+  await expect(page.getByRole("dialog", { name: "Notifications" }).getByText(/^Paused until/)).toBeVisible();
+  await page.keyboard.press("Escape");
+
   await app.close();
   ({ app, page } = await launch(dataDir));
   await page.getByRole("button", { name: "Notifications" }).click();
-  await expect(page.getByRole("dialog", { name: "Notifications" }).getByRole("radio", { name: "No name or message" })).toBeChecked();
+  const again = page.getByRole("dialog", { name: "Notifications" });
+  await expect(again.getByRole("radio", { name: "No name or message" })).toBeChecked();
+  await expect(again.getByText(/^Paused until/)).toBeVisible();
+  await again.getByRole("button", { name: "Resume now" }).click();
+  await expect(again.getByRole("button", { name: "For 1 hour" })).toBeVisible();
   await app.close();
 });
 
@@ -772,7 +782,7 @@ test("the interface is isolated, and the main process checks what it sends", asy
     module: "undefined",
     shell: ["core", "links", "notifications"],
     core: ["call", "onEvent", "onStatus", "startOver"],
-    notifications: ["ask", "onOpen", "preview", "setPreview"],
+    notifications: ["ask", "onOpen", "pauseUntil", "pausedUntil", "preview", "setPreview"],
   });
 
   // Requests the schema refuses get the core API's own errors.

@@ -15,11 +15,17 @@ function scriptedPlugin(
   const listeners = new Map<string, (event: never) => void>();
   let granted = false;
   let preview = "";
+  let pausedUntil = 0;
   const plugin: MusubeeCorePlugin = {
     call: ({ request }) => answer(request as { id: number; command: string }),
     startOver,
     askToNotify: () => Promise.resolve({ granted }),
     notificationPreview: () => Promise.resolve({ preview }),
+    notificationsPausedUntil: () => Promise.resolve({ until: pausedUntil }),
+    pauseNotifications: (options) => {
+      pausedUntil = options.until;
+      return Promise.resolve();
+    },
     setNotificationPreview: (options) => {
       preview = options.preview;
       return Promise.resolve();
@@ -114,5 +120,9 @@ describe("pluginShell", () => {
     expect(await notifications.preview?.()).toBe("name_and_text");
     await notifications.setPreview?.("nothing");
     expect(await notifications.preview?.()).toBe("nothing");
+    // And whether they wait (ADR 0067).
+    expect(await notifications.pausedUntil?.()).toBe(0);
+    await notifications.pauseUntil?.(1_800_000_000_000);
+    expect(await notifications.pausedUntil?.()).toBe(1_800_000_000_000);
   });
 });

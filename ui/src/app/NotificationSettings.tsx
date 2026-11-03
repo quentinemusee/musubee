@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { useEffect, useRef, useState } from "react";
-import { NOTIFICATION_PREVIEW_NAMES, NOTIFICATION_PREVIEWS } from "../notification-preview";
+import { NOTIFICATION_PREVIEW_NAMES, NOTIFICATION_PREVIEWS, pauseChoices } from "../notification-preview";
+import { useNow } from "./Inbox";
 import type { NotificationPreview, ShellNotifications } from "../shell";
 
 /**
@@ -13,6 +14,9 @@ export function NotificationSettings({ notifications, onClose }: { notifications
   const dialog = useRef<HTMLDialogElement>(null);
   const [preview, setPreview] = useState<NotificationPreview | undefined>(undefined);
   const [failed, setFailed] = useState(false);
+  // Until when notifications wait (docs/ADR/0067); undefined while read.
+  const [pausedUntil, setPausedUntil] = useState<number | undefined>(undefined);
+  const now = useNow();
 
   useEffect(() => {
     const element = dialog.current;
@@ -28,10 +32,23 @@ export function NotificationSettings({ notifications, onClose }: { notifications
       (value) => current && setPreview(value),
       () => current && setFailed(true),
     );
+    notifications.pausedUntil?.().then(
+      (value) => current && setPausedUntil(value),
+      () => current && setFailed(true),
+    );
     return () => {
       current = false;
     };
   }, [notifications]);
+
+  function pause(until: number) {
+    const before = pausedUntil;
+    setPausedUntil(until);
+    notifications.pauseUntil?.(until).catch(() => {
+      setPausedUntil(before);
+      setFailed(true);
+    });
+  }
 
   function change(next: NotificationPreview) {
     const before = preview;
@@ -56,6 +73,27 @@ export function NotificationSettings({ notifications, onClose }: { notifications
         ))}
       </fieldset>
       <p className="settings-note">Anyone who sees your screen can read what your notifications show.</p>
+      {notifications.pauseUntil === undefined || pausedUntil === undefined ? null : (
+        <fieldset>
+          <legend>Pause notifications</legend>
+          {pausedUntil > now ? (
+            <>
+              <p className="settings-note">
+                Paused until {new Date(pausedUntil).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })}.
+              </p>
+              <button type="button" className="secondary" onClick={() => pause(0)}>
+                Resume now
+              </button>
+            </>
+          ) : (
+            pauseChoices(now).map((choice) => (
+              <button key={choice.label} type="button" className="secondary" onClick={() => pause(choice.until)}>
+                {choice.label}
+              </button>
+            ))
+          )}
+        </fieldset>
+      )}
       {failed ? <p role="alert">Musubee could not read or keep this setting.</p> : null}
       <div className="settings-buttons">
         <button type="button" onClick={() => dialog.current?.close()}>

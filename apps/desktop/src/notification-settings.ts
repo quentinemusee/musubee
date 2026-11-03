@@ -13,19 +13,36 @@ import { parsePreview, type NotificationPreview } from "./notification-rules.js"
 
 const FILE = "notifications.json";
 
-/** The stored preview; everything when the file is missing, unreadable or holds an unknown value. */
-export function loadPreview(dir: string): NotificationPreview {
-  try {
-    const stored = JSON.parse(readFileSync(join(dir, FILE), "utf8")) as { preview?: unknown };
-    return parsePreview(stored.preview) ?? "name_and_text";
-  } catch {
-    return "name_and_text";
-  }
+/** The notification settings the main process keeps. */
+export interface NotificationSettings {
+  preview: NotificationPreview;
+  /** Until when every notification waits, in Unix milliseconds; 0: not paused (docs/ADR/0067). */
+  pausedUntil: number;
 }
 
-/** Keeps the preview, replacing the file whole so that a crash never leaves half of it. */
-export function savePreview(dir: string, preview: NotificationPreview): void {
+/** The stored settings; each one the default when missing, unreadable or unknown. */
+export function loadSettings(dir: string): NotificationSettings {
+  let stored: { preview?: unknown; paused_until?: unknown } = {};
+  try {
+    stored = JSON.parse(readFileSync(join(dir, FILE), "utf8")) as typeof stored;
+  } catch {
+    // The defaults.
+  }
+  const pausedUntil = stored.paused_until;
+  return {
+    preview: parsePreview(stored.preview) ?? "name_and_text",
+    pausedUntil: typeof pausedUntil === "number" && Number.isSafeInteger(pausedUntil) && pausedUntil > 0 ? pausedUntil : 0,
+  };
+}
+
+/** Keeps the settings, replacing the file whole so that a crash never leaves half of it. */
+export function saveSettings(dir: string, settings: NotificationSettings): void {
   const path = join(dir, FILE);
-  writeFileSync(`${path}.tmp`, JSON.stringify({ preview }));
+  writeFileSync(`${path}.tmp`, JSON.stringify({ preview: settings.preview, paused_until: settings.pausedUntil }));
   renameSync(`${path}.tmp`, path);
+}
+
+/** Whether notifications wait, as of now. */
+export function paused(settings: NotificationSettings, now: number): boolean {
+  return settings.pausedUntil > now;
 }

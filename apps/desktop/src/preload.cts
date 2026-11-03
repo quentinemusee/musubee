@@ -72,6 +72,13 @@ contextBridge.exposeInMainWorld("musubee", {
     setPreview(preview: string): Promise<void> {
       return ipcRenderer.invoke("notifications:setPreview", preview) as Promise<void>;
     },
+    // Whether they wait (docs/ADR/0067): until a time, 0 to resume.
+    pausedUntil(): Promise<number> {
+      return ipcRenderer.invoke("notifications:pausedUntil") as Promise<number>;
+    },
+    pauseUntil(until: number): Promise<void> {
+      return ipcRenderer.invoke("notifications:pauseUntil", until) as Promise<void>;
+    },
     onOpen(listener: (conversationId: string) => void): () => void {
       const handler = (_: IpcRendererEvent, conversationId: unknown) => {
         if (typeof conversationId === "string") {

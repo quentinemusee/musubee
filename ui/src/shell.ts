@@ -46,6 +46,10 @@ export interface ShellNotifications {
   preview?(): Promise<NotificationPreview>;
   /** Keeps what notifications show of a message, in the shell, for the next ones. */
   setPreview?(preview: NotificationPreview): Promise<void>;
+  /** Until when every notification waits, in Unix milliseconds, 0 when not (docs/ADR/0067). */
+  pausedUntil?(): Promise<number>;
+  /** Pauses every notification until a time, or resumes them (0). */
+  pauseUntil?(until: number): Promise<void>;
 }
 
 /**

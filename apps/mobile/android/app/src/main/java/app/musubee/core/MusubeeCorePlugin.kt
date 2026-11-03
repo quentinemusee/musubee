@@ -142,6 +142,24 @@ class MusubeeCorePlugin : Plugin() {
         call.resolve()
     }
 
+    /** Resolves with `{until}`: until when notifications wait, 0 when they do not (docs/ADR/0067). */
+    @PluginMethod
+    fun notificationsPausedUntil(call: PluginCall) {
+        call.resolve(JSObject().put("until", MessageNotifier.pausedUntil(context)))
+    }
+
+    /** Pauses notifications until `{until}` (Unix milliseconds), or resumes them with 0. */
+    @PluginMethod
+    fun pauseNotifications(call: PluginCall) {
+        val until = call.getLong("until")
+        if (until == null || until < 0) {
+            call.reject("until must be a time or 0")
+            return
+        }
+        MessageNotifier.pauseUntil(context, until)
+        call.resolve()
+    }
+
     @PermissionCallback
     private fun notificationsAnswered(call: PluginCall) {
         call.resolve(JSObject().put("granted", getPermissionState(NOTIFICATIONS) == PermissionState.GRANTED))

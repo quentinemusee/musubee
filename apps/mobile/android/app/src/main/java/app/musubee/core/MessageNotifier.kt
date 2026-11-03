@@ -65,6 +65,8 @@ class MessageNotifier(private val context: Context) {
 
     private fun post(action: MessageNotifications.Action.Post) {
         if (!manager.areNotificationsEnabled()) return
+        // Paused by the user (docs/ADR/0067): nothing new shows until then.
+        if (pausedUntil(context) > System.currentTimeMillis()) return
         val post = MessageNotifications.hide(action, preview(context))
         // A change of a notification that the user dismissed stays dismissed.
         if (post.silent && manager.activeNotifications.none { it.tag == post.conversationId && it.id == NOTIFICATION_ID }) return
@@ -187,12 +189,22 @@ class MessageNotifier(private val context: Context) {
         private const val TAG = "MusubeeNotifications"
         private const val PREFERENCES = "notifications"
         private const val PREVIEW = "preview"
+        private const val PAUSED_UNTIL = "paused_until"
 
         /** What notifications show of a message, as the user chose (docs/ADR/0051). */
         fun preview(context: Context): MessageNotifications.Preview =
             MessageNotifications.Preview.of(
                 context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).getString(PREVIEW, null),
             ) ?: MessageNotifications.Preview.NAME_AND_TEXT
+
+        /** Until when every notification waits, in Unix milliseconds; 0 when not paused (docs/ADR/0067). */
+        fun pausedUntil(context: Context): Long =
+            context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).getLong(PAUSED_UNTIL, 0L)
+
+        /** Pauses every notification until a time, or resumes them (0). */
+        fun pauseUntil(context: Context, until: Long) {
+            context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().putLong(PAUSED_UNTIL, until).apply()
+        }
 
         /** Keeps what notifications show; the next notifications follow it. */
         fun setPreview(context: Context, preview: MessageNotifications.Preview) {

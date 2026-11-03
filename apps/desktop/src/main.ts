@@ -21,7 +21,7 @@ import { externalLink } from "./external-links.js";
 import { CoreProcess, type CoreStatus } from "./core-process.js";
 import { allowCheck, allowRequest } from "./permissions.js";
 import { announcement, deletedConversation, hide, KnownConversations, parsePreview } from "./notification-rules.js";
-import { loadPreview, savePreview } from "./notification-settings.js";
+import { loadSettings, paused, saveSettings } from "./notification-settings.js";
 import { RequestValidator } from "./ipc.js";
 import { setAside } from "./start-over.js";
 
@@ -89,8 +89,9 @@ function main(): void {
   const shown = new Map<string, Notification>();
   // Names and mutes of the conversations, for the notifications.
   const conversations = new KnownConversations();
-  // What they show of a message, as the user chose (docs/ADR/0051).
-  let preview = loadPreview(app.getPath("userData"));
+  // What they show of a message (docs/ADR/0051) and whether they wait
+  // (docs/ADR/0067), as the user chose.
+  let settings = loadSettings(app.getPath("userData"));
   // The unread count on the app's icon (docs/ADR/0059), where the system
   // shows one (macOS, and Linux desktops with Unity's launcher API).
   let badge = 0;
@@ -117,11 +118,11 @@ function main(): void {
       return;
     }
     const focused = [...windows].some((window) => window.isFocused());
-    const found = Notification.isSupported() ? announcement(event, Date.now(), focused, conversations) : null;
+    const found = Notification.isSupported() && !paused(settings, Date.now()) ? announcement(event, Date.now(), focused, conversations) : null;
     if (found === null) {
       return;
     }
-    const announced = hide(found, preview);
+    const announced = hide(found, settings.preview);
     shown.get(announced.conversationId)?.close();
     const notification = new Notification({ title: announced.title, body: announced.body });
     notification.on("click", () => {
@@ -197,7 +198,7 @@ function main(): void {
     if (!trusted(event)) {
       throw new Error("refused: not a Musubee window");
     }
-    return preview;
+    return settings.preview;
   });
   ipcMain.handle("notifications:setPreview", (event, value: unknown) => {
     if (!trusted(event)) {
@@ -207,8 +208,24 @@ function main(): void {
     if (next === null) {
       throw new Error("refused: unknown notification preview");
     }
-    savePreview(app.getPath("userData"), next);
-    preview = next;
+    settings = { ...settings, preview: next };
+    saveSettings(app.getPath("userData"), settings);
+  });
+  ipcMain.handle("notifications:pausedUntil", (event) => {
+    if (!trusted(event)) {
+      throw new Error("refused: not a Musubee window");
+    }
+    return settings.pausedUntil;
+  });
+  ipcMain.handle("notifications:pauseUntil", (event, until: unknown) => {
+    if (!trusted(event)) {
+      throw new Error("refused: not a Musubee window");
+    }
+    if (typeof until !== "number" || !Number.isSafeInteger(until) || until < 0) {
+      throw new Error("refused: not a time");
+    }
+    settings = { ...settings, pausedUntil: until };
+    saveSettings(app.getPath("userData"), settings);
   });
   ipcMain.handle("core:status", (event) => {
     if (!trusted(event)) {

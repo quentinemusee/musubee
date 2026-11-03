@@ -20,6 +20,9 @@ export interface MusubeeCorePlugin {
   /** What notifications show of a message (docs/ADR/0051), kept in the app's preferences. */
   notificationPreview(): Promise<{ preview: string }>;
   setNotificationPreview(options: { preview: NotificationPreview }): Promise<void>;
+  /** Until when notifications wait (docs/ADR/0067), kept in the app's preferences. */
+  notificationsPausedUntil(): Promise<{ until: number }>;
+  pauseNotifications(options: { until: number }): Promise<void>;
   addListener(eventName: "event", listener: (event: object) => void): Promise<PluginListenerHandle>;
   /** A notification was tapped; kept by the plugin until a listener takes it. */
   addListener(eventName: "openConversation", listener: (event: { conversation_id: string }) => void): Promise<PluginListenerHandle>;
@@ -84,6 +87,8 @@ export function pluginShell(plugin: MusubeeCorePlugin): Shell {
     ask: async () => (await plugin.askToNotify()).granted,
     preview: async () => parseNotificationPreview((await plugin.notificationPreview()).preview),
     setPreview: (preview) => plugin.setNotificationPreview({ preview }),
+    pausedUntil: async () => (await plugin.notificationsPausedUntil()).until,
+    pauseUntil: (until) => plugin.pauseNotifications({ until }),
     onOpen(listener) {
       opens.add(listener);
       for (const conversationId of unopened.splice(0)) {
