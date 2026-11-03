@@ -13,6 +13,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
+import androidx.core.app.RemoteInput
 import app.musubee.MainActivity
 import app.musubee.R
 import org.json.JSONException
@@ -91,6 +92,31 @@ class MessageNotifier(private val context: Context) {
             .setContentTitle("Musubee")
             .setContentText("New message")
             .build()
+        // Actions (docs/ADR/0064): reply without opening the app, or mark
+        // the conversation read. They reach the core through CoreService.
+        val reply = RemoteInput.Builder(KEY_REPLY).setLabel("Reply").build()
+        val replyAction = NotificationCompat.Action.Builder(
+            R.drawable.ic_launcher_foreground,
+            "Reply",
+            serviceIntent(ACTION_REPLY, post.conversationId, mutable = true),
+        )
+            .addRemoteInput(reply)
+            .setAllowGeneratedReplies(false)
+            .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
+            .setShowsUserInterface(false)
+            // Only once the device is unlocked: nobody replies in the
+            // user's name from the lock screen.
+            .setAuthenticationRequired(true)
+            .build()
+        val readAction = NotificationCompat.Action.Builder(
+            R.drawable.ic_launcher_foreground,
+            "Mark as read",
+            serviceIntent(ACTION_MARK_READ, post.conversationId, mutable = false),
+        )
+            .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_MARK_AS_READ)
+            .setShowsUserInterface(false)
+            .setAuthenticationRequired(true)
+            .build()
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setStyle(style)
@@ -99,6 +125,8 @@ class MessageNotifier(private val context: Context) {
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(public)
             .setContentIntent(pending)
+            .addAction(replyAction)
+            .addAction(readAction)
             .setAutoCancel(true)
             .setOnlyAlertOnce(post.silent)
             .setWhen(post.lines.last().timestampMs)
@@ -109,6 +137,34 @@ class MessageNotifier(private val context: Context) {
             // The permission was withdrawn between the check and the post.
             Log.w(TAG, "Could not show a notification: ${e.message}")
         }
+    }
+
+    /** Removes a conversation's notification, after a notification's action that failed. */
+    fun cancel(conversationId: String) {
+        manager.cancel(conversationId, NOTIFICATION_ID)
+    }
+
+    /**
+     * An intent to [CoreService] for a notification's action. A reply's must
+     * be mutable: Android adds the text the user typed to it.
+     */
+    private fun serviceIntent(action: String, conversationId: String, mutable: Boolean): PendingIntent {
+        val intent = Intent(context, CoreService::class.java)
+            .setAction(action)
+            .putExtra(EXTRA_CONVERSATION_ID, conversationId)
+        val mutability = if (mutable && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            PendingIntent.FLAG_MUTABLE
+        } else if (mutable) {
+            0
+        } else {
+            PendingIntent.FLAG_IMMUTABLE
+        }
+        return PendingIntent.getService(
+            context,
+            (action + conversationId).hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or mutability,
+        )
     }
 
     /** Keeps [MessageNotifications.Watermarks] in the app's preferences. */
@@ -148,6 +204,11 @@ class MessageNotifier(private val context: Context) {
         /** The intent that a notification sends to open its conversation. */
         const val ACTION_OPEN_CONVERSATION = "app.musubee.OPEN_CONVERSATION"
         const val EXTRA_CONVERSATION_ID = "app.musubee.CONVERSATION_ID"
+
+        /** The notifications' actions (docs/ADR/0064), handled by [CoreService]. */
+        const val ACTION_MARK_READ = "app.musubee.MARK_READ"
+        const val ACTION_REPLY = "app.musubee.REPLY"
+        const val KEY_REPLY = "app.musubee.REPLY_TEXT"
     }
 }
 

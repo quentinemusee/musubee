@@ -15,6 +15,7 @@ import android.os.IBinder
 import android.util.Base64
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.RemoteInput
 import androidx.core.app.ServiceCompat
 import app.musubee.BuildConfig
 import app.musubee.R
@@ -24,6 +25,7 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * The foreground service that owns the core, so that the core keeps its
@@ -44,14 +46,19 @@ class CoreService : Service() {
     @Volatile private var core = CompletableFuture<CoreLibrary>()
     private val listeners = CopyOnWriteArraySet<(ByteArray) -> Unit>()
     private var reader: Thread? = null
+    // The notifications' actions (docs/ADR/0064) call the core off the
+    // main thread, one at a time.
+    private val actions = Executors.newSingleThreadExecutor()
+    private var notifier: MessageNotifier? = null
 
     override fun onCreate() {
         super.onCreate()
         startInForeground()
         // Notifications of new messages read the same events as the
         // interface (docs/ADR/0033).
-        val notifier = MessageNotifier(this)
-        addListener(notifier::onEvent)
+        val messages = MessageNotifier(this)
+        notifier = messages
+        addListener(messages::onEvent)
         open(core)
     }
 
@@ -78,11 +85,64 @@ class CoreService : Service() {
         }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val conversationId = intent?.getStringExtra(MessageNotifier.EXTRA_CONVERSATION_ID)
+        when (intent?.action) {
+            MessageNotifier.ACTION_MARK_READ -> if (conversationId != null) {
+                actions.execute { markRead(conversationId) }
+            }
+            MessageNotifier.ACTION_REPLY -> {
+                val text = RemoteInput.getResultsFromIntent(intent)?.getCharSequence(MessageNotifier.KEY_REPLY)?.toString()
+                if (conversationId != null && !text.isNullOrBlank()) {
+                    actions.execute { reply(conversationId, text) }
+                }
+            }
+        }
+        return START_STICKY
+    }
+
+    /**
+     * "Mark as read" on a notification: the conversation is read up to its
+     * last message, and the notification goes when the core says the
+     * conversation is read (docs/ADR/0064).
+     */
+    private fun markRead(conversationId: String) {
+        if (!callCommand("conversations.markRead", JSONObject().put("conversation_id", conversationId))) {
+            notifier?.cancel(conversationId)
+        }
+    }
+
+    /**
+     * "Reply" on a notification: the text is sent to the conversation. A
+     * message of the user's makes the conversation read, so the
+     * notification goes; it goes too if sending fails, since Android shows
+     * a spinner on a reply until its notification changes. The text is
+     * never logged.
+     */
+    private fun reply(conversationId: String, text: String) {
+        if (!callCommand("messages.send", JSONObject().put("conversation_id", conversationId).put("text", text))) {
+            notifier?.cancel(conversationId)
+        }
+    }
+
+    /** Calls one command of the core; false when it failed, logged without its parameters. */
+    private fun callCommand(command: String, params: JSONObject): Boolean = try {
+        val request = JSONObject().put("id", nextActionId.incrementAndGet()).put("command", command).put("params", params)
+        val response = JSONObject(String(call(request.toString().toByteArray(Charsets.UTF_8)), Charsets.UTF_8))
+        val error = response.optJSONObject("error")
+        if (error != null) {
+            Log.w(TAG, "A notification's action failed: $command, ${error.optString("code")}")
+        }
+        error == null
+    } catch (e: Exception) {
+        Log.w(TAG, "A notification's action failed: $command, ${e.javaClass.simpleName}")
+        false
+    }
 
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onDestroy() {
+        actions.shutdown()
         opener.shutdown()
         opener.awaitTermination(OPEN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         if (core.isDone && !core.isCompletedExceptionally) {
@@ -194,6 +254,9 @@ class CoreService : Service() {
         private const val OPEN_TIMEOUT_SECONDS = 30L
         private const val EVENT_WAIT_MILLIS = 60_000
         private const val READER_JOIN_MILLIS = 2_000L
+
+        // The notifications' requests, far from the interface's own IDs.
+        private val nextActionId = AtomicLong(1_000_000_000L)
         private val CLOSED_EVENT = """{"type":"core.closed","data":{}}""".toByteArray(Charsets.UTF_8)
     }
 }
