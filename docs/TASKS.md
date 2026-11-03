@@ -314,6 +314,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.47 — Delete a conversation** (E2.3)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.25 `conversations.delete`, `conversation.deleted` and `ConversationActions.delete_chat` (ADR 0053): bridgev2's delete chat for direct conversations, waited for until the room goes; "Delete…" with a confirmation; notifications go too. 🧪 `TestDeleteChat`, `ui/src/store.test.ts`, `MessageNotificationsTest`, the desktop e2e "the user deletes a conversation". Left: leaving groups, deleting for everyone.
 
+**T2.48 — Forward a message** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.26 `messages.forward` (ADR 0054): the core copies a message's latest text, or its stored media with its caption, into any conversation, through the checks of sending; "Forward…" in a message's menu. 🧪 `TestForward`, `ui/src/message.test.ts`, the desktop e2e "the user forwards a message". Left: several messages at once; Telegram's own forward.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

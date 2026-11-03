@@ -558,3 +558,10 @@ To verify in the test session: T2.47 (cloud sprint, no test run; see ADR 0053):
 delete (core):      go test -tags=goolm -count=1 -run 'DeleteChat' -v ./core/embedded/
 delete in the app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "deletes a conversation"      (ui: npx vitest run src/store.test.ts)
 ```
+
+To verify in the test session: T2.48 (cloud sprint, no test run; see ADR 0054):
+
+```
+forward (core):     go test -tags=goolm -count=1 -run 'Forward|SendMedia' -v ./core/embedded/
+forward in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "forwards a message"      (ui: npx vitest run src/message.test.ts)
+```

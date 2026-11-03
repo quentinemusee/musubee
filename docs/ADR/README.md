@@ -63,3 +63,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0051](0051-notification-preview.md) | What notifications show: the user chooses, the shell that posts them keeps it | accepted | T2.45 |
 | [0052](0052-pinned-conversations.md) | Pinned conversations: Matrix's favourite tag, listed first by the core | accepted | T2.46 |
 | [0053](0053-deleting-conversations.md) | Deleting a conversation: bridgev2's delete chat, confirmed by the room's deletion | accepted | T2.47 |
+| [0054](0054-forwarding-messages.md) | Forwarding a message: a new message of the user's, built by the core from what the device stores | accepted | T2.48 |
