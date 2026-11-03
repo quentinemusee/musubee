@@ -122,7 +122,7 @@ describe("the generated types", () => {
   // The mapped types make the compiler require one example per command and
   // per event: a command added to the schema breaks the typecheck here.
   const commands: { [K in CommandName]: Commands[K] } = {
-    "core.hello": { params: {}, result: { api_version: "1.9", core_version: "dev" } },
+    "core.hello": { params: {}, result: { api_version: "1.10", core_version: "dev" } },
     "networks.list": {
       params: {},
       result: { networks: [{ network_id: "echo", name: "Echo", login_flows: [{ flow_id: "username", name: "Username", description: "" }] }] },
@@ -165,7 +165,7 @@ describe("the generated types", () => {
             activity_ms: 1_791_496_800_000,
             last_message: message,
             unread_count: 2,
-            actions: { reply: true, react: true, edit: true, delete: true },
+            actions: { reply: true, react: true, edit: true, delete: true, media: { image: { max_size: 10_485_760, caption: true }, voice: {} } },
           },
         ],
         before: "k.3",
@@ -183,6 +183,12 @@ describe("the generated types", () => {
     "messages.unreact": { params: { conversation_id: "c.1", message_id: "m.1", key: "👍" }, result: {} },
     "messages.edit": { params: { conversation_id: "c.1", message_id: "m.2", text: "hello again" }, result: {} },
     "messages.delete": { params: { conversation_id: "c.1", message_id: "m.2" }, result: {} },
+    "uploads.append": { params: { upload_id: "u.1", data: "AAAA" }, result: { upload_id: "u.1", size: 3 } },
+    "uploads.cancel": { params: { upload_id: "u.1" }, result: {} },
+    "messages.sendMedia": {
+      params: { conversation_id: "c.1", upload_id: "u.1", kind: "image", mime_type: "image/png", file_name: "a.png", caption: "look", width: 2, height: 1, reply_to: "m.1" },
+      result: { message: { ...message, from_me: true, status: "sending", kind: "image", media: { media_id: "f.1", mime_type: "image/png", size: 3 } } },
+    },
     "media.read": { params: { media_id: "f.1", offset: 0, length: 65_536 }, result: { mime_type: "image/png", size: 68, data: "iVBORw0KGgo=" } },
     "persons.list": { params: {}, result: { persons: [person] } },
     "persons.create": { params: { conversation_ids: ["c.1", "c.2"] }, result: { person } },

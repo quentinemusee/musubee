@@ -516,6 +516,16 @@ func (s *Server) Members(ctx context.Context, roomID id.RoomID) (map[id.UserID]*
 	return members, nil
 }
 
+// UploadMedia stores media that the user sends in a room, and returns its
+// content URI, to name in the message's content.
+func (s *Server) UploadMedia(ctx context.Context, roomID id.RoomID, data []byte, fileName, mimeType string) (id.ContentURIString, error) {
+	mediaID := newMediaID()
+	if err := s.store.putMedia(ctx, mediaID, roomID, mimeType, fileName, data); err != nil {
+		return "", err
+	}
+	return id.ContentURI{Homeserver: s.serverName, FileID: mediaID}.CUString(), nil
+}
+
 // ReadMedia reads up to length bytes of stored media from offset, with its
 // type, name and whole size. Media of another server, or not stored (for
 // example deleted with its message), is ErrNotFound.

@@ -266,11 +266,26 @@ func (c *client) GetUserInfo(_ context.Context, ghost *bridgev2.Ghost) (*bridgev
 	return userInfo(contact), nil
 }
 
-// GetCapabilities returns what the conversations support: plain and
-// formatted text only.
+// GetCapabilities returns what the conversations support: text, replies,
+// edits, deletions, reactions, and every kind of media up to MaxMediaSize,
+// with a caption.
 func (c *client) GetCapabilities(context.Context, *bridgev2.Portal) *event.RoomFeatures {
+	media := func() *event.FileFeatures {
+		return &event.FileFeatures{
+			MimeTypes: map[string]event.CapabilitySupportLevel{"*/*": event.CapLevelFullySupported},
+			Caption:   event.CapLevelFullySupported,
+			MaxSize:   MaxMediaSize,
+		}
+	}
 	return &event.RoomFeatures{
-		ID:            "com.musubee.echo.capabilities.v2",
+		ID: "com.musubee.echo.capabilities.v3",
+		File: event.FileFeatureMap{
+			event.MsgImage:    media(),
+			event.MsgVideo:    media(),
+			event.MsgAudio:    media(),
+			event.CapMsgVoice: media(),
+			event.MsgFile:     media(),
+		},
 		MaxTextLength: 4096,
 		Reply:         event.CapLevelFullySupported,
 		Edit:          event.CapLevelFullySupported,
@@ -424,6 +439,11 @@ func (c *client) answer(portal networkid.PortalID, contact Contact, sent network
 		ID:                 newMessageID(),
 		Data:               &content,
 		ConvertMessageFunc: convertEcho,
+	}
+	if cmd == "" && content.URL != "" {
+		// The user's media comes back as the contact's own copy: deleting
+		// one message must not delete the other's media.
+		echo.ConvertMessageFunc = convertMediaEcho
 	}
 	switch cmd {
 	case CommandImage, CommandGIF, CommandFile, CommandVoice:

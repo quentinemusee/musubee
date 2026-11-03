@@ -39,6 +39,7 @@ func actions(ctx context.Context, portal *bridgev2.Portal, login *bridgev2.UserL
 		React:  features.Reaction.Partial(),
 		Edit:   features.Edit.Partial(),
 		Delete: features.Delete.Partial(),
+		Media:  mediaActions(features),
 	}
 	if *a == (api.ConversationActions{}) {
 		return nil

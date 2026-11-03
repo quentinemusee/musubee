@@ -120,6 +120,20 @@
         "reply_to": { "message_id": "m5", "sender_name": "Instant Echo", "text": "A sunset", "kind": "image" } }
     ] } },
     { "target": "command:media.read:params", "value": { "media_id": "f1" } },
+    { "target": "command:uploads.append:params", "value": { "data": "iVBORw0KGgo=" } },
+    { "target": "command:uploads.append:params", "value": { "upload_id": "u1", "data": "AAAA" } },
+    { "target": "command:uploads.append:result", "value": { "upload_id": "u1", "size": 11 } },
+    { "target": "command:uploads.cancel:params", "value": { "upload_id": "u1" } },
+    { "target": "command:uploads.cancel:result", "value": {} },
+    { "target": "command:messages.sendMedia:params", "value": { "conversation_id": "c1", "upload_id": "u1", "kind": "image", "mime_type": "image/png", "file_name": "photo.png", "caption": "Look", "width": 640, "height": 480, "reply_to": "m2" } },
+    { "target": "command:messages.sendMedia:params", "value": { "conversation_id": "c1", "upload_id": "u2", "kind": "voice", "mime_type": "audio/ogg", "file_name": "voice.ogg", "duration_ms": 3200 } },
+    { "target": "command:messages.sendMedia:result", "value": { "message": {
+      "message_id": "m8", "conversation_id": "c1", "from_me": true, "sender_name": "", "timestamp_ms": 1791496806000, "kind": "image", "text": "Look", "status": "sending",
+      "media": { "media_id": "f4", "mime_type": "image/png", "file_name": "photo.png", "size": 11, "width": 640, "height": 480 } } } },
+    { "target": "command:conversations.list:result", "value": { "conversations": [
+      { "conversation_id": "c1", "account_id": "a1", "network_id": "echo", "name": "Instant Echo", "kind": "direct", "activity_ms": 1791496000000,
+        "actions": { "reply": true, "media": { "image": { "max_size": 10485760, "caption": true }, "voice": {}, "file": { "max_size": 10485760 } } } }
+    ] } },
     { "target": "command:media.read:params", "value": { "media_id": "f1", "offset": 1048576, "length": 65536 } },
     { "target": "command:media.read:result", "value": { "mime_type": "image/jpeg", "size": 48213, "data": "/9j/4AAQ" } },
 
@@ -184,6 +198,12 @@
     { "target": "command:messages.react:params", "why": "key is not empty", "value": { "conversation_id": "c1", "message_id": "m2", "key": "" } },
     { "target": "command:messages.edit:params", "why": "text is required", "value": { "conversation_id": "c1", "message_id": "m3" } },
     { "target": "command:messages.delete:params", "why": "message_id is required", "value": { "conversation_id": "c1" } },
+    { "target": "command:uploads.append:params", "why": "data is required", "value": { "upload_id": "u1" } },
+    { "target": "command:messages.sendMedia:params", "why": "file_name is not empty", "value": { "conversation_id": "c1", "upload_id": "u1", "kind": "file", "mime_type": "", "file_name": "" } },
+    { "target": "command:messages.sendMedia:params", "why": "kind is required", "value": { "conversation_id": "c1", "upload_id": "u1", "mime_type": "", "file_name": "a" } },
+    { "target": "command:conversations.list:result", "why": "max_size is at least 1", "value": { "conversations": [
+      { "conversation_id": "c1", "account_id": "a1", "network_id": "echo", "name": "x", "kind": "direct", "activity_ms": 1, "actions": { "media": { "file": { "max_size": 0 } } } }
+    ] } },
     { "target": "command:media.read:params", "why": "length is at most 1 MiB", "value": { "media_id": "f1", "length": 1048577 } },
     { "target": "command:media.read:params", "why": "offset is not negative", "value": { "media_id": "f1", "offset": -1 } },
     { "target": "command:messages.list:result", "why": "media needs its media_id", "value": { "messages": [

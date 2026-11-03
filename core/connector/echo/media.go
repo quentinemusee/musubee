@@ -27,6 +27,32 @@ const (
 	FileText = "A file from the echo network.\n"
 )
 
+// MaxMediaSize is the largest media the echo network takes: 10 MiB, so
+// that the tests can try a larger one.
+const MaxMediaSize = 10 << 20
+
+// convertMediaEcho sends back a copy of the user's media, with the same
+// type, caption and description.
+func convertMediaEcho(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI, content *event.MessageEventContent) (*bridgev2.ConvertedMessage, error) {
+	data, err := intent.DownloadMedia(ctx, content.URL, content.File)
+	if err != nil {
+		return nil, err
+	}
+	echo := *content
+	mimeType := ""
+	if content.Info != nil {
+		info := *content.Info
+		echo.Info, mimeType = &info, info.MimeType
+	}
+	echo.URL, echo.File, err = intent.UploadMedia(ctx, portal.MXID, data, content.GetFileName(), mimeType)
+	if err != nil {
+		return nil, err
+	}
+	return &bridgev2.ConvertedMessage{
+		Parts: []*bridgev2.ConvertedMessagePart{{Type: event.EventMessage, Content: &echo}},
+	}, nil
+}
+
 // convertMedia returns a conversion that uploads the media of a media
 // command and sends it, with the message's text as its caption, as a
 // network connector converts an incoming photo or file.

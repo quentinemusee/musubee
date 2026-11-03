@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.9",
+  "x-musubee-api-version": "1.10",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -224,6 +224,36 @@
           "properties": {
             "params": { "$ref": "#/$defs/MessagesDeleteParams" },
             "result": { "$ref": "#/$defs/Empty" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "uploads.append": {
+          "description": "Adds a part of a media the user sends to an upload, and returns the upload's size so far. Without upload_id, starts a new upload. An upload holds at most 104857600 bytes (100 MiB); it lives in the core's memory until messages.sendMedia uses it, uploads.cancel drops it, it is left alone for 10 minutes, or the core stops. Since API 1.10.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/UploadsAppendParams" },
+            "result": { "$ref": "#/$defs/UploadsAppendResult" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "uploads.cancel": {
+          "description": "Drops an upload. Dropping a used or unknown upload is not an error. Since API 1.10.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/UploadsCancelParams" },
+            "result": { "$ref": "#/$defs/Empty" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "messages.sendMedia": {
+          "description": "Sends an upload as a photo, video, audio, voice or file message, with an optional caption, possibly as an answer to another message, when the conversation's actions take that kind. The upload is used up. As with messages.send, the message is stored at once with status sending; its delivery is reported later by message.updated events. Since API 1.10.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/MessagesSendMediaParams" },
+            "result": { "$ref": "#/$defs/MessagesSendResult" }
           },
           "required": ["params", "result"],
           "additionalProperties": false
@@ -694,7 +724,36 @@
         "reply": { "description": "messages.send with reply_to.", "type": "boolean" },
         "react": { "description": "messages.react and messages.unreact.", "type": "boolean" },
         "edit": { "description": "messages.edit.", "type": "boolean" },
-        "delete": { "description": "messages.delete.", "type": "boolean" }
+        "delete": { "description": "messages.delete.", "type": "boolean" },
+        "media": { "description": "messages.sendMedia, for the kinds of media listed. Omitted when the network takes none. Since API 1.10.", "$ref": "#/$defs/MediaActions" }
+      },
+      "additionalProperties": false
+    },
+    "MediaActions": {
+      "description": "The kinds of media a conversation takes; a kind is omitted when the network does not take it. Since API 1.10.",
+      "type": "object",
+      "properties": {
+        "image": { "$ref": "#/$defs/MediaAction" },
+        "video": { "$ref": "#/$defs/MediaAction" },
+        "audio": { "$ref": "#/$defs/MediaAction" },
+        "voice": { "$ref": "#/$defs/MediaAction" },
+        "file": { "$ref": "#/$defs/MediaAction" }
+      },
+      "additionalProperties": false
+    },
+    "MediaAction": {
+      "description": "What a network takes of one kind of media. It may still refuse a media type: messages.sendMedia's message then fails. Since API 1.10.",
+      "type": "object",
+      "properties": {
+        "max_size": {
+          "description": "The largest media it takes, in bytes. Omitted: the core's own limit (uploads.append).",
+          "type": "integer",
+          "minimum": 1
+        },
+        "caption": {
+          "description": "It takes a caption with this kind of media. Omitted when false.",
+          "type": "boolean"
+        }
       },
       "additionalProperties": false
     },
@@ -999,6 +1058,81 @@
         }
       },
       "required": ["conversation_id", "message_id", "text"],
+      "additionalProperties": false
+    },
+    "UploadsAppendParams": {
+      "type": "object",
+      "properties": {
+        "upload_id": {
+          "description": "The upload to add to, from a previous result. Omitted: a new upload.",
+          "type": "string"
+        },
+        "data": {
+          "description": "The next bytes, in base64 (RFC 4648, with padding): at most 1048576 bytes (1 MiB) once decoded.",
+          "type": "string",
+          "maxLength": 1398104
+        }
+      },
+      "required": ["data"],
+      "additionalProperties": false
+    },
+    "UploadsAppendResult": {
+      "type": "object",
+      "properties": {
+        "upload_id": {
+          "description": "Opaque: user interfaces must not parse it.",
+          "type": "string"
+        },
+        "size": {
+          "description": "The bytes the upload holds so far.",
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": ["upload_id", "size"],
+      "additionalProperties": false
+    },
+    "UploadsCancelParams": {
+      "type": "object",
+      "properties": {
+        "upload_id": { "type": "string" }
+      },
+      "required": ["upload_id"],
+      "additionalProperties": false
+    },
+    "MessagesSendMediaParams": {
+      "type": "object",
+      "properties": {
+        "conversation_id": { "type": "string" },
+        "upload_id": {
+          "description": "An upload of uploads.append, with at least one byte.",
+          "type": "string"
+        },
+        "kind": {
+          "description": "How the media is sent: image, video, audio, voice or file.",
+          "$ref": "#/$defs/MessageKind"
+        },
+        "mime_type": {
+          "description": "The media type, such as image/jpeg. Empty when unknown.",
+          "type": "string"
+        },
+        "file_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "caption": {
+          "description": "A text sent with the media, when the conversation's actions take one for this kind.",
+          "type": "string"
+        },
+        "width": { "description": "In pixels, for images and videos, when known.", "type": "integer", "minimum": 1 },
+        "height": { "description": "In pixels, for images and videos, when known.", "type": "integer", "minimum": 1 },
+        "duration_ms": { "description": "For videos, audio and voice messages, when known.", "type": "integer", "minimum": 0 },
+        "reply_to": {
+          "description": "The message this one answers, in the same conversation.",
+          "type": "string"
+        }
+      },
+      "required": ["conversation_id", "upload_id", "kind", "mime_type", "file_name"],
       "additionalProperties": false
     },
     "MessagesDeleteParams": {

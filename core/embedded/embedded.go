@@ -105,6 +105,8 @@ type Core struct {
 	loginsMu sync.Mutex
 	logins   map[string]*loginProcess
 
+	uploads uploads
+
 	persons *persons.Store
 	// personsMu orders the persons commands, and so their events.
 	personsMu sync.Mutex
@@ -610,6 +612,12 @@ func (c *Core) dispatch(ctx context.Context, command string, params json.RawMess
 		return handle(ctx, params, c.messagesDelete)
 	case api.CommandMediaRead:
 		return handle(ctx, params, c.mediaRead)
+	case api.CommandUploadsAppend:
+		return handle(ctx, params, c.uploadsAppend)
+	case api.CommandUploadsCancel:
+		return handle(ctx, params, c.uploadsCancel)
+	case api.CommandMessagesSendMedia:
+		return handle(ctx, params, c.messagesSendMedia)
 	case api.CommandPersonsList:
 		return handle(ctx, params, c.personsList)
 	case api.CommandPersonsCreate:

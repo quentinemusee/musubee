@@ -10,7 +10,9 @@ import (
 	"io"
 
 	"maunium.net/go/mautrix/bridgev2"
+	"maunium.net/go/mautrix/crypto/attachment"
 	"maunium.net/go/mautrix/event"
+	"maunium.net/go/mautrix/id"
 )
 
 // maxMediaBytes is the largest media copied to the device: 100 MiB, more
@@ -79,4 +81,68 @@ func (c *client) downloadMedia(ctx context.Context, content *event.MessageEventC
 		}
 	}
 	return data, nil
+}
+
+// maxSentMediaBytes is the largest media the user sends: Synapse's default
+// max_upload_size (50 MiB). A homeserver that takes less refuses the
+// upload, and the message fails with its answer.
+const maxSentMediaBytes = 50 << 20
+
+// mediaFeatures are the media a Matrix room takes: every kind and type,
+// with a caption, up to maxSentMediaBytes.
+func mediaFeatures() event.FileFeatureMap {
+	features := event.FileFeatureMap{}
+	for _, kind := range []event.CapabilityMsgType{event.MsgImage, event.MsgVideo, event.MsgAudio, event.CapMsgVoice, event.MsgFile} {
+		features[kind] = &event.FileFeatures{
+			MimeTypes: map[string]event.CapabilitySupportLevel{"*/*": event.CapLevelFullySupported},
+			Caption:   event.CapLevelFullySupported,
+			MaxSize:   maxSentMediaBytes,
+		}
+	}
+	return features
+}
+
+// uploadMedia reads the user's media from the device and uploads it to the
+// homeserver, encrypted as Matrix clients encrypt attachments when the room
+// is encrypted (the event then names it in file, not url). It returns the
+// content to send, without the device's URI.
+func (c *client) uploadMedia(ctx context.Context, room id.RoomID, local *event.MessageEventContent) (*event.MessageEventContent, error) {
+	data, err := c.connector.br.Bot.DownloadMedia(ctx, local.URL, local.File)
+	if err != nil {
+		return nil, fmt.Errorf("reading the media on the device: %w", err)
+	}
+	content := &event.MessageEventContent{
+		MsgType:      local.MsgType,
+		Body:         local.Body,
+		FileName:     local.FileName,
+		MSC3245Voice: local.MSC3245Voice,
+		MSC1767Audio: local.MSC1767Audio,
+	}
+	mimeType := ""
+	if local.Info != nil {
+		info := *local.Info
+		info.ThumbnailURL, info.ThumbnailFile, info.ThumbnailInfo = "", nil, nil
+		content.Info, mimeType = &info, info.MimeType
+	}
+	encrypted, err := c.cli.StateStore.IsEncrypted(ctx, room)
+	if err != nil {
+		return nil, fmt.Errorf("checking whether the room is encrypted: %w", err)
+	}
+	uploadType := mimeType
+	var file *attachment.EncryptedFile
+	if encrypted {
+		file = attachment.NewEncryptedFile()
+		file.EncryptInPlace(data)
+		uploadType = "application/octet-stream"
+	}
+	resp, err := c.cli.UploadBytes(ctx, data, uploadType)
+	if err != nil {
+		return nil, fmt.Errorf("uploading the media: %w", err)
+	}
+	if file != nil {
+		content.File = &event.EncryptedFileInfo{EncryptedFile: *file, URL: resp.ContentURI.CUString()}
+	} else {
+		content.URL = resp.ContentURI.CUString()
+	}
+	return content, nil
 }

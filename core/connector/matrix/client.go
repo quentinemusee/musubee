@@ -779,12 +779,13 @@ func (c *client) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (*bridg
 	return &bridgev2.UserInfo{Name: ptr.Ptr(personName(user, displayName))}, nil
 }
 
-// GetCapabilities returns what the conversations support: text, replies,
-// edits, reactions and deletions. A homeserver lets anyone edit or redact
+// GetCapabilities returns what the conversations support: text, media,
+// replies, edits, reactions and deletions. A homeserver lets anyone edit or redact
 // their own events at any time, and react with any key.
 func (c *client) GetCapabilities(context.Context, *bridgev2.Portal) *event.RoomFeatures {
 	return &event.RoomFeatures{
-		ID:            "app.musubee.matrix.capabilities.v2",
+		ID:            "app.musubee.matrix.capabilities.v3",
+		File:          mediaFeatures(),
 		MaxTextLength: 32000,
 		Reply:         event.CapLevelFullySupported,
 		Edit:          event.CapLevelFullySupported,
@@ -886,7 +887,7 @@ func (c *client) redact(ctx context.Context, portal *bridgev2.Portal, evt *event
 // is. Its remote event ID becomes the message's ID: the sync brings the
 // message back, and bridgev2 recognises it as a duplicate.
 func (c *client) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMessage) (*bridgev2.MatrixMessageResponse, error) {
-	if !isTextMessage(msg.Content.MsgType) {
+	if !isTextMessage(msg.Content.MsgType) && !isMediaMessage(msg.Content.MsgType) {
 		return nil, bridgev2.WrapErrorInStatus(fmt.Errorf("%s messages are not supported yet", msg.Content.MsgType)).
 			WithStatus(event.MessageStatusFail).
 			WithErrorReason(event.MessageStatusUnsupported).
@@ -902,6 +903,15 @@ func (c *client) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMe
 		Body:          msg.Content.Body,
 		Format:        msg.Content.Format,
 		FormattedBody: msg.Content.FormattedBody,
+	}
+	if isMediaMessage(msg.Content.MsgType) {
+		var err error
+		if content, err = c.uploadMedia(ctx, id.RoomID(msg.Portal.ID), msg.Content); err != nil {
+			return nil, bridgev2.WrapErrorInStatus(err).
+				WithErrorReason(event.MessageStatusNetworkError).
+				WithMessage("The media could not be sent to the Matrix server.").
+				WithSendNotice(false)
+		}
 	}
 	if msg.ReplyTo != nil {
 		content.RelatesTo = (&event.RelatesTo{}).SetReplyTo(id.EventID(msg.ReplyTo.ID))

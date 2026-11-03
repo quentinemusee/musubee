@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.9"
+const APIVersion = "1.10"
 
 // Command names.
 const (
@@ -76,6 +76,21 @@ const (
 	// the command fails with network, and the message stays on the network. Since
 	// API 1.8.
 	CommandMessagesDelete = "messages.delete"
+	// Adds a part of a media the user sends to an upload, and returns the
+	// upload's size so far. Without upload_id, starts a new upload. An upload
+	// holds at most 104857600 bytes (100 MiB); it lives in the core's memory
+	// until messages.sendMedia uses it, uploads.cancel drops it, it is left alone
+	// for 10 minutes, or the core stops. Since API 1.10.
+	CommandUploadsAppend = "uploads.append"
+	// Drops an upload. Dropping a used or unknown upload is not an error. Since
+	// API 1.10.
+	CommandUploadsCancel = "uploads.cancel"
+	// Sends an upload as a photo, video, audio, voice or file message, with an
+	// optional caption, possibly as an answer to another message, when the
+	// conversation's actions take that kind. The upload is used up. As with
+	// messages.send, the message is stored at once with status sending; its
+	// delivery is reported later by message.updated events. Since API 1.10.
+	CommandMessagesSendMedia = "messages.sendMedia"
 	// Reads a part of a message's media (or of its thumbnail), stored on this
 	// device. Media deleted with its message, or of a conversation no longer on
 	// this device, is not_found. Since API 1.9.
@@ -154,6 +169,9 @@ var Commands = []CommandSpec{
 	{Name: CommandMessagesUnreact, Params: reflect.TypeFor[MessagesReactParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandMessagesEdit, Params: reflect.TypeFor[MessagesEditParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandMessagesDelete, Params: reflect.TypeFor[MessagesDeleteParams](), Result: reflect.TypeFor[Empty]()},
+	{Name: CommandUploadsAppend, Params: reflect.TypeFor[UploadsAppendParams](), Result: reflect.TypeFor[UploadsAppendResult]()},
+	{Name: CommandUploadsCancel, Params: reflect.TypeFor[UploadsCancelParams](), Result: reflect.TypeFor[Empty]()},
+	{Name: CommandMessagesSendMedia, Params: reflect.TypeFor[MessagesSendMediaParams](), Result: reflect.TypeFor[MessagesSendResult]()},
 	{Name: CommandMediaRead, Params: reflect.TypeFor[MediaReadParams](), Result: reflect.TypeFor[MediaReadResult]()},
 	{Name: CommandPersonsList, Params: reflect.TypeFor[Empty](), Result: reflect.TypeFor[PersonsListResult]()},
 	{Name: CommandPersonsCreate, Params: reflect.TypeFor[PersonsCreateParams](), Result: reflect.TypeFor[PersonResult]()},
@@ -432,6 +450,29 @@ type ConversationActions struct {
 	Edit bool `json:"edit,omitempty"`
 	// messages.delete.
 	Delete bool `json:"delete,omitempty"`
+	// messages.sendMedia, for the kinds of media listed. Omitted when the network
+	// takes none. Since API 1.10.
+	Media *MediaActions `json:"media,omitempty"`
+}
+
+// MediaActions: The kinds of media a conversation takes; a kind is omitted
+// when the network does not take it. Since API 1.10.
+type MediaActions struct {
+	Image *MediaAction `json:"image,omitempty"`
+	Video *MediaAction `json:"video,omitempty"`
+	Audio *MediaAction `json:"audio,omitempty"`
+	Voice *MediaAction `json:"voice,omitempty"`
+	File  *MediaAction `json:"file,omitempty"`
+}
+
+// MediaAction: What a network takes of one kind of media. It may still refuse
+// a media type: messages.sendMedia's message then fails. Since API 1.10.
+type MediaAction struct {
+	// The largest media it takes, in bytes. Omitted: the core's own limit
+	// (uploads.append).
+	MaxSize int64 `json:"max_size,omitempty"`
+	// It takes a caption with this kind of media. Omitted when false.
+	Caption bool `json:"caption,omitempty"`
 }
 
 // ConversationKind is $defs/ConversationKind of the schema.
@@ -638,6 +679,51 @@ type MessagesEditParams struct {
 	ConversationID string `json:"conversation_id"`
 	MessageID      string `json:"message_id"`
 	Text           string `json:"text"`
+}
+
+// UploadsAppendParams is $defs/UploadsAppendParams of the schema.
+type UploadsAppendParams struct {
+	// The upload to add to, from a previous result. Omitted: a new upload.
+	UploadID string `json:"upload_id,omitempty"`
+	// The next bytes, in base64 (RFC 4648, with padding): at most 1048576 bytes
+	// (1 MiB) once decoded.
+	Data string `json:"data"`
+}
+
+// UploadsAppendResult is $defs/UploadsAppendResult of the schema.
+type UploadsAppendResult struct {
+	// Opaque: user interfaces must not parse it.
+	UploadID string `json:"upload_id"`
+	// The bytes the upload holds so far.
+	Size int64 `json:"size"`
+}
+
+// UploadsCancelParams is $defs/UploadsCancelParams of the schema.
+type UploadsCancelParams struct {
+	UploadID string `json:"upload_id"`
+}
+
+// MessagesSendMediaParams is $defs/MessagesSendMediaParams of the schema.
+type MessagesSendMediaParams struct {
+	ConversationID string `json:"conversation_id"`
+	// An upload of uploads.append, with at least one byte.
+	UploadID string `json:"upload_id"`
+	// How the media is sent: image, video, audio, voice or file.
+	Kind MessageKind `json:"kind"`
+	// The media type, such as image/jpeg. Empty when unknown.
+	MimeType string `json:"mime_type"`
+	FileName string `json:"file_name"`
+	// A text sent with the media, when the conversation's actions take one for
+	// this kind.
+	Caption string `json:"caption,omitempty"`
+	// In pixels, for images and videos, when known.
+	Width int64 `json:"width,omitempty"`
+	// In pixels, for images and videos, when known.
+	Height int64 `json:"height,omitempty"`
+	// For videos, audio and voice messages, when known.
+	DurationMS int64 `json:"duration_ms,omitempty"`
+	// The message this one answers, in the same conversation.
+	ReplyTo string `json:"reply_to,omitempty"`
 }
 
 // MessagesDeleteParams is $defs/MessagesDeleteParams of the schema.
