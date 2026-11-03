@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.24"
+const APIVersion = "1.25"
 
 // Command names.
 const (
@@ -79,6 +79,13 @@ const (
 	// network's other apps shows here. The conversation is then sent again in a
 	// conversation.updated event, if its pin changed. Since API 1.24.
 	CommandConversationsPin = "conversations.pin"
+	// Deletes a conversation for the user, on the network too: its history goes
+	// from this device and, as the network allows, from the user's other apps;
+	// the other people keep theirs. Only when Conversation.actions.delete_chat
+	// says the network allows it. Resolves once the network deleted it (a
+	// conversation.deleted event follows); fails if the network refuses or does
+	// not answer within 30 seconds. Since API 1.25.
+	CommandConversationsDelete = "conversations.delete"
 	// Records that the user read a conversation up to a message (by default its
 	// last one), and clears its marked_unread flag. The network is told when it
 	// supports read receipts. Reading never moves back: a message before the
@@ -182,6 +189,9 @@ const (
 	// Who is typing in a conversation changed: the names of those typing now
 	// (none: nobody). Not stored: after a restart nobody types. Since API 1.20.
 	EventConversationTyping = "conversation.typing"
+	// A conversation was deleted, here (conversations.delete) or on its network.
+	// Its messages are gone with it. Since API 1.25.
+	EventConversationDeleted = "conversation.deleted"
 	// A conversation was created or changed: its name or kind, its person, its
 	// last message (sent after its message.added event, since API 1.4) or its
 	// read state (since API 1.4).
@@ -226,6 +236,7 @@ var Commands = []CommandSpec{
 	{Name: CommandConversationsMarkUnread, Params: reflect.TypeFor[ConversationsMarkUnreadParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsMute, Params: reflect.TypeFor[ConversationsMuteParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsPin, Params: reflect.TypeFor[ConversationsPinParams](), Result: reflect.TypeFor[Empty]()},
+	{Name: CommandConversationsDelete, Params: reflect.TypeFor[ConversationsDeleteParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsMarkRead, Params: reflect.TypeFor[ConversationsMarkReadParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandMessagesList, Params: reflect.TypeFor[MessagesListParams](), Result: reflect.TypeFor[MessagesListResult]()},
 	{Name: CommandMessagesSearch, Params: reflect.TypeFor[MessagesSearchParams](), Result: reflect.TypeFor[MessagesSearchResult]()},
@@ -254,6 +265,7 @@ var Events = []EventSpec{
 	{Type: EventAccountUpdated, Data: reflect.TypeFor[AccountEvent]()},
 	{Type: EventAccountVerification, Data: reflect.TypeFor[VerificationEvent]()},
 	{Type: EventConversationTyping, Data: reflect.TypeFor[TypingEvent]()},
+	{Type: EventConversationDeleted, Data: reflect.TypeFor[ConversationDeletedEvent]()},
 	{Type: EventConversationUpdated, Data: reflect.TypeFor[ConversationEvent]()},
 	{Type: EventMessageAdded, Data: reflect.TypeFor[MessageEvent]()},
 	{Type: EventMessageUpdated, Data: reflect.TypeFor[MessageEvent]()},
@@ -661,6 +673,8 @@ type ConversationActions struct {
 	// messages.sendMedia, for the kinds of media listed. Omitted when the network
 	// takes none. Since API 1.10.
 	Media *MediaActions `json:"media,omitempty"`
+	// conversations.delete. Since API 1.25.
+	DeleteChat bool `json:"delete_chat,omitempty"`
 }
 
 // MediaActions: The kinds of media a conversation takes; a kind is omitted
@@ -728,6 +742,11 @@ type ConversationsPinParams struct {
 	Pinned         bool   `json:"pinned"`
 }
 
+// ConversationsDeleteParams is $defs/ConversationsDeleteParams of the schema.
+type ConversationsDeleteParams struct {
+	ConversationID string `json:"conversation_id"`
+}
+
 // ConversationsMarkReadParams is $defs/ConversationsMarkReadParams of the
 // schema.
 type ConversationsMarkReadParams struct {
@@ -755,6 +774,11 @@ type ConversationsListResult struct {
 	// Present when more conversations may follow: the cursor to read them. Since
 	// API 1.3.
 	Before string `json:"before,omitempty"`
+}
+
+// ConversationDeletedEvent is $defs/ConversationDeletedEvent of the schema.
+type ConversationDeletedEvent struct {
+	ConversationID string `json:"conversation_id"`
 }
 
 // ConversationEvent is $defs/ConversationEvent of the schema.

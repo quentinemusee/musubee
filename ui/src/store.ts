@@ -501,6 +501,33 @@ export class Store {
     }
   }
 
+  /**
+   * Deletes a conversation for the user (API 1.25, docs/ADR/0053), on its
+   * network too. Rejects with the core's reason, for the dialog that asked.
+   */
+  async deleteConversation(conversationId: string): Promise<void> {
+    await this.client.call("conversations.delete", { conversation_id: conversationId });
+    this.#forgetConversation(conversationId);
+  }
+
+  /** Drops a deleted conversation and what the store kept of it; leaves it if it was open. */
+  #forgetConversation(conversationId: string): void {
+    const state = this.#state;
+    if (!state.conversations.some((c) => c.conversation_id === conversationId) && state.messages[conversationId] === undefined) {
+      return;
+    }
+    const { [conversationId]: _messages, ...messages } = state.messages;
+    const { [conversationId]: _history, ...history } = state.history;
+    const { selected: _selected, together: _together, ...rest } = state;
+    const kept = state.selected === conversationId ? rest : state;
+    this.#replace({
+      ...kept,
+      conversations: state.conversations.filter((c) => c.conversation_id !== conversationId),
+      messages,
+      history,
+    });
+  }
+
   /** Pins or unpins a conversation (API 1.24): at once in the store, back if the core refuses. */
   async pin(conversationId: string, pinned: boolean): Promise<void> {
     const apply = (value: boolean) => {
@@ -961,6 +988,9 @@ export class Store {
       }
       case "conversation.updated":
         this.#set({ conversations: mergeConversations(this.#state.conversations, [event.data.conversation]) });
+        break;
+      case "conversation.deleted":
+        this.#forgetConversation(event.data.conversation_id);
         break;
       case "person.updated":
         this.#set({ persons: upsert(this.#state.persons, event.data.person, (p) => p.person_id) });

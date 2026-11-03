@@ -516,7 +516,11 @@ func (in *Intent) CreateRoom(ctx context.Context, req *mautrix.ReqCreateRoom) (i
 // deletes the room and everything stored with it.
 func (in *Intent) DeleteRoom(ctx context.Context, roomID id.RoomID, puppetsOnly bool) error {
 	if !puppetsOnly {
-		return in.server.store.deleteRoom(ctx, roomID)
+		if err := in.server.store.deleteRoom(ctx, roomID); err != nil {
+			return err
+		}
+		in.server.publish(Update{RoomDeleted: roomID})
+		return nil
 	}
 	return in.server.transact(ctx, func(ctx context.Context, store func(*event.Event) error) error {
 		members, err := in.server.Members(ctx, roomID)

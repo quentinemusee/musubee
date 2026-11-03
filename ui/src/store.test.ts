@@ -472,6 +472,36 @@ describe("Store", () => {
     expect(store.getState().error).toMatch(/^Could not pin the conversation/);
   });
 
+  test("forgets a deleted conversation, and leaves it if it was open", async () => {
+    const shell = scriptedShell({
+      ...coreState([conversation("c1", "Adam", 2), conversation("c2", "Bea", 1)]),
+      "messages.list": () => ({ messages: [message("m1", 1)] }),
+      "conversations.delete": () => {
+        shell.emit("conversation.deleted", { conversation_id: "c2" });
+        return {};
+      },
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    await store.select("c1");
+    expect(store.getState().messages["c1"]).toBeDefined();
+
+    // Deleted on the network, while open.
+    shell.emit("conversation.deleted", { conversation_id: "c1" });
+    expect(store.getState().selected).toBeUndefined();
+    expect(store.getState().messages["c1"]).toBeUndefined();
+    expect(store.getState().conversations.map((c) => c.conversation_id)).toEqual(["c2"]);
+
+    // Deleted here: the event may come before the answer.
+    await store.deleteConversation("c2");
+    expect(store.getState().conversations).toEqual([]);
+    // Unknown: nothing changes.
+    shell.emit("conversation.deleted", { conversation_id: "c9" });
+    expect(store.getState().conversations).toEqual([]);
+  });
+
   test("reads older messages page by page, one page at a time", async () => {
     // 250 messages, m0 to m249; the core pages them from the newest.
     const all = Array.from({ length: 250 }, (_, i) => message(`m${i}`, i));

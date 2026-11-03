@@ -19,7 +19,7 @@ import { APP_ORIGIN, APP_SCHEME, APP_URL, serveAppFile } from "./app-protocol.js
 import { CoreKeyError, CoreKeyLostError, loadCoreKey } from "./core-key.js";
 import { CoreProcess, type CoreStatus } from "./core-process.js";
 import { allowCheck, allowRequest } from "./permissions.js";
-import { announcement, hide, KnownConversations, parsePreview } from "./notification-rules.js";
+import { announcement, deletedConversation, hide, KnownConversations, parsePreview } from "./notification-rules.js";
 import { loadPreview, savePreview } from "./notification-settings.js";
 import { RequestValidator } from "./ipc.js";
 import { setAside } from "./start-over.js";
@@ -94,6 +94,12 @@ function main(): void {
     conversations.learnEvent(event);
     for (const window of windows) {
       window.webContents.send("core:event", event);
+    }
+    // A deleted conversation's notification would open nothing.
+    const deleted = deletedConversation(event);
+    if (deleted !== null) {
+      shown.get(deleted)?.close();
+      return;
     }
     const focused = [...windows].some((window) => window.isFocused());
     const found = Notification.isSupported() ? announcement(event, Date.now(), focused, conversations) : null;

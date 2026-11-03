@@ -122,7 +122,7 @@ describe("the generated types", () => {
   // The mapped types make the compiler require one example per command and
   // per event: a command added to the schema breaks the typecheck here.
   const commands: { [K in CommandName]: Commands[K] } = {
-    "core.hello": { params: {}, result: { api_version: "1.24", core_version: "dev" } },
+    "core.hello": { params: {}, result: { api_version: "1.25", core_version: "dev" } },
     "networks.list": {
       params: {},
       result: { networks: [{ network_id: "echo", name: "Echo", login_flows: [{ flow_id: "username", name: "Username", description: "" }] }] },
@@ -188,6 +188,7 @@ describe("the generated types", () => {
     "conversations.markUnread": { params: { conversation_id: "c.1" }, result: {} },
     "conversations.mute": { params: { conversation_id: "c.1", until_ms: -1 }, result: {} },
     "conversations.pin": { params: { conversation_id: "c.1", pinned: true }, result: {} },
+    "conversations.delete": { params: { conversation_id: "c.1" }, result: {} },
     "conversations.typing": { params: { conversation_id: "c.1", typing: true }, result: {} },
     "conversations.markRead": { params: { conversation_id: "c.1", message_id: "m.1" }, result: {} },
     "messages.list": { params: { conversation_id: "c.1", limit: 50 }, result: { messages: [message], before: "k.1" } },
@@ -240,6 +241,7 @@ describe("the generated types", () => {
   const events: { [K in EventType]: Events[K] } = {
     "account.verification": { account_id: "a.2", step: "emoji", emoji: [{ emoji: "🐶", name: "Dog" }] },
     "conversation.typing": { conversation_id: "c.1", names: ["Instant Echo"] },
+    "conversation.deleted": { conversation_id: "c.1" },
     "account.updated": { account: { account_id: "a.1", network_id: "echo", name: "alice", state: "transient_disconnect", error: "No network" } },
     "conversation.updated": { conversation: { ...conversation, person_id: "h.1" } },
     "person.updated": { person },

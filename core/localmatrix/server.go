@@ -195,6 +195,9 @@ type Update struct {
 	ReadState id.RoomID
 	// Typing is a room where someone started or stopped typing (Typing).
 	Typing id.RoomID
+	// RoomDeleted is a room that its bridge deleted: the chat was deleted,
+	// by the user (DeleteChat) or on the network.
+	RoomDeleted id.RoomID
 }
 
 // BridgeState is the connection state reported by a bridge for one login, or
@@ -929,4 +932,29 @@ func (s *Server) PinnedRooms(ctx context.Context) ([]*RoomActivity, error) {
 		return cmp.Compare(b.Room.ID, a.Room.ID)
 	})
 	return rooms, nil
+}
+
+// DeleteChat asks a room's bridge to delete the chat for the user
+// (docs/ADR/0053): bridgev2 hands com.beeper.delete_chat to connectors that
+// handle it (DeleteChatHandlingNetworkAPI), then deletes the portal and
+// the room, which publishes Update.RoomDeleted. Nothing is published when
+// the connector refuses or fails: the caller waits for the update.
+func (s *Server) DeleteChat(ctx context.Context, roomID id.RoomID) error {
+	room, err := s.store.getRoom(ctx, roomID)
+	if err != nil {
+		return err
+	}
+	conn := s.connector(room.BridgeID)
+	if conn == nil || conn.br == nil {
+		return fmt.Errorf("room %s: no bridge to delete it", roomID)
+	}
+	conn.br.QueueMatrixEvent(conn.br.Log.WithContext(ctx), &event.Event{
+		Type:      event.BeeperDeleteChat,
+		ID:        id.EventID(fmt.Sprintf("$delete-chat.%d", time.Now().UnixNano())),
+		RoomID:    roomID,
+		Sender:    s.userID,
+		Timestamp: time.Now().UnixMilli(),
+		Content:   event.Content{Parsed: &event.BeeperChatDeleteEventContent{}},
+	})
+	return nil
 }

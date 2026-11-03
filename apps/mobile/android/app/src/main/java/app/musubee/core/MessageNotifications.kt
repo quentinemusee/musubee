@@ -24,7 +24,8 @@ import org.json.JSONObject
  *   docs/ADR/0050): muting also removes the conversation's notification.
  *
  * A conversation that is read again (unread count 0 and not marked unread)
- * loses its notification, wherever it was read. An account that is logged
+ * loses its notification, wherever it was read, and so does a deleted one
+ * (`conversation.deleted`, API 1.25). An account that is logged
  * out loses its notifications and its mark: a new login starts afresh.
  *
  * A message that changes after it was announced (`message.updated`, API
@@ -85,6 +86,7 @@ class MessageNotifications(
             }
             "message.updated" -> data.optJSONObject("message")?.let(::onMessageChanged).orEmpty()
             "conversation.updated" -> data.optJSONObject("conversation")?.let(::onConversation).orEmpty()
+            "conversation.deleted" -> onDeleted(data.optString("conversation_id"))
             else -> emptyList()
         }
     }
@@ -133,6 +135,13 @@ class MessageNotifications(
         val updated = Shown(accountId, conversation.optString("name"), conversation.optString("kind") == "group", lines)
         shown[conversationId] = updated
         return listOf(post(conversationId, updated, silent = false))
+    }
+
+    /** A deleted conversation (API 1.25) loses its notification and what waited for it. */
+    private fun onDeleted(conversationId: String): List<Action> {
+        if (conversationId.isEmpty()) return emptyList()
+        waiting.remove(conversationId)
+        return if (shown.remove(conversationId) != null) listOf(Action.Cancel(conversationId)) else emptyList()
     }
 
     private fun post(conversationId: String, shown: Shown, silent: Boolean) =

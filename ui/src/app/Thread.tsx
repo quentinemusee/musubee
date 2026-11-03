@@ -7,6 +7,7 @@ import { accepts, formatSize } from "../media";
 import { canRecord, VoiceRecorder, type Recording } from "../recorder";
 import { accountLabel } from "../merge";
 import { replyQuote, replyTo, seenLabel, typingText } from "../message";
+import { DeleteConversation } from "./DeleteConversation";
 import { MessageList } from "./MessageList";
 import { MuteButton } from "./MuteButton";
 import { VoiceRecording } from "./VoiceRecording";
@@ -72,6 +73,8 @@ export function Thread() {
   // The conversation whose person panel is open, if any: it closes when
   // another conversation is selected.
   const [panelFor, setPanelFor] = useState<string | undefined>(undefined);
+  // The conversation whose deletion is being asked (docs/ADR/0053).
+  const [deleteFor, setDeleteFor] = useState<string | undefined>(undefined);
   const panelOpen = panelFor !== undefined && panelFor === selected;
   const unread = (conversation?.unread_count ?? 0) > 0 || conversation?.marked_unread === true;
   // The message the composer answers or edits, in the selected
@@ -152,12 +155,25 @@ export function Thread() {
           Pin
         </button>
         <MuteButton key={selected} conversation={conversation} />
+        {conversation.actions?.delete_chat === true ? (
+          <button type="button" className="secondary" aria-haspopup="dialog" onClick={() => setDeleteFor(selected)}>
+            Delete…
+          </button>
+        ) : null}
         {conversation.kind === "direct" ? (
           <button type="button" className="secondary person-button" aria-expanded={panelOpen} onClick={() => setPanelFor(panelOpen ? undefined : selected)}>
             {person === undefined ? "Same person…" : "Person…"}
           </button>
         ) : null}
       </div>
+      {deleteFor === selected ? (
+        <DeleteConversation
+          conversationId={selected}
+          name={conversation.name || "Unnamed conversation"}
+          network={networks.find((n) => n.network_id === conversation.network_id)?.name ?? conversation.network_id}
+          onClose={() => setDeleteFor(undefined)}
+        />
+      ) : null}
       <PrivacyNote conversation={conversation} />
       {panelOpen ? <PersonPanel conversation={conversation} onClose={() => setPanelFor(undefined)} /> : null}
       {person === undefined ? null : <Switcher personId={person.person_id} name={person.name} selected={selected} together={together !== undefined} />}

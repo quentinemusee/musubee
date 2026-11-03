@@ -170,6 +170,16 @@ class MessageNotificationsTest {
     }
 
     @Test
+    fun aDeletedConversationLosesItsNotification() {
+        account()
+        message("hi", now + 1)
+        conversation(1)
+        val deleted = { rules.onEvent(JSONObject().put("type", "conversation.deleted").put("data", JSONObject().put("conversation_id", "c1"))) }
+        assertEquals(listOf("cancel"), texts(deleted()))
+        assertEquals(emptyList<String>(), texts(deleted()))
+    }
+
+    @Test
     fun aConversationMarkedUnreadKeepsItsNotification() {
         account()
         message("hi", now + 1)

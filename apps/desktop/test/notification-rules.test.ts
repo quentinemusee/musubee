@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { describe, expect, test } from "vitest";
-import { announcement, hide, KnownConversations, MAX_AGE_MS, messageSummary, parsePreview } from "../src/notification-rules.ts";
+import { announcement, deletedConversation, hide, KnownConversations, MAX_AGE_MS, messageSummary, parsePreview } from "../src/notification-rules.ts";
 
 const now = 1_800_000_000_000;
 const added = (message: object, type = "message.added") =>
@@ -68,5 +68,11 @@ describe("desktop notifications", () => {
     expect(parsePreview("nothing")).toBe("nothing");
     expect(parsePreview("everything")).toBeNull();
     expect(parsePreview(undefined)).toBeNull();
+  });
+
+  test("know which conversation was deleted", () => {
+    expect(deletedConversation(JSON.stringify({ type: "conversation.deleted", data: { conversation_id: "c.1" } }))).toBe("c.1");
+    expect(deletedConversation(added({}))).toBeNull();
+    expect(deletedConversation("not json")).toBeNull();
   });
 });

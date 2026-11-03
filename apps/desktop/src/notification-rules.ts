@@ -153,6 +153,12 @@ function parse(json: string): unknown {
   }
 }
 
+/** The conversation that one of the core's events (JSON) deleted (API 1.25), or null. */
+export function deletedConversation(eventJson: string): string | null {
+  const event = parse(eventJson) as { type?: unknown; data?: { conversation_id?: unknown } } | undefined;
+  return event?.type === "conversation.deleted" && typeof event.data?.conversation_id === "string" ? event.data.conversation_id : null;
+}
+
 /**
  * The announcement of one of the core's events (JSON), or null: only a
  * message.added from someone else, not deleted, at most MAX_AGE_MS old,

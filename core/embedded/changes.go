@@ -40,6 +40,8 @@ func actions(ctx context.Context, portal *bridgev2.Portal, login *bridgev2.UserL
 		Edit:   features.Edit.Partial(),
 		Delete: features.Delete.Partial(),
 		Media:  mediaActions(features),
+		// Since API 1.25 (docs/ADR/0053).
+		DeleteChat: features.DeleteChat,
 	}
 	if *a == (api.ConversationActions{}) {
 		return nil

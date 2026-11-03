@@ -338,6 +338,9 @@ func (c *Core) translate(update localmatrix.Update) ([]*api.Event, error) {
 			typing.Names = append(typing.Names, name)
 		}
 		return []*api.Event{{Type: api.EventConversationTyping, Data: typing}}, nil
+	case update.RoomDeleted != "":
+		deleted := api.ConversationDeletedEvent{ConversationID: conversationID(update.RoomDeleted)}
+		return []*api.Event{{Type: api.EventConversationDeleted, Data: deleted}}, nil
 	case update.ReadState != "":
 		conv, err := c.conversationOf(ctx, update.ReadState, nil)
 		if err != nil || conv == nil {
@@ -619,6 +622,8 @@ func (c *Core) dispatch(ctx context.Context, command string, params json.RawMess
 		return handle(ctx, params, c.conversationsMute)
 	case api.CommandConversationsPin:
 		return handle(ctx, params, c.conversationsPin)
+	case api.CommandConversationsDelete:
+		return handle(ctx, params, c.conversationsDelete)
 	case api.CommandConversationsTyping:
 		return handle(ctx, params, c.conversationsTyping)
 	case api.CommandMessagesList:

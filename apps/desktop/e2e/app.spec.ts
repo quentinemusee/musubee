@@ -477,6 +477,22 @@ test("a pinned conversation stays at the top of the inbox, after a restart too",
   await app.close();
 });
 
+test("the user deletes a conversation after confirming", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "delete");
+  await page.getByRole("button", { name: "Delayed Echo" }).click();
+  await page.getByRole("button", { name: "Delete…" }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete the conversation with Delayed Echo?" });
+  // Cancel keeps it.
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.getByRole("button", { name: "Delete…" }).click();
+  await page.getByRole("dialog", { name: "Delete the conversation with Delayed Echo?" }).getByRole("button", { name: "Delete" }).click();
+  await expect(page.getByRole("button", { name: "Delayed Echo" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Instant Echo" })).toBeVisible();
+  await app.close();
+});
+
 test("the user chooses what notifications show, kept by the main process after a restart", async () => {
   const dataDir = newDataDir();
   let { app, page } = await launch(dataDir);

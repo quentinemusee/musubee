@@ -48,6 +48,7 @@ var (
 	_ bridgev2.ReactionHandlingNetworkAPI    = (*client)(nil)
 	_ bridgev2.RedactionHandlingNetworkAPI   = (*client)(nil)
 	_ bridgev2.TypingHandlingNetworkAPI      = (*client)(nil)
+	_ bridgev2.DeleteChatHandlingNetworkAPI  = (*client)(nil)
 )
 
 func newClient(connector *Connector, login *bridgev2.UserLogin) *client {
@@ -269,8 +270,8 @@ func (c *client) GetUserInfo(_ context.Context, ghost *bridgev2.Ghost) (*bridgev
 }
 
 // GetCapabilities returns what the conversations support: text, replies,
-// edits, deletions, reactions, and every kind of media up to MaxMediaSize,
-// with a caption.
+// edits, deletions, reactions, every kind of media up to MaxMediaSize, with
+// a caption, and deleting the chat for the user.
 func (c *client) GetCapabilities(context.Context, *bridgev2.Portal) *event.RoomFeatures {
 	media := func() *event.FileFeatures {
 		return &event.FileFeatures{
@@ -280,7 +281,7 @@ func (c *client) GetCapabilities(context.Context, *bridgev2.Portal) *event.RoomF
 		}
 	}
 	return &event.RoomFeatures{
-		ID: "com.musubee.echo.capabilities.v3",
+		ID: "com.musubee.echo.capabilities.v4",
 		File: event.FileFeatureMap{
 			event.MsgImage:    media(),
 			event.MsgVideo:    media(),
@@ -293,7 +294,15 @@ func (c *client) GetCapabilities(context.Context, *bridgev2.Portal) *event.RoomF
 		Edit:          event.CapLevelFullySupported,
 		Delete:        event.CapLevelFullySupported,
 		Reaction:      event.CapLevelFullySupported,
+		DeleteChat:    true,
 	}
+}
+
+// HandleMatrixDeleteChat accepts deleting a chat for the user: the echo
+// contact keeps nothing, so there is nothing to delete on its side;
+// bridgev2 then deletes the portal and its room (docs/ADR/0053).
+func (c *client) HandleMatrixDeleteChat(context.Context, *bridgev2.MatrixDeleteChat) error {
+	return nil
 }
 
 // reachable fails a change of the user's toward a contact that cannot be
