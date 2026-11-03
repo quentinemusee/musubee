@@ -419,3 +419,12 @@ send media:         go test -tags=goolm -count=1 -run 'SendMedia|UploadsLimits' 
 ui sending:         cd ui && npx vitest run src/media.test.ts src/store.test.ts src/core-api/contract.test.ts
 sending in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "sends a photo"
 ```
+
+To verify in the test session: T2.22 (cloud sprint, no test run; see ADR 0038). Also by hand on the Pixel 8 Pro: record a voice message in the Android app.
+
+```
+media types:        go test -tags=goolm -count=1 -run 'MimeTypes|SendMedia' -v ./core/embedded/
+recorder:           cd ui && npx vitest run src/recorder.test.ts src/media.test.ts
+desktop permission: cd apps/desktop && npx vitest run test/permissions.test.ts
+voice in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "voice message and sends"
+```
