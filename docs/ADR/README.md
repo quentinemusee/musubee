@@ -76,3 +76,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0064](0064-notification-actions.md) | Notification actions on Android: reply and mark read through the core service, after unlocking | accepted | T2.64 |
 | [0065](0065-starred-messages.md) | Starred messages: the user's room account data, listed across conversations | accepted | T2.66 |
 | [0066](0066-links-in-messages.md) | Links in messages: web addresses only, opened outside the app by the shell | accepted | T2.67 |
+| [0067](0067-pausing-notifications.md) | Pausing notifications: a time kept by the shells, next to the preview | accepted | T2.68 |

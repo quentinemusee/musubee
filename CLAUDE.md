@@ -652,3 +652,10 @@ links (ui):         cd ui && npx vitest run src/links.test.ts
 links (desktop):    cd apps/desktop && npx vitest run test/external-links.test.ts
 links in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "is a link|isolated"
 ```
+
+To verify in the test session: T2.68 (cloud sprint, no test run; see ADR 0067). By hand on the Pixel 8 Pro: pause, then a message from an echo contact shows no notification.
+
+```
+pause (shells):     cd apps/desktop && npx vitest run test/notification-settings.test.ts      (ui: npx vitest run src/capacitor.test.ts src/notification-preview.test.ts)
+pause in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "what notifications show"
+```
