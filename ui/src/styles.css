@@ -433,12 +433,16 @@ ol {
 
 .thread-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space);
   margin-bottom: var(--space);
 }
 
+/* The name takes the room left; the actions wrap below on a narrow screen. */
 .thread-header h2 {
+  flex: 1 1 12em;
+  min-width: 0;
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1404,4 +1408,11 @@ button.flow:hover:not(:disabled) {
 
 .forward-warning {
   color: var(--color-error);
+}
+
+.members {
+  max-height: min(50vh, 360px);
+  margin: 0 0 var(--space);
+  padding-inline-start: 1.2em;
+  overflow-y: auto;
 }

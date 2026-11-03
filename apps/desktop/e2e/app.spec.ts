@@ -477,6 +477,19 @@ test("a pinned conversation stays at the top of the inbox, after a restart too",
   await app.close();
 });
 
+test("a group shows its members", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "members");
+  await page.getByRole("button", { name: "Echo Group" }).click();
+  await page.getByRole("button", { name: "Members…" }).click();
+  const dialog = page.getByRole("dialog", { name: "Members of Echo Group" });
+  await expect(dialog.getByText("3 members")).toBeVisible();
+  await expect(dialog.getByRole("listitem")).toHaveText([/\(you\)$/, "Delayed Echo", "Instant Echo"]);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await app.close();
+});
+
 test("the user forwards a message to another conversation", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "forward");

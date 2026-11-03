@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.26"
+const APIVersion = "1.27"
 
 // Command names.
 const (
@@ -86,6 +86,10 @@ const (
 	// conversation.deleted event follows); fails if the network refuses or does
 	// not answer within 30 seconds. Since API 1.25.
 	CommandConversationsDelete = "conversations.delete"
+	// Lists who is in a conversation, as this device knows it: the user first,
+	// then the others by name. The network's bridge is not a member. Since API
+	// 1.27.
+	CommandConversationsMembers = "conversations.members"
 	// Records that the user read a conversation up to a message (by default its
 	// last one), and clears its marked_unread flag. The network is told when it
 	// supports read receipts. Reading never moves back: a message before the
@@ -244,6 +248,7 @@ var Commands = []CommandSpec{
 	{Name: CommandConversationsMute, Params: reflect.TypeFor[ConversationsMuteParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsPin, Params: reflect.TypeFor[ConversationsPinParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsDelete, Params: reflect.TypeFor[ConversationsDeleteParams](), Result: reflect.TypeFor[Empty]()},
+	{Name: CommandConversationsMembers, Params: reflect.TypeFor[ConversationsMembersParams](), Result: reflect.TypeFor[ConversationsMembersResult]()},
 	{Name: CommandConversationsMarkRead, Params: reflect.TypeFor[ConversationsMarkReadParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandMessagesList, Params: reflect.TypeFor[MessagesListParams](), Result: reflect.TypeFor[MessagesListResult]()},
 	{Name: CommandMessagesSearch, Params: reflect.TypeFor[MessagesSearchParams](), Result: reflect.TypeFor[MessagesSearchResult]()},
@@ -754,6 +759,26 @@ type ConversationsPinParams struct {
 // ConversationsDeleteParams is $defs/ConversationsDeleteParams of the schema.
 type ConversationsDeleteParams struct {
 	ConversationID string `json:"conversation_id"`
+}
+
+// ConversationsMembersParams is $defs/ConversationsMembersParams of the
+// schema.
+type ConversationsMembersParams struct {
+	ConversationID string `json:"conversation_id"`
+}
+
+// ConversationsMembersResult is $defs/ConversationsMembersResult of the
+// schema.
+type ConversationsMembersResult struct {
+	Members []ConversationMember `json:"members"`
+}
+
+// ConversationMember is $defs/ConversationMember of the schema.
+type ConversationMember struct {
+	// The member's name on the network; empty when the network gave none.
+	Name string `json:"name"`
+	// The user. Omitted when false.
+	Me bool `json:"me,omitempty"`
 }
 
 // ConversationsMarkReadParams is $defs/ConversationsMarkReadParams of the

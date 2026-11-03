@@ -11,7 +11,7 @@ import { CoreApiError, CoreClient, parseEvent } from "./core-api/client";
 import { accepts, MediaCache, sendChoice, sendProblem, uploadBlob } from "./media";
 import { pageStorage } from "./appearance";
 import { loadTogether, saveTogether, togetherSources, togetherView, type TogetherStorage } from "./together";
-import type { Account, Conversation, Event, Message, Network, Person, VerificationAction, VerificationEvent } from "./core-api/types.gen";
+import type { Account, Conversation, ConversationMember, Event, Message, Network, Person, VerificationAction, VerificationEvent } from "./core-api/types.gen";
 import { mergePlan } from "./merge";
 import { replyTo } from "./message";
 import type { CoreStatus, ShellCore } from "./shell";
@@ -590,6 +590,11 @@ export class Store {
     } catch (error) {
       this.#set({ error: `Could not send the message: ${describe(error)}` });
     }
+  }
+
+  /** Who is in a conversation (API 1.27), read when asked: membership changes are not followed. */
+  async members(conversationId: string): Promise<ConversationMember[]> {
+    return (await this.client.call("conversations.members", { conversation_id: conversationId })).members;
   }
 
   /**

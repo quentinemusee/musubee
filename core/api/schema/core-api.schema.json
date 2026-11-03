@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.26",
+  "x-musubee-api-version": "1.27",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -224,6 +224,16 @@
           "properties": {
             "params": { "$ref": "#/$defs/ConversationsDeleteParams" },
             "result": { "$ref": "#/$defs/Empty" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "conversations.members": {
+          "description": "Lists who is in a conversation, as this device knows it: the user first, then the others by name. The network's bridge is not a member. Since API 1.27.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/ConversationsMembersParams" },
+            "result": { "$ref": "#/$defs/ConversationsMembersResult" }
           },
           "required": ["params", "result"],
           "additionalProperties": false
@@ -1076,6 +1086,31 @@
         "conversation_id": { "type": "string" }
       },
       "required": ["conversation_id"],
+      "additionalProperties": false
+    },
+    "ConversationsMembersParams": {
+      "type": "object",
+      "properties": {
+        "conversation_id": { "type": "string" }
+      },
+      "required": ["conversation_id"],
+      "additionalProperties": false
+    },
+    "ConversationsMembersResult": {
+      "type": "object",
+      "properties": {
+        "members": { "type": "array", "items": { "$ref": "#/$defs/ConversationMember" } }
+      },
+      "required": ["members"],
+      "additionalProperties": false
+    },
+    "ConversationMember": {
+      "type": "object",
+      "properties": {
+        "name": { "description": "The member's name on the network; empty when the network gave none.", "type": "string" },
+        "me": { "description": "The user. Omitted when false.", "type": "boolean" }
+      },
+      "required": ["name"],
       "additionalProperties": false
     },
     "ConversationsMarkReadParams": {

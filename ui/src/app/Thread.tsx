@@ -9,6 +9,7 @@ import { accountLabel } from "../merge";
 import { replyQuote, replyTo, seenLabel, typingText } from "../message";
 import { DeleteConversation } from "./DeleteConversation";
 import { ForwardMessage } from "./ForwardMessage";
+import { MembersDialog } from "./MembersDialog";
 import { MessageList } from "./MessageList";
 import { MuteButton } from "./MuteButton";
 import { VoiceRecording } from "./VoiceRecording";
@@ -74,6 +75,8 @@ export function Thread() {
   // The conversation whose person panel is open, if any: it closes when
   // another conversation is selected.
   const [panelFor, setPanelFor] = useState<string | undefined>(undefined);
+  // The conversation whose members are shown (API 1.27).
+  const [membersFor, setMembersFor] = useState<string | undefined>(undefined);
   // The message being forwarded (docs/ADR/0054).
   const [forwarding, setForwarding] = useState<Message | undefined>(undefined);
   // The conversation whose deletion is being asked (docs/ADR/0053).
@@ -159,6 +162,11 @@ export function Thread() {
           Pin
         </button>
         <MuteButton key={selected} conversation={conversation} />
+        {conversation.kind === "group" ? (
+          <button type="button" className="secondary" aria-haspopup="dialog" onClick={() => setMembersFor(selected)}>
+            Members…
+          </button>
+        ) : null}
         {conversation.actions?.delete_chat === true ? (
           <button type="button" className="secondary" aria-haspopup="dialog" onClick={() => setDeleteFor(selected)}>
             Delete…
@@ -177,6 +185,9 @@ export function Thread() {
           network={networks.find((n) => n.network_id === conversation.network_id)?.name ?? conversation.network_id}
           onClose={() => setDeleteFor(undefined)}
         />
+      ) : null}
+      {membersFor === selected ? (
+        <MembersDialog conversationId={selected} name={conversation.name || "Unnamed conversation"} onClose={() => setMembersFor(undefined)} />
       ) : null}
       {forwarding === undefined ? null : <ForwardMessage message={forwarding} onClose={() => setForwarding(undefined)} />}
       <PrivacyNote conversation={conversation} />
