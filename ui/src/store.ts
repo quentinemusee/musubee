@@ -9,6 +9,7 @@
 
 import { CoreApiError, CoreClient, parseEvent } from "./core-api/client";
 import { accepts, MediaCache, sendChoice, sendProblem, uploadBlob } from "./media";
+import { togetherSources, togetherView } from "./together";
 import type { Account, Conversation, Event, Message, Network, Person } from "./core-api/types.gen";
 import { mergePlan } from "./merge";
 import { replyTo } from "./message";
@@ -50,6 +51,12 @@ export interface State {
    */
   history: Readonly<Record<string, HistoryState>>;
   selected?: string;
+  /**
+   * The person whose conversations the thread shows as one (docs/ADR/0042),
+   * the selected conversation being where the user writes; none: the
+   * selected conversation alone.
+   */
+  together?: string;
   /** A media the user sends, while its bytes go to the core (API 1.10). */
   upload?: UploadState;
 }
@@ -246,7 +253,40 @@ export class Store {
 
   /** Shows a conversation, reading its latest messages the first time. */
   async select(conversationId: string): Promise<void> {
-    this.#set({ selected: conversationId });
+    const conversation = this.#state.conversations.find((c) => c.conversation_id === conversationId);
+    if (this.#state.together !== undefined && conversation?.person_id !== this.#state.together) {
+      // Another person's conversation: shown alone.
+      const { together: _, ...rest } = this.#state;
+      this.#replace({ ...rest, selected: conversationId });
+    } else {
+      this.#set({ selected: conversationId });
+    }
+    return this.#readLatest(conversationId);
+  }
+
+  /**
+   * Shows the selected conversation's person's conversations as one thread
+   * (docs/ADR/0042), reading the latest messages of those not read yet.
+   */
+  async showTogether(): Promise<void> {
+    const selected = this.#state.conversations.find((c) => c.conversation_id === this.#state.selected);
+    const personId = selected?.person_id;
+    if (personId === undefined) {
+      return;
+    }
+    this.#set({ together: personId });
+    const merged = this.#state.conversations.filter((c) => c.person_id === personId);
+    await Promise.all(merged.map((c) => this.#readLatest(c.conversation_id)));
+  }
+
+  /** Shows the selected conversation alone again. */
+  showSeparately(): void {
+    const { together: _, ...rest } = this.#state;
+    this.#replace(rest);
+  }
+
+  /** Reads the latest messages of a conversation, once. */
+  async #readLatest(conversationId: string): Promise<void> {
     if (this.#state.messages[conversationId] !== undefined || this.#reading.has(conversationId)) {
       return;
     }
@@ -276,9 +316,19 @@ export class Store {
    * conversation; does nothing while they are read or when there are none.
    */
   async loadOlder(): Promise<void> {
-    const conversationId = this.#state.selected;
-    const history = conversationId === undefined ? undefined : this.#state.history[conversationId];
-    if (conversationId === undefined || history === undefined || history === "loading" || history === "start") {
+    if (this.#state.together !== undefined) {
+      // The conversation that hides the most of the thread (togetherView).
+      const next = togetherView(togetherSources(this.#state, this.#state.together)).next;
+      return next === undefined ? undefined : this.#loadOlderOf(next);
+    }
+    if (this.#state.selected !== undefined) {
+      return this.#loadOlderOf(this.#state.selected);
+    }
+  }
+
+  async #loadOlderOf(conversationId: string): Promise<void> {
+    const history = this.#state.history[conversationId];
+    if (history === undefined || history === "loading" || history === "start") {
       return;
     }
     if (history === "network") {

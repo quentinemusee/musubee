@@ -1179,3 +1179,22 @@ button.flow:hover:not(:disabled) {
 .app-settings {
   margin-left: auto;
 }
+
+/* A person's thread (docs/ADR/0042): the conversations to write with, and
+   the network each message came through. */
+.switcher fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--space) / 2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.switcher-together {
+  font-weight: 600;
+}
+
+.via {
+  color: var(--color-muted);
+}

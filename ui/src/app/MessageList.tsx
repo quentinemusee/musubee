@@ -22,6 +22,12 @@ export interface MessageListProps {
   actions?: ConversationActions | undefined;
   /** What the user does to messages; without, the messages offer no action. Keep it stable. */
   handlers?: MessageHandlers | undefined;
+  /**
+   * For a person's thread (docs/ADR/0042), by conversation ID: what each
+   * network allows, instead of actions, and the network each message came
+   * through, said on it.
+   */
+  together?: { actions: Readonly<Record<string, ConversationActions | undefined>>; via: Readonly<Record<string, string>> } | undefined;
 }
 
 /**
@@ -53,7 +59,7 @@ function shownOf(messages: readonly Message[], shift: boolean, news: Message | u
  * the top, and keeps the message being read in place when they arrive.
  * Render one per conversation (key it by conversation ID).
  */
-export function MessageList({ messages, history, onOlder, labelledBy, onBottomChange, actions, handlers }: MessageListProps) {
+export function MessageList({ messages, history, onOlder, labelledBy, onBottomChange, actions, handlers, together }: MessageListProps) {
   const ref = useRef<VListHandle>(null);
   const atBottom = useRef(true);
 
@@ -119,7 +125,19 @@ export function MessageList({ messages, history, onOlder, labelledBy, onBottomCh
         }}
         onResize={loadIfNeeded}
       >
-        {(message) => <MessageRow key={message.message_id} message={message} actions={actions} handlers={handlers} />}
+        {(message) =>
+          together === undefined ? (
+            <MessageRow key={message.message_id} message={message} actions={actions} handlers={handlers} />
+          ) : (
+            <MessageRow
+              key={message.message_id}
+              message={message}
+              actions={together.actions[message.conversation_id]}
+              handlers={handlers}
+              via={together.via[message.conversation_id]}
+            />
+          )
+        }
       </VList>
       <output className="visually-hidden">
         {current.news ? `${current.news.sender_name || "New message"}: ${summary(current.news)}` : ""}

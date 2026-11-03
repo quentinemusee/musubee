@@ -42,13 +42,15 @@ export interface MessageRowProps {
   /** What the conversation's network allows (API 1.8); none without. */
   actions?: ConversationActions | undefined;
   handlers?: MessageHandlers | undefined;
+  /** In a person's thread: the network the message came through, said on it (docs/ADR/0042). */
+  via?: string | undefined;
 }
 
 /**
  * One message of a thread: a full-width row holding the bubble. The row has
  * no margin, so that a virtualized list can measure it whole.
  */
-export const MessageRow = memo(function MessageRow({ message, actions, handlers }: MessageRowProps) {
+export const MessageRow = memo(function MessageRow({ message, actions, handlers, via }: MessageRowProps) {
   const deleted = message.deleted === true;
   const allowed = messageActions(message, handlers === undefined ? undefined : actions);
   const [menu, setMenu] = useState<"closed" | "open" | "confirm-delete">("closed");
@@ -116,6 +118,7 @@ export const MessageRow = memo(function MessageRow({ message, actions, handlers 
           </ul>
         ) : null}
         <span className="meta">
+          {via !== undefined ? <span className="via">via {via}</span> : null}
           {message.edited && !deleted ? <span className="edited">Edited</span> : null}
           <time dateTime={new Date(message.timestamp_ms).toISOString()}>{timeFormat.format(message.timestamp_ms)}</time>
           {message.from_me ? <span className="delivery">{message.error || STATUS_LABELS[message.status]}</span> : null}

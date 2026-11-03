@@ -1,19 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Quentin Raimbaud
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import {
-  Fragment,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type ClipboardEvent,
-  type FormEvent,
-  type KeyboardEvent,
-} from "react";
-import type { MediaActions, Message } from "../core-api/types.gen";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ClipboardEvent, type FormEvent, type KeyboardEvent } from "react";
+import type { ConversationActions, MediaActions, Message } from "../core-api/types.gen";
 import { accepts, formatSize } from "../media";
 import { canRecord, VoiceRecorder, type Recording } from "../recorder";
 import { accountLabel } from "../merge";
@@ -24,6 +13,7 @@ import type { MessageHandlers } from "./MessageRow";
 import { closeConversation } from "./navigation";
 import { PersonPanel } from "./PersonPanel";
 import { PrivacyNote } from "./PrivacyNote";
+import { togetherView } from "../together";
 import { useAppState, useStore } from "./state";
 
 const noMessages: readonly Message[] = [];
@@ -36,6 +26,32 @@ export function Thread() {
   const history = useAppState((s) => (s.selected === undefined ? undefined : s.history[s.selected]));
   const person = useAppState((s) => (conversation?.person_id === undefined ? undefined : s.persons.find((p) => p.person_id === conversation.person_id)));
   const loadOlder = useCallback(() => void store.loadOlder(), [store]);
+  // A person's conversations as one thread (docs/ADR/0042).
+  const together = useAppState((s) => (s.together !== undefined && s.together === conversation?.person_id ? s.together : undefined));
+  const allConversations = useAppState((s) => s.conversations);
+  const allMessages = useAppState((s) => s.messages);
+  const allHistory = useAppState((s) => s.history);
+  const networks = useAppState((s) => s.networks);
+  const accounts = useAppState((s) => s.accounts);
+  const view = useMemo(() => {
+    if (together === undefined) {
+      return undefined;
+    }
+    const merged = allConversations.filter((c) => c.person_id === together);
+    const thread = togetherView(
+      merged.map((c) => ({ conversationId: c.conversation_id, messages: allMessages[c.conversation_id], history: allHistory[c.conversation_id] })),
+    );
+    const names = merged.map((c) => networks.find((n) => n.network_id === c.network_id)?.name ?? c.network_id);
+    const via: Record<string, string> = {};
+    const actions: Record<string, ConversationActions | undefined> = {};
+    merged.forEach((c, i) => {
+      const name = names[i] ?? c.network_id;
+      // Two accounts on one network: say which.
+      via[c.conversation_id] = names.filter((n) => n === name).length > 1 ? accountLabel(c, networks, accounts) : name;
+      actions[c.conversation_id] = c.actions;
+    });
+    return { thread, list: { via, actions }, merged };
+  }, [together, allConversations, allMessages, allHistory, networks, accounts]);
   // Whether the newest message is in view, per conversation: each opens there.
   const [bottom, setBottom] = useState({ conversation: selected, atBottom: true });
   const atBottom = bottom.conversation !== selected || bottom.atBottom;
@@ -54,8 +70,20 @@ export function Thread() {
     () => ({
       react: (message, key) => void store.react(message, key),
       unreact: (message, key) => void store.unreact(message, key),
-      reply: (message) => setDraft({ mode: "reply", message }),
-      edit: (message) => setDraft({ mode: "edit", message }),
+      // In a person's thread, answering or editing a message writes where
+      // it came from.
+      reply: (message) => {
+        if (message.conversation_id !== store.getState().selected) {
+          void store.select(message.conversation_id);
+        }
+        setDraft({ mode: "reply", message });
+      },
+      edit: (message) => {
+        if (message.conversation_id !== store.getState().selected) {
+          void store.select(message.conversation_id);
+        }
+        setDraft({ mode: "edit", message });
+      },
       delete: (message) => void store.deleteMessage(message),
     }),
     [store],
@@ -69,6 +97,17 @@ export function Thread() {
       void store.markRead(selected);
     }
   }, [store, selected, unread, visible, atBottom]);
+  // In a person's thread, every conversation shown is read.
+  useEffect(() => {
+    if (view === undefined || !visible || !atBottom) {
+      return;
+    }
+    for (const c of view.merged) {
+      if ((c.unread_count ?? 0) > 0 || c.marked_unread === true) {
+        void store.markRead(c.conversation_id);
+      }
+    }
+  }, [store, view, visible, atBottom]);
 
   if (selected === undefined || conversation === undefined) {
     return <p className="empty">Choose a conversation.</p>;
@@ -89,21 +128,28 @@ export function Thread() {
       </div>
       <PrivacyNote conversation={conversation} />
       {panelOpen ? <PersonPanel conversation={conversation} onClose={() => setPanelFor(undefined)} /> : null}
-      {person === undefined ? null : <Switcher personId={person.person_id} name={person.name} selected={selected} />}
-      {/* One key for both: siblings with the same key confuse React, which
-          then leaves old rows in the DOM. */}
-      <Fragment key={selected}>
-        <MessageList
-          messages={messages}
-          history={history}
-          onOlder={loadOlder}
-          labelledBy="thread-title"
-          onBottomChange={onBottomChange}
-          actions={conversation.actions}
-          handlers={handlers}
-        />
-        <Composer draft={draft} onDraftDone={() => setDraft(undefined)} media={conversation.actions?.media} />
-      </Fragment>
+      {person === undefined ? null : <Switcher personId={person.person_id} name={person.name} selected={selected} together={together !== undefined} />}
+      {/* Distinct keys: siblings with the same key confuse React, which then
+          leaves old rows in the DOM. A person's thread keeps its list when
+          the user writes elsewhere. */}
+      <MessageList
+        key={together === undefined ? `conversation:${selected}` : `person:${together}`}
+        messages={view?.thread.messages ?? messages}
+        history={view?.thread.history ?? history}
+        onOlder={loadOlder}
+        labelledBy="thread-title"
+        onBottomChange={onBottomChange}
+        actions={conversation.actions}
+        handlers={handlers}
+        together={view?.list}
+      />
+      <Composer
+        key={`composer:${selected}`}
+        draft={draft}
+        onDraftDone={() => setDraft(undefined)}
+        media={conversation.actions?.media}
+        writingWith={view === undefined ? undefined : (view.list.via[selected] ?? conversation.network_id)}
+      />
     </section>
   );
 }
@@ -113,7 +159,7 @@ export function Thread() {
  * network account: the user picks the one to read and write in. Lists the
  * conversations read so far.
  */
-function Switcher({ personId, name, selected }: { personId: string; name: string; selected: string }) {
+function Switcher({ personId, name, selected, together }: { personId: string; name: string; selected: string; together: boolean }) {
   const store = useStore();
   const conversations = useAppState((s) => s.conversations);
   const accounts = useAppState((s) => s.accounts);
@@ -123,20 +169,31 @@ function Switcher({ personId, name, selected }: { personId: string; name: string
     return null;
   }
   return (
-    <fieldset className="switcher">
-      <legend className="visually-hidden">Conversations with {name}</legend>
-      {merged.map((conversation) => (
-        <button
-          key={conversation.conversation_id}
-          type="button"
-          className="secondary"
-          aria-pressed={conversation.conversation_id === selected}
-          onClick={() => void store.select(conversation.conversation_id)}
-        >
-          {accountLabel(conversation, networks, accounts)}
-        </button>
-      ))}
-    </fieldset>
+    <div className="switcher">
+      {/* Every conversation in one thread, or one at a time (docs/ADR/0042). */}
+      <button
+        type="button"
+        className="secondary switcher-together"
+        aria-pressed={together}
+        onClick={() => (together ? store.showSeparately() : void store.showTogether())}
+      >
+        All together
+      </button>
+      <fieldset>
+        <legend className="visually-hidden">{together ? `Write to ${name} with` : `Conversations with ${name}`}</legend>
+        {merged.map((conversation) => (
+          <button
+            key={conversation.conversation_id}
+            type="button"
+            className="secondary"
+            aria-pressed={conversation.conversation_id === selected}
+            onClick={() => void store.select(conversation.conversation_id)}
+          >
+            {accountLabel(conversation, networks, accounts)}
+          </button>
+        ))}
+      </fieldset>
+    </div>
   );
 }
 
@@ -151,9 +208,11 @@ interface ComposerProps {
   onDraftDone: () => void;
   /** The media the conversation takes (API 1.10); none: no attaching. */
   media: MediaActions | undefined;
+  /** In a person's thread: the network the user writes with (docs/ADR/0042). */
+  writingWith?: string | undefined;
 }
 
-function Composer({ draft, onDraftDone, media }: ComposerProps) {
+function Composer({ draft, onDraftDone, media, writingWith }: ComposerProps) {
   const store = useStore();
   const [text, setText] = useState("");
   const input = useRef<HTMLInputElement>(null);
@@ -344,7 +403,7 @@ function Composer({ draft, onDraftDone, media }: ComposerProps) {
             id="composer-text"
             type="text"
             autoComplete="off"
-            placeholder={file === undefined ? "Write a message…" : "Add a caption…"}
+            placeholder={file !== undefined ? "Add a caption…" : writingWith === undefined ? "Write a message…" : `Write with ${writingWith}…`}
             value={text}
             onChange={(event) => setText(event.target.value)}
             onKeyDown={onKeyDown}

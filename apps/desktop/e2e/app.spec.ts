@@ -672,6 +672,64 @@ test("conversations merged into a person make one entry, and one thread with a s
   await app.close();
 });
 
+test("a person's conversations read as one thread, written with either network", async () => {
+  const { app, page } = await launch(newDataDir());
+  await loginEcho(page, "alpha");
+  await page.getByRole("button", { name: "Add an account" }).click();
+  await loginEcho(page, "beta");
+  type Listed = { conversations: { conversation_id: string; name: string }[] };
+  let instant: string[] = [];
+  await expect
+    .poll(async () => {
+      const { conversations } = await coreCall<Listed>(page, "conversations.list");
+      instant = conversations.filter((c) => c.name === "Instant Echo").map((c) => c.conversation_id);
+      return instant.length;
+    })
+    .toBe(2);
+  await coreCall(page, "persons.create", { name: "Echo Friend", conversation_ids: instant });
+  await coreCall(page, "messages.send", { conversation_id: instant[0], text: "first, one way" });
+  await coreCall(page, "messages.send", { conversation_id: instant[1], text: "then, the other" });
+  await inboxRows(page).first().getByRole("button").click();
+  await expect(page.getByRole("heading", { name: "Echo Friend" })).toBeVisible();
+
+  const together = page.getByRole("button", { name: "All together" });
+  await expect(together).toHaveAttribute("aria-pressed", "false");
+  await together.click();
+  await expect(together).toHaveAttribute("aria-pressed", "true");
+  const log = page.getByRole("log");
+  // Both conversations, in the order the messages were sent, each saying
+  // where it came through.
+  const mine = log.locator('.message[data-from-me="true"]');
+  await expect(mine).toHaveCount(2);
+  await expect(mine.nth(0)).toContainText("first, one way");
+  await expect(mine.nth(1)).toContainText("then, the other");
+  await expect(mine.nth(0).locator(".via")).toHaveText(/^via Echo: (alpha|beta)$/);
+  await expect(mine.nth(1).locator(".via")).not.toHaveText(await mine.nth(0).locator(".via").innerText());
+
+  // Writing goes to the conversation pressed below the toggle; the thread
+  // stays together.
+  const writeWith = page.getByRole("group", { name: "Write to Echo Friend with" });
+  await writeWith.getByRole("button", { name: "Echo: alpha" }).click();
+  await expect(page.getByRole("textbox", { name: "Message" })).toHaveAttribute("placeholder", "Write with Echo: alpha…");
+  await page.getByRole("textbox", { name: "Message" }).fill("together, with alpha");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(log.locator('.message[data-from-me="true"]', { hasText: "together, with alpha" }).locator(".via")).toHaveText("via Echo: alpha");
+  await expect(together).toHaveAttribute("aria-pressed", "true");
+
+  // Answering a message writes where it came from.
+  const fromBeta = log.locator('.message[data-from-me="false"]').filter({ has: page.locator(".via", { hasText: "via Echo: beta" }) }).first();
+  await fromBeta.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("group", { name: "Actions" }).getByRole("button", { name: "Reply" }).click();
+  await expect(writeWith.getByRole("button", { name: "Echo: beta" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("Replying to Instant Echo")).toBeVisible();
+
+  // One conversation at a time again.
+  await together.click();
+  await expect(page.getByRole("group", { name: "Conversations with Echo Friend" })).toBeVisible();
+  await expect(log.locator(".via")).toHaveCount(0);
+  await app.close();
+});
+
 test("merge two conversations from the thread, rename the person, then separate them", async () => {
   const { app, page } = await launch(newDataDir());
   await loginEcho(page, "alpha");

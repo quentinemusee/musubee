@@ -452,6 +452,50 @@ describe("Store", () => {
     ]);
   });
 
+  test("shows a person's conversations together, reading further back where the thread stops", async () => {
+    const listed: unknown[] = [];
+    const shell = scriptedShell({
+      ...coreState([
+        { ...conversation("tg", "Alice", 30), person_id: "h1" },
+        { ...conversation("sg", "Alice", 20), person_id: "h1" },
+        conversation("other", "Bob", 10),
+      ]),
+      "messages.list": (params) => {
+        listed.push(params);
+        const { conversation_id, before } = params as { conversation_id: string; before?: string };
+        if (conversation_id === "tg") {
+          return before === undefined ? { messages: [message("t10", 10), message("t30", 30)], before: "k-tg" } : { messages: [message("t5", 5)] };
+        }
+        return { messages: [message("s20", 20)] };
+      },
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    await store.select("tg");
+    await store.showTogether();
+    expect(store.getState().together).toBe("h1");
+    expect(store.getState().messages["sg"]).toHaveLength(1);
+    // The thread stops at 20, where the second conversation's history may
+    // go on: it is asked first (this core cannot give it), then the first
+    // conversation, which has more before 10.
+    await store.loadOlder();
+    expect(store.getState().history["sg"]).toBe("start");
+    await store.loadOlder();
+    expect(listed).toContainEqual({ conversation_id: "tg", before: "k-tg", limit: OLDER_PAGE });
+    // Writing elsewhere in the person's thread keeps it together;
+    // another person's conversation does not.
+    await store.select("sg");
+    expect(store.getState().together).toBe("h1");
+    await store.select("other");
+    expect(store.getState().together).toBeUndefined();
+    await store.select("tg");
+    await store.showTogether();
+    store.showSeparately();
+    expect(store.getState().together).toBeUndefined();
+  });
+
   test("asks the network for older history once the device's is read (API 1.13)", async () => {
     const fetched: unknown[] = [];
     let pages = [
