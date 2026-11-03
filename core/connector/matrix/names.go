@@ -100,3 +100,9 @@ func homeserverURL(input string) (*url.URL, error) {
 func isTextMessage(t event.MessageType) bool {
 	return t == event.MsgText || t == event.MsgNotice || t == event.MsgEmote
 }
+
+// isMediaMessage reports whether a message type carries media that the
+// connector copies to the device (copyMedia).
+func isMediaMessage(t event.MessageType) bool {
+	return t == event.MsgImage || t == event.MsgVideo || t == event.MsgAudio || t == event.MsgFile
+}

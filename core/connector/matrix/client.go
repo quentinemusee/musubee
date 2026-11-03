@@ -583,7 +583,8 @@ func (c *client) queueEdit(ctx context.Context, evt *event.Event, target id.Even
 		ID:            networkid.MessageID(evt.ID),
 		TargetMessage: networkid.MessageID(target),
 		Data:          converted,
-		ConvertEditFunc: func(_ context.Context, _ *bridgev2.Portal, _ bridgev2.MatrixAPI, existing []*database.Message, content *event.MessageEventContent) (*bridgev2.ConvertedEdit, error) {
+		ConvertEditFunc: func(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI, existing []*database.Message, content *event.MessageEventContent) (*bridgev2.ConvertedEdit, error) {
+			c.copyMedia(ctx, portal, intent, content)
 			return &bridgev2.ConvertedEdit{ModifiedParts: []*bridgev2.ConvertedEditPart{{
 				Part: existing[0], Type: event.EventMessage, Content: content,
 			}}}, nil
@@ -724,7 +725,8 @@ func (c *client) queueMessage(ctx context.Context, evt *event.Event, content *ev
 		},
 		ID:   networkid.MessageID(evt.ID),
 		Data: content,
-		ConvertMessageFunc: func(context.Context, *bridgev2.Portal, bridgev2.MatrixAPI, *event.MessageEventContent) (*bridgev2.ConvertedMessage, error) {
+		ConvertMessageFunc: func(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI, content *event.MessageEventContent) (*bridgev2.ConvertedMessage, error) {
+			c.copyMedia(ctx, portal, intent, content)
 			return &bridgev2.ConvertedMessage{
 				ReplyTo: replyTo,
 				Parts:   []*bridgev2.ConvertedMessagePart{{Type: event.EventMessage, Content: content}},
@@ -734,14 +736,26 @@ func (c *client) queueMessage(ctx context.Context, evt *event.Event, content *ev
 }
 
 // incoming converts a received message: the text, and the message it
-// replies to. Media keep their type and caption only, until the media
-// support: their content is on the remote server.
+// replies to. Media keep their type, caption, file name, what the
+// interface shows of them (type, size, dimensions, duration, GIF, voice)
+// and where they are on the homeserver (URL, or File when encrypted):
+// copyMedia copies them to the device once bridgev2 converts the message.
+// Thumbnails are left out: the media itself is copied.
 func incoming(content *event.MessageEventContent) (*event.MessageEventContent, *networkid.MessageOptionalPartID) {
 	clean := *content
 	clean.RemoveReplyFallback()
 	out := &event.MessageEventContent{MsgType: clean.MsgType, Body: clean.Body}
 	if isTextMessage(clean.MsgType) {
 		out.Format, out.FormattedBody = clean.Format, clean.FormattedBody
+	} else if isMediaMessage(clean.MsgType) {
+		out.FileName, out.URL, out.File = clean.FileName, clean.URL, clean.File
+		out.MSC3245Voice, out.MSC1767Audio = clean.MSC3245Voice, clean.MSC1767Audio
+		if info := clean.Info; info != nil {
+			out.Info = &event.FileInfo{
+				MimeType: info.MimeType, Size: info.Size, Width: info.Width, Height: info.Height,
+				Duration: info.Duration, MauGIF: info.MauGIF, IsAnimated: info.IsAnimated,
+			}
+		}
 	}
 	var replyTo *networkid.MessageOptionalPartID
 	if target := content.RelatesTo.GetReplyTo(); target != "" {

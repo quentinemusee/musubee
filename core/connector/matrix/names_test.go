@@ -106,6 +106,9 @@ func TestIsTextMessage(t *testing.T) {
 		if isTextMessage(mt) {
 			t.Errorf("%s is not text", mt)
 		}
+		if want := mt != event.MsgLocation && mt != ""; isMediaMessage(mt) != want {
+			t.Errorf("isMediaMessage(%q) = %v, want %v", mt, !want, want)
+		}
 	}
 }
 
@@ -129,10 +132,16 @@ func TestIncoming(t *testing.T) {
 		t.Error("incoming changed its input")
 	}
 
-	image := &event.MessageEventContent{MsgType: event.MsgImage, Body: "cat.png", URL: "mxc://x/cat", Info: &event.FileInfo{Size: 3}}
+	image := &event.MessageEventContent{
+		MsgType: event.MsgImage, Body: "cat.png", URL: "mxc://x/cat",
+		Info: &event.FileInfo{MimeType: "image/png", Size: 3, Width: 2, ThumbnailURL: "mxc://x/thumb"},
+	}
 	out, replyTo = incoming(image)
-	if out.MsgType != event.MsgImage || out.Body != "cat.png" || out.URL != "" || out.Info != nil || replyTo != nil {
+	if out.MsgType != event.MsgImage || out.Body != "cat.png" || out.URL != "mxc://x/cat" || replyTo != nil {
 		t.Errorf("image converted to %+v, %+v", out, replyTo)
+	}
+	if out.Info == nil || out.Info.MimeType != "image/png" || out.Info.Size != 3 || out.Info.Width != 2 || out.Info.ThumbnailURL != "" {
+		t.Errorf("image info converted to %+v, want its type, size and width without the thumbnail", out.Info)
 	}
 }
 

@@ -16,7 +16,9 @@
 package matrixtest
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -27,6 +29,7 @@ import (
 	"time"
 
 	"maunium.net/go/mautrix"
+	"maunium.net/go/mautrix/crypto/attachment"
 	"maunium.net/go/mautrix/crypto/cryptohelper"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
@@ -153,6 +156,9 @@ func TestMatrixAccount(t *testing.T) {
 	changedTexts := changes(t, ctx, events, bob, room)
 	// The user's own changes go the other way (T2.19).
 	changedTexts = append(changedTexts, ownChanges(t, ctx, c, events, bob, room, conv)...)
+	// bob sends an encrypted photo, which the core copies to the device
+	// (T2.20).
+	changedTexts = append(changedTexts, receivedMedia(t, ctx, c, events, bob, room))
 
 	// 5. A direct conversation can belong to a person.
 	var person api.PersonResult
@@ -628,4 +634,54 @@ func checkNoKeysLeft(t *testing.T, path string) {
 			t.Errorf("%s has %d rows after the logout", table, n)
 		}
 	}
+}
+
+// receivedMedia has bob send a photo in the encrypted room, encrypted as
+// Matrix clients encrypt attachments; the core copies it to the device,
+// decrypted, and media.read gives its bytes back (ADR 0036). It returns
+// the caption, which the log must not hold.
+func receivedMedia(t *testing.T, ctx context.Context, c *embedded.Core, events coretest.Events, bob *peer, room id.RoomID) string {
+	t.Helper()
+	photo := bytes.Repeat([]byte("not really a PNG "), 4096)
+	file := attachment.NewEncryptedFile()
+	sealed := file.Encrypt(photo)
+	upload, err := bob.cli.UploadBytes(ctx, sealed, "application/octet-stream")
+	if err != nil {
+		t.Fatalf("bob uploading the photo: %v", err)
+	}
+	caption := "a photo " + coretest.RandomHex(t)
+	bob.sendEvent(t, ctx, room, event.EventMessage, &event.MessageEventContent{
+		MsgType:  event.MsgImage,
+		Body:     caption,
+		FileName: "photo.png",
+		Info:     &event.FileInfo{MimeType: "image/png", Size: len(photo), Width: 4, Height: 3},
+		File:     &event.EncryptedFileInfo{EncryptedFile: *file, URL: upload.ContentURI.CUString()},
+	})
+	e := events.Wait(t, ctx, "the photo", time.Minute, func(e coretest.Event) bool {
+		var data api.MessageEvent
+		return e.Type == api.EventMessageAdded && e.Decode(t, &data) && data.Message.Text == caption
+	})
+	var added api.MessageEvent
+	e.Decode(t, &added)
+	media := added.Message.Media
+	if added.Message.Kind != api.MessageKindImage || media == nil || media.MimeType != "image/png" || media.Width != 4 || media.FileName != "photo.png" {
+		t.Fatalf("the photo came as %s with media %+v", added.Message.Kind, media)
+	}
+	var read []byte
+	for {
+		var part api.MediaReadResult
+		coretest.Call(t, c, api.CommandMediaRead, api.MediaReadParams{MediaID: media.MediaID, Offset: int64(len(read)), Length: 16384}, &part)
+		chunk, err := base64.StdEncoding.DecodeString(part.Data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		read = append(read, chunk...)
+		if len(chunk) == 0 || int64(len(read)) >= part.Size {
+			break
+		}
+	}
+	if !bytes.Equal(read, photo) {
+		t.Errorf("the photo read back has %d bytes, not the %d bob sent", len(read), len(photo))
+	}
+	return caption
 }
