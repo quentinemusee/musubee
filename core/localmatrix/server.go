@@ -594,6 +594,13 @@ func (s *Server) Members(ctx context.Context, roomID id.RoomID) (map[id.UserID]*
 	return members, nil
 }
 
+// SearchMessages returns, newest first, up to limit messages of a room (or
+// of every room for "") that contain text, before a stream order (0: from
+// the newest). See store.searchMessages.
+func (s *Server) SearchMessages(ctx context.Context, roomID id.RoomID, text string, before int64, limit int) ([]*event.Event, error) {
+	return s.store.searchMessages(ctx, roomID, text, before, limit)
+}
+
 // OldestMessageOrder returns the stream order of a room's oldest message
 // (not an edit), or 0 when it has none: messages before it are older
 // history (docs/ADR/0041).

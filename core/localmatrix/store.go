@@ -518,6 +518,42 @@ func (s *store) timeline(ctx context.Context, roomID id.RoomID, after int64, lim
 // messagesBefore returns the message events (m.room.message, without the
 // edits) of a room stored before the given stream order, or the latest ones
 // when before is 0, newest first.
+// likePattern escapes a search's text for LIKE: % and _ match themselves.
+func likePattern(text string) string {
+	return "%" + strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(text) + "%"
+}
+
+// searchMessages returns, newest first, the messages (not edits, not
+// deleted) of a room, or of every room when roomID is empty, whose text or
+// whose latest edit's text contains text; from before a stream order
+// (0: the newest). SQLite's LIKE ignores case for ASCII letters only. The
+// caller checks the latest text: a message edited away from the text is
+// found by its original.
+func (s *store) searchMessages(ctx context.Context, roomID id.RoomID, text string, before int64, limit int) ([]*event.Event, error) {
+	rows, err := s.db.Query(ctx,
+		`SELECT `+eventColumns+` FROM local_event
+		 WHERE ($1='' OR room_id=$1) AND `+messageFilter+` AND redacted_by IS NULL AND ($3=0 OR stream_order<$3)
+		   AND (json_extract(content, '$.body') LIKE $2 ESCAPE '\'
+		        OR event_id IN (SELECT relates_to FROM local_event
+		                        WHERE rel_type='m.replace' AND redacted_by IS NULL AND ($1='' OR room_id=$1)
+		                          AND json_extract(content, '$."m.new_content".body') LIKE $2 ESCAPE '\'))
+		 ORDER BY stream_order DESC LIMIT $4`,
+		roomID, likePattern(text), before, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var events []*event.Event
+	for rows.Next() {
+		evt, err := scanEvent(rows)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, evt)
+	}
+	return events, rows.Err()
+}
+
 func (s *store) messagesBefore(ctx context.Context, roomID id.RoomID, before int64, limit int) ([]*event.Event, error) {
 	rows, err := s.db.Query(ctx,
 		`SELECT `+eventColumns+` FROM local_event

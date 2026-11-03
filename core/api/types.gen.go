@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.16"
+const APIVersion = "1.17"
 
 // Command names.
 const (
@@ -58,6 +58,11 @@ const (
 	// Returns the latest messages of a conversation, or the ones before a cursor,
 	// oldest first.
 	CommandMessagesList = "messages.list"
+	// Finds the messages on this device whose text (as edited) or caption
+	// contains a text, in one conversation or all of them, the newest first, in
+	// pages. Deleted messages are never found. Letters other than a to z are
+	// matched with their case. Since API 1.17.
+	CommandMessagesSearch = "messages.search"
 	// Asks the conversation's network for the history before the oldest message
 	// on this device, waits for it, and returns it as messages.list does, oldest
 	// first: the messages older than the oldest one the device had, with a cursor
@@ -182,6 +187,7 @@ var Commands = []CommandSpec{
 	{Name: CommandConversationsList, Params: reflect.TypeFor[ConversationsListParams](), Result: reflect.TypeFor[ConversationsListResult]()},
 	{Name: CommandConversationsMarkRead, Params: reflect.TypeFor[ConversationsMarkReadParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandMessagesList, Params: reflect.TypeFor[MessagesListParams](), Result: reflect.TypeFor[MessagesListResult]()},
+	{Name: CommandMessagesSearch, Params: reflect.TypeFor[MessagesSearchParams](), Result: reflect.TypeFor[MessagesSearchResult]()},
 	{Name: CommandMessagesFetchOlder, Params: reflect.TypeFor[MessagesFetchOlderParams](), Result: reflect.TypeFor[MessagesFetchOlderResult]()},
 	{Name: CommandMessagesSend, Params: reflect.TypeFor[MessagesSendParams](), Result: reflect.TypeFor[MessagesSendResult]()},
 	{Name: CommandMessagesReact, Params: reflect.TypeFor[MessagesReactParams](), Result: reflect.TypeFor[Empty]()},
@@ -742,6 +748,26 @@ type MessagesListParams struct {
 	Before string `json:"before,omitempty"`
 	// At most this many messages (default 50, at most 200).
 	Limit int64 `json:"limit,omitempty"`
+}
+
+// MessagesSearchParams is $defs/MessagesSearchParams of the schema.
+type MessagesSearchParams struct {
+	// The text to find, as typed; at most 200 characters.
+	Query string `json:"query"`
+	// The conversation to search. Omitted: every conversation.
+	ConversationID string `json:"conversation_id,omitempty"`
+	// A cursor from a previous result: the next page.
+	Before string `json:"before,omitempty"`
+	// At most this many messages (default 50, at most 200).
+	Limit int64 `json:"limit,omitempty"`
+}
+
+// MessagesSearchResult is $defs/MessagesSearchResult of the schema.
+type MessagesSearchResult struct {
+	// The newest first.
+	Messages []Message `json:"messages"`
+	// Cursor for the next page; absent when there is none.
+	Before string `json:"before,omitempty"`
 }
 
 // MessagesFetchOlderParams is $defs/MessagesFetchOlderParams of the schema.
