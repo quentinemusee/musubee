@@ -23,6 +23,7 @@ import { VoiceRecording } from "./VoiceRecording";
 import type { MessageHandlers } from "./MessageRow";
 import { closeConversation } from "./navigation";
 import { PersonPanel } from "./PersonPanel";
+import { PrivacyNote } from "./PrivacyNote";
 import { useAppState, useStore } from "./state";
 
 const noMessages: readonly Message[] = [];
@@ -86,6 +87,7 @@ export function Thread() {
           </button>
         ) : null}
       </div>
+      <PrivacyNote conversation={conversation} />
       {panelOpen ? <PersonPanel conversation={conversation} onClose={() => setPanelFor(undefined)} /> : null}
       {person === undefined ? null : <Switcher personId={person.person_id} name={person.name} selected={selected} />}
       {/* One key for both: siblings with the same key confuse React, which

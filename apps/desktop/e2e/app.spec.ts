@@ -331,6 +331,20 @@ test("the user records a voice message and sends it", async () => {
   await app.close();
 });
 
+test("the thread says who can read the conversation", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "privacy");
+  // The echo network's conversations never leave the device.
+  const label = page.getByRole("button", { name: "Test conversation" });
+  await expect(label).toHaveAttribute("aria-expanded", "false");
+  await label.click();
+  await expect(label).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByText("the messages never leave this device")).toBeVisible();
+  await label.press("Enter");
+  await expect(page.getByText("the messages never leave this device")).toBeHidden();
+  await app.close();
+});
+
 test("log out of an account: it goes away with its conversations", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "leaving");

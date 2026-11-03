@@ -1001,3 +1001,28 @@ button.flow:hover:not(:disabled) {
     opacity: 0.3;
   }
 }
+
+/* Who can read the conversation, under the thread's header (API 1.12). */
+.privacy-note {
+  padding: 0 var(--space) 4px;
+  font-size: 13px;
+}
+
+.privacy-label {
+  padding: 2px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.privacy-note[data-safe="false"] .privacy-label {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.privacy-detail {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+}
