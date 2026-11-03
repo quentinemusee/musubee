@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Quentin Raimbaud
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ClipboardEvent, type FormEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ClipboardEvent, type FormEvent, type KeyboardEvent } from "react";
 import type { ConversationActions, MediaActions, Message } from "../core-api/types.gen";
 import { accepts, formatSize } from "../media";
 import { canRecord, VoiceRecorder, type Recording } from "../recorder";
@@ -78,6 +78,9 @@ export function Thread() {
   // The conversation whose person panel is open, if any: it closes when
   // another conversation is selected.
   const [panelFor, setPanelFor] = useState<string | undefined>(undefined);
+  // The conversation whose "More…" actions are shown (T2.62).
+  const [moreFor, setMoreFor] = useState<string | undefined>(undefined);
+  const moreId = useId();
   // The conversation whose members are shown (API 1.27).
   const [membersFor, setMembersFor] = useState<string | undefined>(undefined);
   // The message being forwarded (docs/ADR/0054).
@@ -137,6 +140,20 @@ export function Thread() {
   // The thread's own color, if the user gave one (docs/ADR/0063).
   const themeKey = selected === undefined ? "" : accentKey(selected, person?.person_id);
   const accent = useAppState((s) => s.accents?.[themeKey]);
+  const moreOpen = moreFor !== undefined && moreFor === selected;
+  // Escape closes "More…", wherever the focus is.
+  useEffect(() => {
+    if (!moreOpen) {
+      return;
+    }
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMoreFor(undefined);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [moreOpen]);
 
   if (selected === undefined || conversation === undefined) {
     return <p className="empty">Choose a conversation.</p>;
@@ -150,45 +167,92 @@ export function Thread() {
         </button>
         <Avatar mediaId={conversation.avatar_id} name={person?.name ?? (conversation.name || "Unnamed conversation")} size="small" />
         <h2 id="thread-title">{person?.name ?? (conversation.name || "Unnamed conversation")}</h2>
-        {/* Leaves the conversation: shown, it would be read again at once. */}
-        <button
-          type="button"
-          className="secondary"
-          onClick={() => {
-            void store.markUnread(selected);
-            closeConversation(store);
-          }}
-        >
-          Mark unread
-        </button>
-        <button
-          type="button"
-          className="secondary"
-          aria-pressed={conversation.pinned === true}
-          onClick={() => void store.pin(selected, conversation.pinned !== true)}
-        >
-          Pin
-        </button>
         <MuteButton key={selected} conversation={conversation} />
-        <AccentButton key={`accent:${themeKey}`} accentKey={themeKey} />
-        <button type="button" className="secondary" onClick={() => void store.archive(selected, conversation.archived !== true)}>
-          {conversation.archived === true ? "Unarchive" : "Archive"}
-        </button>
-        {conversation.kind === "group" ? (
-          <button type="button" className="secondary" aria-haspopup="dialog" onClick={() => setMembersFor(selected)}>
-            Members…
+        {/* The less frequent actions, behind "More…" (T2.62): the header
+            stays one line on most screens. */}
+        <span className="mute">
+          <button type="button" className="secondary" aria-expanded={moreOpen} aria-controls={moreId} onClick={() => setMoreFor(moreOpen ? undefined : selected)}>
+            More…
           </button>
-        ) : null}
-        {conversation.actions?.leave === true ? (
-          <button type="button" className="secondary" aria-haspopup="dialog" onClick={() => setDeleteFor({ conversation: selected, removal: "leave" })}>
-            Leave…
-          </button>
-        ) : null}
-        {conversation.actions?.delete_chat === true ? (
-          <button type="button" className="secondary" aria-haspopup="dialog" onClick={() => setDeleteFor({ conversation: selected, removal: "delete" })}>
-            Delete…
-          </button>
-        ) : null}
+          {moreOpen ? (
+            <fieldset id={moreId} className="mute-choices thread-more">
+              <legend className="visually-hidden">More actions on this conversation</legend>
+              {/* Leaves the conversation: shown, it would be read again at once. */}
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setMoreFor(undefined);
+                  void store.markUnread(selected);
+                  closeConversation(store);
+                }}
+              >
+                Mark unread
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                aria-pressed={conversation.pinned === true}
+                onClick={() => {
+                  setMoreFor(undefined);
+                  void store.pin(selected, conversation.pinned !== true);
+                }}
+              >
+                Pin
+              </button>
+              <AccentButton key={`accent:${themeKey}`} accentKey={themeKey} />
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setMoreFor(undefined);
+                  void store.archive(selected, conversation.archived !== true);
+                }}
+              >
+                {conversation.archived === true ? "Unarchive" : "Archive"}
+              </button>
+              {conversation.kind === "group" ? (
+                <button
+                  type="button"
+                  className="secondary"
+                  aria-haspopup="dialog"
+                  onClick={() => {
+                    setMoreFor(undefined);
+                    setMembersFor(selected);
+                  }}
+                >
+                  Members…
+                </button>
+              ) : null}
+              {conversation.actions?.leave === true ? (
+                <button
+                  type="button"
+                  className="secondary"
+                  aria-haspopup="dialog"
+                  onClick={() => {
+                    setMoreFor(undefined);
+                    setDeleteFor({ conversation: selected, removal: "leave" });
+                  }}
+                >
+                  Leave…
+                </button>
+              ) : null}
+              {conversation.actions?.delete_chat === true ? (
+                <button
+                  type="button"
+                  className="secondary"
+                  aria-haspopup="dialog"
+                  onClick={() => {
+                    setMoreFor(undefined);
+                    setDeleteFor({ conversation: selected, removal: "delete" });
+                  }}
+                >
+                  Delete…
+                </button>
+              ) : null}
+            </fieldset>
+          ) : null}
+        </span>
         {conversation.kind === "direct" ? (
           <button type="button" className="secondary person-button" aria-expanded={panelOpen} onClick={() => setPanelFor(panelOpen ? undefined : selected)}>
             {person === undefined ? "Same person…" : "Person…"}

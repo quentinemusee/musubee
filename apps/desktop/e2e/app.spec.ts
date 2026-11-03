@@ -478,8 +478,11 @@ test("a pinned conversation stays at the top of the inbox, after a restart too",
   const last = await rows.last().getAttribute("aria-label");
   expect(last).not.toBeNull();
   await page.getByRole("button", { name: last!, exact: true }).click();
+  await page.getByRole("button", { name: "More…" }).click();
   await page.getByRole("button", { name: "Pin", pressed: false }).click();
+  await page.getByRole("button", { name: "More…" }).click();
   await expect(page.getByRole("button", { name: "Pin", pressed: true })).toBeVisible();
+  await page.keyboard.press("Escape");
   await expect(rows.first()).toHaveAccessibleName(last!);
   await expect(rows.first()).toHaveAccessibleDescription(/Pinned/);
 
@@ -521,11 +524,13 @@ test("an archived conversation leaves the inbox for the archive", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "archive");
   await page.getByRole("button", { name: "Delayed Echo" }).click();
+  await page.getByRole("button", { name: "More…" }).click();
   await page.getByRole("button", { name: "Archive", exact: true }).click();
   await expect(page.locator(".inbox-row").getByRole("button", { name: "Delayed Echo" })).toHaveCount(0);
   await page.getByRole("button", { name: "Archived (1)" }).click();
   await expect(page.getByRole("heading", { name: "Archived" })).toBeVisible();
   await expect(page.locator(".inbox-row").getByRole("button", { name: "Delayed Echo" })).toBeVisible();
+  await page.getByRole("button", { name: "More…" }).click();
   await page.getByRole("button", { name: "Unarchive" }).click();
   await page.getByRole("button", { name: "Back to conversations" }).click();
   await expect(page.locator(".inbox-row").getByRole("button", { name: "Delayed Echo" })).toBeVisible();
@@ -538,6 +543,7 @@ test("a conversation keeps its own color after a restart", async () => {
   let { app, page } = await launch(dataDir);
   await addEchoAccount(page, "color");
   await page.getByRole("button", { name: "Delayed Echo" }).click();
+  await page.getByRole("button", { name: "More…" }).click();
   await page.getByRole("button", { name: "Color…" }).click();
   await page.getByRole("radio", { name: "Rose" }).check();
   const thread = page.locator("section.thread");
@@ -557,6 +563,7 @@ test("a group shows its members", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "members");
   await page.getByRole("button", { name: "Echo Group" }).click();
+  await page.getByRole("button", { name: "More…" }).click();
   await page.getByRole("button", { name: "Members…" }).click();
   const dialog = page.getByRole("dialog", { name: "Members of Echo Group" });
   await expect(dialog.getByText("3 members")).toBeVisible();
@@ -571,6 +578,7 @@ test("the user leaves a group after confirming", async () => {
   await addEchoAccount(page, "leave");
   await page.getByRole("button", { name: "Echo Group" }).click();
   // A group is left, not deleted.
+  await page.getByRole("button", { name: "More…" }).click();
   await expect(page.getByRole("button", { name: "Delete…" })).toHaveCount(0);
   await page.getByRole("button", { name: "Leave…" }).click();
   await page.getByRole("dialog", { name: "Leave Echo Group?" }).getByRole("button", { name: "Leave", exact: true }).click();
@@ -601,11 +609,13 @@ test("the user deletes a conversation after confirming", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "delete");
   await page.getByRole("button", { name: "Delayed Echo" }).click();
+  await page.getByRole("button", { name: "More…" }).click();
   await page.getByRole("button", { name: "Delete…" }).click();
   const dialog = page.getByRole("dialog", { name: "Delete the conversation with Delayed Echo?" });
   // Cancel keeps it.
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toHaveCount(0);
+  await page.getByRole("button", { name: "More…" }).click();
   await page.getByRole("button", { name: "Delete…" }).click();
   await page.getByRole("dialog", { name: "Delete the conversation with Delayed Echo?" }).getByRole("button", { name: "Delete" }).click();
   await expect(page.getByRole("button", { name: "Delayed Echo" })).toHaveCount(0);

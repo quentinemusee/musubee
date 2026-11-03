@@ -1530,3 +1530,9 @@ button.flow:hover:not(:disabled) {
   line-height: 20px;
   text-align: center;
 }
+
+.thread-more > button,
+.thread-more > .mute > button {
+  width: 100%;
+  text-align: start;
+}

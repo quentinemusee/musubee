@@ -356,6 +356,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.61 — A color per conversation or person** (E2.7)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). "Color…" in the thread gives it one of the app's accents, for its person or else the conversation, kept per device (ADR 0063). 🧪 `ui/src/conversation-accent.test.ts`, the desktop e2e "a conversation keeps its own color".
 
+**T2.62 — "More…" in the thread's header** (E2.3)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). The header keeps the name, "Mute…" and "Person…"; "More…" holds Mark unread, Pin, Color…, Archive, Members…, Leave… and Delete…, and Escape closes it. 🧪 the desktop e2e tests of those actions open it first.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).
