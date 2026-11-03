@@ -664,6 +664,21 @@ test("a conversation's media and files are listed, and open their message", asyn
   await app.close();
 });
 
+test("Up in an empty composer edits the user's latest message", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "edit-last");
+  const composer = page.getByRole("textbox", { name: "Message" });
+  await composer.fill("first draft");
+  await page.keyboard.press("Enter");
+  await expect(page.locator('.message[data-from-me="true"]').filter({ hasText: "first draft" }).first()).toContainText("Sent");
+  await composer.press("ArrowUp");
+  await expect(page.getByText("Editing your message")).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "New text of your message" })).toHaveValue("first draft");
+  await page.keyboard.press("Escape");
+  await expect(page.getByText("Editing your message")).toHaveCount(0);
+  await app.close();
+});
+
 test("a group shows its members", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "members");

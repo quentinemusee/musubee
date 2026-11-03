@@ -6,7 +6,7 @@ import type { ConversationActions, MediaActions, Message } from "../core-api/typ
 import { accepts, formatSize } from "../media";
 import { canRecord, VoiceRecorder, type Recording } from "../recorder";
 import { accountLabel } from "../merge";
-import { firstUnread, replyQuote, replyTo, seenLabel, sendsOnEnter, typingText } from "../message";
+import { firstUnread, lastEditable, replyQuote, replyTo, seenLabel, sendsOnEnter, typingText } from "../message";
 import { accentKey } from "../conversation-accent";
 import { exportFileName, exportText } from "../export";
 import { saveBlob } from "../save";
@@ -351,6 +351,15 @@ export function Thread() {
         onDraftDone={() => setDraft(undefined)}
         media={conversation.actions?.media}
         writingWith={view === undefined ? undefined : (view.list.via[selected] ?? conversation.network_id)}
+        onEditLast={() => {
+          const list = view?.thread.messages ?? messages;
+          const last = lastEditable(list, (m) => (view === undefined ? conversation.actions : view.list.actions[m.conversation_id]));
+          if (last === undefined) {
+            return false;
+          }
+          handlers.edit(last);
+          return true;
+        }}
       />
     </section>
   );
@@ -412,9 +421,11 @@ interface ComposerProps {
   media: MediaActions | undefined;
   /** In a person's thread: the network the user writes with (docs/ADR/0042). */
   writingWith?: string | undefined;
+  /** Up in an empty composer edits the user's latest message (T2.79); false when there is none. */
+  onEditLast?: () => boolean;
 }
 
-function Composer({ draft, onDraftDone, media, writingWith }: ComposerProps) {
+function Composer({ draft, onDraftDone, media, writingWith, onEditLast }: ComposerProps) {
   const typingIn = useAppState((s) => s.selected);
   // When the network was last told that the user types (0: not typing).
   const lastTyping = useRef(0);
@@ -580,6 +591,10 @@ function Composer({ draft, onDraftDone, media, writingWith }: ComposerProps) {
     if (event.key === "Escape" && draft !== undefined) {
       event.preventDefault();
       cancel();
+      return;
+    }
+    if (event.key === "ArrowUp" && text === "" && draft === undefined && onEditLast?.() === true) {
+      event.preventDefault();
       return;
     }
     // Enter sends, Shift+Enter starts a new line (T2.71); on a touch

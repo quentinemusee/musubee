@@ -262,3 +262,18 @@ export function dayStarts(messages: readonly Message[], now: number, locale?: st
   }
   return starts;
 }
+
+/**
+ * The user's latest message they can edit (T2.79), for Up in an empty
+ * composer: the newest of their own that the network lets them edit, or
+ * undefined.
+ */
+export function lastEditable(messages: readonly Message[], actions: (message: Message) => ConversationActions | undefined): Message | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]!;
+    if (message.from_me) {
+      return messageActions(message, actions(message)).edit ? message : undefined;
+    }
+  }
+  return undefined;
+}

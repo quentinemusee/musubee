@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "vitest";
 import type { Message } from "./core-api/types.gen";
-import { canForward, dayLabel, dayStarts, firstUnread, hasActions, sendsOnEnter, isReactionKey, seenLabel, typingText, messageActions, MORE_REACTIONS, ownReaction, reactionLabel, replyQuote, replyTo, sameEmoji } from "./message";
+import { canForward, dayLabel, lastEditable, dayStarts, firstUnread, hasActions, sendsOnEnter, isReactionKey, seenLabel, typingText, messageActions, MORE_REACTIONS, ownReaction, reactionLabel, replyQuote, replyTo, sameEmoji } from "./message";
 
 describe("reactionLabel", () => {
   test("says who reacted", () => {
@@ -208,4 +208,13 @@ test("dayStarts: the first message of each day", () => {
   const now = new Date(2026, 10, 3, 10, 0).getTime();
   const messages = [at("a", new Date(2026, 10, 2, 9)), at("b", new Date(2026, 10, 2, 21)), at("c", new Date(2026, 10, 3, 8))];
   expect(dayStarts(messages, now, "en-GB")).toEqual({ a: "Yesterday", c: "Today" });
+});
+
+test("lastEditable: the user's newest message, when the network lets it be edited", () => {
+  const mine = { ...unreadTestMessage("m1", true), text: "mine" };
+  const theirs = unreadTestMessage("t1", false);
+  expect(lastEditable([mine, theirs], () => ({ edit: true }))?.message_id).toBe("m1");
+  expect(lastEditable([mine, theirs], () => ({}))).toBeUndefined();
+  expect(lastEditable([{ ...mine, kind: "image", media: { media_id: "f", mime_type: "image/png" } }], () => ({ edit: true }))).toBeUndefined();
+  expect(lastEditable([theirs], () => ({ edit: true }))).toBeUndefined();
 });

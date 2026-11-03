@@ -695,3 +695,10 @@ To verify in the test session: T2.77 (cloud sprint, no test run; interface only)
 gallery (ui):       cd ui && npx vitest run src/gallery.test.ts
 gallery in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "media and files are listed"
 ```
+
+To verify in the test session: T2.78 and T2.79 (cloud sprint, no test run; interface only):
+
+```
+edit last (ui):     cd ui && npx vitest run src/message.test.ts
+in the app:         cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "Up in an empty composer|reactions, edits, deletions"
+```

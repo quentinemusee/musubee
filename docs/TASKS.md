@@ -404,6 +404,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.78 — Go to the message answered** (E2.4)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). A reply's quote is a button that shows the answered message, read further back on the device if needed, outlined for two seconds (ADR 0046's reveal). 🧪 the desktop e2e "a network's reactions, edits, deletions and replies".
 
+**T2.79 — Up edits the latest message** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). Up in an empty composer edits the user's newest message when its network allows it. 🧪 `ui/src/message.test.ts` (`lastEditable`), the desktop e2e "Up in an empty composer".
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).
