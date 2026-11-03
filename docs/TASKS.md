@@ -353,6 +353,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.60 — Unread mentions in the inbox** (E2.3)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.34 `Conversation.unread_mentions`, counted by the local server from `m.mentions` (ADR 0062); an "@" before the unread badge. 🧪 `TestUnreadMentions`, `TestMentions`.
 
+**T2.61 — A color per conversation or person** (E2.7)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). "Color…" in the thread gives it one of the app's accents, for its person or else the conversation, kept per device (ADR 0063). 🧪 `ui/src/conversation-accent.test.ts`, the desktop e2e "a conversation keeps its own color".
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

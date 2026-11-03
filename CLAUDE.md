@@ -623,3 +623,10 @@ To verify in the test session: T2.60 (cloud sprint, no test run; see ADR 0062):
 ```
 unread mentions:    go test -tags=goolm -count=1 -run 'UnreadMentions|Mentions' -v ./core/localmatrix/ ./core/embedded/     (-tags=goolm,musubee_cgo_sqlite: the Android driver)
 ```
+
+To verify in the test session: T2.61 (cloud sprint, no test run; see ADR 0063):
+
+```
+colors (ui):        cd ui && npx vitest run src/conversation-accent.test.ts
+colors in the app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "its own color"
+```

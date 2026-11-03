@@ -72,3 +72,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0060](0060-archiving-conversations.md) | Archiving conversations: on the device, brought back by new messages unless muted | accepted | T2.58 |
 | [0061](0061-avatars.md) | Avatars: the room's picture from bridgev2, or initials on the name's hue | accepted | T2.59 |
 | [0062](0062-unread-mentions.md) | Unread mentions: counted by the local server from m.mentions | accepted | T2.60 |
+| [0063](0063-conversation-colors.md) | A conversation's or a person's own color: the app's accents, per thread, kept per device | accepted | T2.61 |
