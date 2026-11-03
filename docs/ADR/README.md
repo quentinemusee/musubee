@@ -50,3 +50,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0038](0038-voice-messages.md) | Recording voice messages: MediaRecorder in the page, the microphone the only permission, the container the network takes | accepted | T2.22 |
 | [0039](0039-honest-privacy-indicators.md) | Honest privacy indicators: the core says who can read each conversation, unknown is never safe | accepted | T2.23 |
 | [0040](0040-appearance-and-themes.md) | Appearance: design tokens set by root attributes, kept per device in the page's storage | accepted | T2.24 |
+| [0041](0041-history-from-the-networks.md) | History from the networks: batches before the stored messages, older history only on request | accepted | T2.25 |

@@ -231,6 +231,12 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 - 🧪 Test: Vitest for reading, writing and applying the appearance; a desktop Playwright journey through a restart.
 - Outcome: **implemented, unverified** (cloud sprint, no test run). Data attributes on the root element select the design tokens of `styles.css` (ADR 0040): accents are light and dark pairs (contrasts computed, all at least 4.5:1), font sizes are multiples of a text unit, the dark theme follows the system unless chosen. The choice is kept per device in the page's storage and applied before the first render; an "Appearance" dialog in the header changes it. Left: layout options (density, inbox width), custom colors, syncing settings between devices.
 
+**T2.25 — History from the networks** (E2.3)
+- Deliverable: a conversation shows its recent history as soon as it appears, and older history when the user scrolls up, from every network that gives it.
+- Acceptance: older history goes before the messages on the device, never after; it is not unread; a login does not walk every conversation's history in the background.
+- 🧪 Test: local server tests of batches (backward, forward, an empty room); the core's journey through the echo network's history; contract examples; Vitest for the store; a desktop Playwright journey to the oldest message.
+- Outcome: **implemented, unverified** (cloud sprint, no test run). Backfill is on (ADR 0041): the latest 50 messages of a new conversation, up to 500 on a catch-up, read when older than a day. The local server takes bridgev2's batches (`BatchSend`), putting older history at negative stream orders below every room's. API 1.13 adds `messages.fetchOlder`, which runs one backward batch by hand when the interface reaches the oldest message on the device; the echo network gives ContactInstant 60 older messages. Left: whether the forward backfill adds `FLOOD_WAIT` to the Telegram CI runs (to watch), Matrix accounts' history (`FetchMessages`), offline sending.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

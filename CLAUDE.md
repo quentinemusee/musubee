@@ -443,3 +443,12 @@ To verify in the test session: T2.24 (cloud sprint, no test run; see ADR 0040):
 appearance (ui):    cd ui && npx vitest run src/appearance.test.ts
 appearance in app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "picks a theme"
 ```
+
+To verify in the test session: T2.25 (cloud sprint, no test run; see ADR 0041). Watch the Telegram CI journeys for FLOOD_WAIT: logins now bring each conversation's latest messages.
+
+```
+batches:            go test -tags=goolm -count=1 -run 'BatchSend' -v ./core/localmatrix/     (-tags=goolm,musubee_cgo_sqlite: the Android driver)
+older history:      go test -tags=goolm -count=1 -run 'FetchOlder' -v ./core/embedded/
+history (ui):       cd ui && npx vitest run src/store.test.ts src/core-api/contract.test.ts
+history in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "older history"
+```
