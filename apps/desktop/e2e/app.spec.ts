@@ -42,9 +42,10 @@ function newDataDir(): string {
   return dir;
 }
 
-async function launch(dataDir: string, env: Record<string, string> = {}, status: RegExp = /Ready|Loading/): Promise<Running> {
+async function launch(dataDir: string, env: Record<string, string> = {}, status: RegExp = /Ready|Loading/, switches: string[] = []): Promise<Running> {
   const app = await electron.launch({
-    args: [appDir],
+    // Chromium's switches go before the app.
+    args: [...switches, appDir],
     env: { ...process.env, ...env, MUSUBEE_USER_DATA_DIR: dataDir, MUSUBEE_E2E: "1" },
   });
   const page = await app.firstWindow();
@@ -293,6 +294,40 @@ test("the user sends a photo with a caption, and a file", async () => {
   await page.locator('input[type="file"]').setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("notes") });
   await page.getByRole("button", { name: "Send" }).click();
   await expect(log.locator('.message[data-from-me="true"] .media[data-kind="file"]')).toContainText("notes.txt");
+  await app.close();
+});
+
+test("the user records a voice message and sends it", async () => {
+  // Chromium's fake microphone (a beep); the app's own permission handler
+  // still decides, and grants only the microphone.
+  const { app, page } = await launch(newDataDir(), {}, /Ready|Loading/, ["--use-fake-device-for-media-stream"]);
+  await addEchoAccount(page, "voice");
+  const log = page.getByRole("log");
+
+  await page.getByRole("button", { name: "Record a voice message" }).click();
+  await expect(page.getByRole("timer", { name: "Recording" })).toBeVisible();
+  // Cancel throws it away: nothing is sent.
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("textbox", { name: "Message" })).toBeFocused();
+
+  await page.getByRole("button", { name: "Record a voice message" }).click();
+  await expect(page.getByRole("timer")).toHaveText("0:02", { timeout: 5000 });
+  await page.getByRole("button", { name: "Send voice message" }).click();
+  const mine = log.locator('.message[data-from-me="true"]').filter({ has: page.locator('.media[data-kind="voice"]') });
+  await expect(mine).toHaveCount(1);
+  await expect(mine).toContainText("Sent");
+  await expect(mine.locator("audio")).toHaveAttribute("aria-label", /^Voice message, 0:0[2-4]$/);
+  // The echo network sends it back as a voice message too.
+  await expect(log.locator('.message[data-from-me="false"] .media[data-kind="voice"]')).toHaveCount(1);
+  // The camera stays refused.
+  expect(
+    await page.evaluate(() =>
+      navigator.mediaDevices.getUserMedia({ video: true }).then(
+        () => "granted",
+        (error: DOMException) => error.name,
+      ),
+    ),
+  ).toBe("NotAllowedError");
   await app.close();
 });
 

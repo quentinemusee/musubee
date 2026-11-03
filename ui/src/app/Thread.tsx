@@ -1,12 +1,25 @@
 // SPDX-FileCopyrightText: 2026 Quentin Raimbaud
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ClipboardEvent, type FormEvent, type KeyboardEvent } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ClipboardEvent,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import type { MediaActions, Message } from "../core-api/types.gen";
 import { formatSize } from "../media";
+import { canRecord, VoiceRecorder, type Recording } from "../recorder";
 import { accountLabel } from "../merge";
 import { replyQuote, replyTo } from "../message";
 import { MessageList } from "./MessageList";
+import { VoiceRecording } from "./VoiceRecording";
 import type { MessageHandlers } from "./MessageRow";
 import { closeConversation } from "./navigation";
 import { PersonPanel } from "./PersonPanel";
@@ -68,12 +81,7 @@ export function Thread() {
         </button>
         <h2 id="thread-title">{person?.name ?? (conversation.name || "Unnamed conversation")}</h2>
         {conversation.kind === "direct" ? (
-          <button
-            type="button"
-            className="secondary person-button"
-            aria-expanded={panelOpen}
-            onClick={() => setPanelFor(panelOpen ? undefined : selected)}
-          >
+          <button type="button" className="secondary person-button" aria-expanded={panelOpen} onClick={() => setPanelFor(panelOpen ? undefined : selected)}>
             {person === undefined ? "Same person…" : "Person…"}
           </button>
         ) : null}
@@ -152,6 +160,41 @@ function Composer({ draft, onDraftDone, media }: ComposerProps) {
   const [file, setFile] = useState<File>();
   const upload = useAppState((s) => s.upload);
   const canAttach = media !== undefined && draft?.mode !== "edit";
+  const [recorder, setRecorder] = useState<VoiceRecorder>();
+  const [starting, setStarting] = useState(false);
+  // The microphone button stands in for Send while there is nothing to send.
+  const canRecordHere = canAttach && file === undefined && text.trim() === "" && canRecord();
+
+  function startRecording() {
+    setStarting(true);
+    VoiceRecorder.start().then(
+      (started) => {
+        setStarting(false);
+        setRecorder(started);
+      },
+      (error: unknown) => {
+        setStarting(false);
+        const refused = error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "SecurityError");
+        store.showError(
+          refused
+            ? "Musubee may not use the microphone: allow it in the system's settings, then try again."
+            : `Could not record a voice message: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      },
+    );
+  }
+
+  function sendRecording(recording: Recording, name: string) {
+    const answered = draft?.message.message_id;
+    setRecorder(undefined);
+    const voice = new File([recording.blob], name, { type: recording.type });
+    void store.sendMedia(voice, "", answered, { voice: true, durationMs: recording.durationMs }).then((sent) => {
+      if (sent) {
+        onDraftDone();
+      }
+    });
+    input.current?.focus();
+  }
   // A new draft: an edit starts from the message's text, and leaving an
   // edit clears it (React's "adjust state on a prop change" pattern).
   const [shownDraft, setShownDraft] = useState(draft);
@@ -246,7 +289,9 @@ function Composer({ draft, onDraftDone, media }: ComposerProps) {
       {file !== undefined && canAttach ? (
         <div className="composer-file">
           <p className="composer-draft-text">
-            <span className="composer-draft-what">{upload === undefined ? "Attached" : `Sending… ${Math.round((upload.sent / Math.max(upload.size, 1)) * 100)}%`}</span>
+            <span className="composer-draft-what">
+              {upload === undefined ? "Attached" : `Sending… ${Math.round((upload.sent / Math.max(upload.size, 1)) * 100)}%`}
+            </span>
             <span className="media-file-name">{file.name || "file"}</span>
             <span className="media-file-size">{formatSize(file.size)}</span>
           </p>
@@ -259,42 +304,65 @@ function Composer({ draft, onDraftDone, media }: ComposerProps) {
           )}
         </div>
       ) : null}
-      <form className="composer-form" onSubmit={submit}>
-        {canAttach ? (
-          <>
-            <button type="button" className="secondary composer-attach" aria-label="Attach a file" onClick={() => picker.current?.click()}>
-              <span aria-hidden="true">📎</span>
-            </button>
-            <input
-              ref={picker}
-              type="file"
-              hidden
-              tabIndex={-1}
-              onChange={(event) => {
-                attach(event.target.files?.[0]);
-                event.target.value = "";
-              }}
-            />
-          </>
-        ) : null}
-        <label htmlFor="composer-text" className="visually-hidden">
-          {draft?.mode === "edit" ? "New text of your message" : "Message"}
-        </label>
-        <input
-          ref={input}
-          id="composer-text"
-          type="text"
-          autoComplete="off"
-          placeholder={file === undefined ? "Write a message…" : "Add a caption…"}
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={onKeyDown}
-          onPaste={onPaste}
+      {recorder !== undefined ? (
+        <VoiceRecording
+          recorder={recorder}
+          onSend={sendRecording}
+          onCancel={() => {
+            setRecorder(undefined);
+            input.current?.focus();
+          }}
         />
-        <button type="submit" disabled={upload !== undefined || (text.trim() === "" && (file === undefined || !canAttach))}>
-          {draft?.mode === "edit" ? "Save" : "Send"}
-        </button>
-      </form>
+      ) : (
+        <form className="composer-form" onSubmit={submit}>
+          {canAttach ? (
+            <>
+              <button type="button" className="secondary composer-attach" aria-label="Attach a file" onClick={() => picker.current?.click()}>
+                <span aria-hidden="true">📎</span>
+              </button>
+              <input
+                ref={picker}
+                type="file"
+                hidden
+                tabIndex={-1}
+                onChange={(event) => {
+                  attach(event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+              />
+            </>
+          ) : null}
+          <label htmlFor="composer-text" className="visually-hidden">
+            {draft?.mode === "edit" ? "New text of your message" : "Message"}
+          </label>
+          <input
+            ref={input}
+            id="composer-text"
+            type="text"
+            autoComplete="off"
+            placeholder={file === undefined ? "Write a message…" : "Add a caption…"}
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            onKeyDown={onKeyDown}
+            onPaste={onPaste}
+          />
+          {canRecordHere ? (
+            <button
+              type="button"
+              className="secondary composer-record"
+              aria-label="Record a voice message"
+              disabled={starting || upload !== undefined}
+              onClick={startRecording}
+            >
+              <span aria-hidden="true">🎤</span>
+            </button>
+          ) : (
+            <button type="submit" disabled={upload !== undefined || (text.trim() === "" && (file === undefined || !canAttach))}>
+              {draft?.mode === "edit" ? "Save" : "Send"}
+            </button>
+          )}
+        </form>
+      )}
     </div>
   );
 }

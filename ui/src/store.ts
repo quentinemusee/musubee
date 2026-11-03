@@ -53,6 +53,14 @@ export interface State {
   upload?: UploadState;
 }
 
+/** How sendMedia sends a file. */
+export interface SendMediaOptions {
+  /** A voice message the user recorded. */
+  voice?: boolean;
+  /** Its duration, when known. */
+  durationMs?: number;
+}
+
 export interface UploadState {
   conversationId: string;
   name: string;
@@ -343,13 +351,16 @@ export class Store {
    * network takes that kind, as a file otherwise. Resolves with whether it
    * was sent; a problem shows as the app's error.
    */
-  async sendMedia(file: File, caption: string, answered?: string): Promise<boolean> {
+  async sendMedia(file: File, caption: string, answered?: string, options: SendMediaOptions = {}): Promise<boolean> {
     const conversationId = this.#state.selected;
     if (conversationId === undefined || this.#state.upload !== undefined) {
       return false;
     }
     const conversation = this.#state.conversations.find((c) => c.conversation_id === conversationId);
-    const choice = sendChoice(file.type, conversation?.actions?.media);
+    const media = conversation?.actions?.media;
+    // A recorded voice message goes as one where the network takes them,
+    // as audio (or a file) otherwise.
+    const choice = options.voice === true && media?.voice !== undefined ? { kind: "voice" as const, action: media.voice } : sendChoice(file.type, media);
     const problem = sendProblem(file.size, choice, caption !== "");
     if (choice === null || problem !== null) {
       this.#set({ error: problem ?? "This conversation does not take files." });
@@ -369,6 +380,7 @@ export class Store {
         file_name: file.name || "file",
         ...(caption === "" ? {} : { caption }),
         ...(size === undefined ? {} : size),
+        ...(options.durationMs === undefined ? {} : { duration_ms: Math.round(options.durationMs) }),
         ...(answered === undefined ? {} : { reply_to: answered }),
       });
       uploadId = undefined;
@@ -545,6 +557,11 @@ export class Store {
         ids.has(c.conversation_id) && c.person_id !== person.person_id ? { ...c, person_id: person.person_id } : c,
       ),
     });
+  }
+
+  /** Shows a problem to the user, in their words. */
+  showError(error: string): void {
+    this.#set({ error });
   }
 
   dismissError(): void {

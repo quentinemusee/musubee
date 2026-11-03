@@ -7,8 +7,9 @@
 //
 // Security (apps/desktop/README.md): every window is sandboxed with context
 // isolation and no Node integration; the page may not navigate, open
-// windows, embed web views or get permissions; only the main frame of our
-// own windows, on our own origin, may talk to the core.
+// windows, embed web views or get any permission but the microphone; only
+// the main frame of our own windows, on our own origin, may talk to the
+// core.
 
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -17,6 +18,7 @@ import { app, BrowserWindow, ipcMain, protocol, safeStorage, session, type IpcMa
 import { APP_ORIGIN, APP_SCHEME, APP_URL, serveAppFile } from "./app-protocol.js";
 import { CoreKeyError, CoreKeyLostError, loadCoreKey } from "./core-key.js";
 import { CoreProcess, type CoreStatus } from "./core-process.js";
+import { allowCheck, allowRequest } from "./permissions.js";
 import { RequestValidator } from "./ipc.js";
 import { setAside } from "./start-over.js";
 
@@ -173,8 +175,9 @@ function main(): void {
 
   void app.whenReady().then(async () => {
     protocol.handle(APP_SCHEME, (request) => serveAppFile(uiRoot, request.url));
-    session.defaultSession.setPermissionRequestHandler((_, __, callback) => callback(false));
-    session.defaultSession.setPermissionCheckHandler(() => false);
+    // The microphone only, to record voice messages (permissions.ts).
+    session.defaultSession.setPermissionRequestHandler((_, permission, callback, details) => callback(allowRequest(permission, details)));
+    session.defaultSession.setPermissionCheckHandler((_, permission, origin, details) => allowCheck(permission, origin, details));
     startCore(core, coreDataDir);
     app.on("activate", () => {
       if (windows.size === 0) {

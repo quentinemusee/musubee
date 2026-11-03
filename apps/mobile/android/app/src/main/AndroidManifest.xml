@@ -64,4 +64,9 @@ SPDX-License-Identifier: MIT AND AGPL-3.0-or-later
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- Android 13+: without it, the service's notification is hidden. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Voice messages (docs/ADR/0038): Capacitor's BridgeWebChromeClient asks
+         for both when the page asks for the microphone. No camera: a page
+         asking for it is refused. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 </manifest>

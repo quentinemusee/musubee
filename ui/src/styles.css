@@ -968,3 +968,36 @@ button.flow:hover:not(:disabled) {
 .composer-attach {
   min-width: 40px;
 }
+
+/* The composer while a voice message is recorded (T2.22). */
+.composer-recording {
+  align-items: center;
+}
+
+.recording-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-error);
+}
+
+.recording-time {
+  flex: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.composer-record {
+  min-width: 40px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .recording-dot {
+    animation: recording-pulse 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes recording-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
