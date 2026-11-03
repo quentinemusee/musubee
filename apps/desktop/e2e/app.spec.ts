@@ -589,6 +589,22 @@ test("a web address in a message is a link", async () => {
   await app.close();
 });
 
+test("the thread marks where the unread messages start", async () => {
+  const { app, page } = await launch(newDataDir());
+  await addEchoAccount(page, "divider");
+  await page.getByRole("button", { name: "Delayed Echo" }).click();
+  await page.getByRole("textbox", { name: "Message" }).fill("answer later");
+  await page.getByRole("button", { name: "Send" }).click();
+  // Away while Delayed Echo answers.
+  await page.getByRole("button", { name: "Instant Echo" }).click();
+  await expect(page.getByRole("button", { name: "Delayed Echo" })).toHaveAccessibleDescription(/1 unread message/, { timeout: 10_000 });
+  await page.getByRole("button", { name: "Delayed Echo" }).click();
+  const divider = page.locator(".unread-divider");
+  await expect(divider).toHaveText("New messages");
+  await expect(divider.locator("xpath=..")).toContainText("answer later");
+  await app.close();
+});
+
 test("a group shows its members", async () => {
   const { app, page } = await launch(newDataDir());
   await addEchoAccount(page, "members");

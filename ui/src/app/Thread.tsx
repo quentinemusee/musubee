@@ -6,7 +6,7 @@ import type { ConversationActions, MediaActions, Message } from "../core-api/typ
 import { accepts, formatSize } from "../media";
 import { canRecord, VoiceRecorder, type Recording } from "../recorder";
 import { accountLabel } from "../merge";
-import { replyQuote, replyTo, seenLabel, typingText } from "../message";
+import { firstUnread, replyQuote, replyTo, seenLabel, typingText } from "../message";
 import { accentKey } from "../conversation-accent";
 import { AccentButton } from "./AccentButton";
 import { SEARCH_FIELD_ID } from "./Shortcuts";
@@ -79,6 +79,15 @@ export function Thread() {
   // The conversation whose person panel is open, if any: it closes when
   // another conversation is selected.
   const [panelFor, setPanelFor] = useState<string | undefined>(undefined);
+  // How many messages were unread when the thread opened, for the "New
+  // messages" divider (T2.69): reading the thread clears the count soon.
+  const [opened, setOpened] = useState<{ conversation: string | undefined; unread: number }>({
+    conversation: selected,
+    unread: conversation?.unread_count ?? 0,
+  });
+  if (opened.conversation !== selected) {
+    setOpened({ conversation: selected, unread: conversation?.unread_count ?? 0 });
+  }
   // The conversation whose "More…" actions are shown (T2.62).
   const [moreFor, setMoreFor] = useState<string | undefined>(undefined);
   const moreId = useId();
@@ -302,6 +311,7 @@ export function Thread() {
         handlers={handlers}
         together={view?.list}
         seen={seenLabels}
+        firstUnread={view === undefined ? firstUnread(messages, opened.unread) : undefined}
       />
       <TypingLine conversationId={selected} />
       <Composer

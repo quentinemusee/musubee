@@ -191,3 +191,25 @@ export function seenLabel(names: readonly string[], group: boolean): string {
   return `Seen by ${named.length === 1 ? named[0] : `${named.slice(0, -1).join(", ")} and ${named.at(-1)}`}`;
 }
 
+/**
+ * The first of a conversation's unread messages, for the "New messages"
+ * divider (T2.69): the count-th last message of others that is not
+ * deleted, as the core counts them (docs/ADR/0023); undefined when none,
+ * or when the messages read so far do not reach it.
+ */
+export function firstUnread(messages: readonly Message[], count: number): string | undefined {
+  if (count <= 0) {
+    return undefined;
+  }
+  let seen = 0;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]!;
+    if (!message.from_me && message.deleted !== true) {
+      seen++;
+      if (seen === count) {
+        return message.message_id;
+      }
+    }
+  }
+  return undefined;
+}

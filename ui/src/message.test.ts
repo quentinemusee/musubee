@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "vitest";
 import type { Message } from "./core-api/types.gen";
-import { canForward, hasActions, isReactionKey, seenLabel, typingText, messageActions, MORE_REACTIONS, ownReaction, reactionLabel, replyQuote, replyTo, sameEmoji } from "./message";
+import { canForward, firstUnread, hasActions, isReactionKey, seenLabel, typingText, messageActions, MORE_REACTIONS, ownReaction, reactionLabel, replyQuote, replyTo, sameEmoji } from "./message";
 
 describe("reactionLabel", () => {
   test("says who reacted", () => {
@@ -150,4 +150,26 @@ describe("ownReaction", () => {
     expect(sameEmoji("❤️", "❤")).toBe(true);
     expect(sameEmoji("❤️", "👍")).toBe(false);
   });
+});
+
+const unreadTestMessage = (id: string, from_me: boolean, deleted = false): Message => ({
+  message_id: id,
+  conversation_id: "c1",
+  from_me,
+  sender_name: "",
+  timestamp_ms: 1,
+  kind: "text",
+  text: deleted ? "" : id,
+  status: from_me ? "sent" : "received",
+  ...(deleted ? { deleted: true } : {}),
+});
+
+test("firstUnread: the count-th last message of others, deleted ones not counted", () => {
+  const m = unreadTestMessage;
+  const messages = [m("a", false), m("b", true), m("c", false), m("d", false, true), m("e", false)];
+  expect(firstUnread(messages, 1)).toBe("e");
+  expect(firstUnread(messages, 2)).toBe("c");
+  expect(firstUnread(messages, 3)).toBe("a");
+  expect(firstUnread(messages, 4)).toBeUndefined();
+  expect(firstUnread(messages, 0)).toBeUndefined();
 });

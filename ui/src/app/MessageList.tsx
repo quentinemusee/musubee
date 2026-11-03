@@ -31,6 +31,8 @@ export interface MessageListProps {
   together?: { actions: Readonly<Record<string, ConversationActions | undefined>>; via: Readonly<Record<string, string>> } | undefined;
   /** By message ID: what the user's read messages say instead of "Sent" (API 1.21). */
   seen?: Readonly<Record<string, string>> | undefined;
+  /** The first message that was unread when the thread opened: "New messages" goes above it. */
+  firstUnread?: string | undefined;
 }
 
 /**
@@ -62,7 +64,7 @@ function shownOf(messages: readonly Message[], shift: boolean, news: Message | u
  * the top, and keeps the message being read in place when they arrive.
  * Render one per conversation (key it by conversation ID).
  */
-export function MessageList({ messages, history, onOlder, labelledBy, onBottomChange, actions, handlers, together, seen }: MessageListProps) {
+export function MessageList({ messages, history, onOlder, labelledBy, onBottomChange, actions, handlers, together, seen, firstUnread }: MessageListProps) {
   const ref = useRef<VListHandle>(null);
   const atBottom = useRef(true);
 
@@ -162,6 +164,7 @@ export function MessageList({ messages, history, onOlder, labelledBy, onBottomCh
               handlers={handlers}
               seen={seen?.[message.message_id]}
               highlighted={message.message_id === highlighted}
+              unreadFromHere={message.message_id === firstUnread}
             />
           ) : (
             <MessageRow

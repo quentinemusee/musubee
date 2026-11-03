@@ -374,6 +374,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.68 — Pause notifications** (E2.6)
 - Outcome: **implemented, unverified** (cloud sprint, no test run; the Kotlin not compiled). An hour, eight hours or until tomorrow morning, kept by the shells next to the preview (ADR 0067). 🧪 `apps/desktop/test/notification-settings.test.ts`, `ui/src/capacitor.test.ts`, `ui/src/notification-preview.test.ts`, the desktop e2e "the user chooses what notifications show". By hand on Android.
 
+**T2.69 — "New messages" in the thread** (E2.4)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). Opening a conversation with unread messages shows "New messages" above the first of them: the thread keeps the unread count it opened with, and counts back over others' messages that are not deleted, as the core does (ADR 0023). 🧪 `ui/src/message.test.ts` (`firstUnread`), the desktop e2e "the thread marks where the unread messages start".
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).
