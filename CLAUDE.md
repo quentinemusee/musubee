@@ -428,3 +428,11 @@ recorder:           cd ui && npx vitest run src/recorder.test.ts src/media.test.
 desktop permission: cd apps/desktop && npx vitest run test/permissions.test.ts
 voice in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "voice message and sends"
 ```
+
+To verify in the test session: T2.23 (cloud sprint, no test run; see ADR 0039):
+
+```
+privacy (core):     go test -tags=goolm -count=1 -run 'Privacy' -v ./core/embedded/
+privacy (ui):       cd ui && npx vitest run src/privacy.test.ts src/core-api/contract.test.ts
+privacy in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "who can read"
+```

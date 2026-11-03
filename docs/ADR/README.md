@@ -48,3 +48,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0036](0036-receiving-media.md) | Receiving media: bytes read in parts through the API, shown from Blobs of safe types only | accepted | T2.20 |
 | [0037](0037-sending-media.md) | Sending media: uploads in parts kept in the core's memory, kinds from the network's room features | accepted | T2.21 |
 | [0038](0038-voice-messages.md) | Recording voice messages: MediaRecorder in the page, the microphone the only permission, the container the network takes | accepted | T2.22 |
+| [0039](0039-honest-privacy-indicators.md) | Honest privacy indicators: the core says who can read each conversation, unknown is never safe | accepted | T2.23 |
