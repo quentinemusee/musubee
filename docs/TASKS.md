@@ -335,6 +335,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.54 — Keyboard shortcuts** (E2.3)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). Ctrl+K (Cmd+K) focuses the search; Alt+Up and Alt+Down move between conversations (ADR 0058). 🧪 `ui/src/shortcuts.test.ts`, the desktop e2e "keyboard shortcuts". Left: a list of the shortcuts in the app.
 
+**T2.55 — Mark all read** (E2.3)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). "Mark all read" above the inbox while a conversation is unread: each read on the network as one conversation is (ADR 0023). 🧪 `ui/src/store.test.ts` ("marks every unread conversation read": `cd ui && npx vitest run src/store.test.ts`).
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

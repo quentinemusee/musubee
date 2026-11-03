@@ -1426,3 +1426,10 @@ button.flow:hover:not(:disabled) {
   color: var(--color-accent);
   font-style: italic;
 }
+
+.inbox-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space);
+}

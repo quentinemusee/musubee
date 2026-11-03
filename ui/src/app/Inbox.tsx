@@ -26,6 +26,7 @@ export function Inbox() {
   const now = useNow();
 
   const entries = useMemo(() => inboxEntries(conversations, persons), [conversations, persons]);
+  const anyUnread = entries.some((e) => e.unread > 0 || e.markedUnread);
   const networkNames = useMemo(() => new Map(networks.map((n) => [n.network_id, n.name])), [networks]);
   const current = entryOf(entries, selected)?.key;
 
@@ -40,7 +41,14 @@ export function Inbox() {
 
   return (
     <section className="inbox" aria-labelledby="conversations-title">
-      <h2 id="conversations-title">Conversations</h2>
+      <div className="inbox-header">
+        <h2 id="conversations-title">Conversations</h2>
+        {anyUnread ? (
+          <button type="button" className="secondary" onClick={() => void store.markAllRead()}>
+            Mark all read
+          </button>
+        ) : null}
+      </div>
       {entries.length === 0 ? (
         <p className="empty">No conversations yet.</p>
       ) : (

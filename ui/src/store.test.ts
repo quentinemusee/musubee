@@ -396,6 +396,28 @@ describe("Store", () => {
     expect(store.getState().error).toBeUndefined();
   });
 
+  test("marks every unread conversation read", async () => {
+    const calls: unknown[] = [];
+    const shell = scriptedShell({
+      ...coreState([
+        { ...conversation("c1", "Adam", 3), unread_count: 2 },
+        conversation("c2", "Bea", 2),
+        { ...conversation("c3", "Cy", 1), marked_unread: true },
+      ]),
+      "conversations.markRead": (params) => {
+        calls.push(params);
+        return {};
+      },
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    await store.markAllRead();
+    expect(calls).toEqual([{ conversation_id: "c1" }, { conversation_id: "c3" }]);
+    expect(store.getState().conversations.some((c) => c.unread_count !== undefined || c.marked_unread !== undefined)).toBe(false);
+  });
+
   test("reports a failed mark as read", async () => {
     const shell = scriptedShell(coreState([{ ...conversation("c1", "Adam", 1), unread_count: 1 }]));
     const store = new Store(shell.core);

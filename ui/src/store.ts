@@ -585,6 +585,14 @@ export class Store {
     }
   }
 
+  /** Marks every unread conversation the inbox has read as read, one after another. */
+  async markAllRead(): Promise<void> {
+    const unread = this.#state.conversations.filter((c) => (c.unread_count ?? 0) > 0 || c.marked_unread === true).map((c) => c.conversation_id);
+    for (const conversationId of unread) {
+      await this.markRead(conversationId);
+    }
+  }
+
   async markRead(conversationId: string): Promise<void> {
     const conversations = this.#state.conversations;
     const index = conversations.findIndex((c) => c.conversation_id === conversationId);
