@@ -344,6 +344,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 **T2.57 — Copy a message's text** (E2.4)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). "Copy text" in a message's menu writes its latest text to the clipboard. 🧪 none automated (the clipboard needs a focused window): to try by hand in the desktop and Android apps.
 
+**T2.58 — Archive conversations** (E2.3)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.31 `conversations.archive` and `Conversation.archived` (ADR 0060): on the device, brought back by a new message unless muted; "Archived (n)" in the inbox. 🧪 `TestArchive`, `ui/src/store.test.ts`, `ui/src/inbox.test.ts`, the desktop e2e "an archived conversation leaves the inbox".
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

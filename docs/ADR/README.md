@@ -69,3 +69,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0057](0057-drafts.md) | Drafts: kept by the core with the messages, saved a moment after typing | accepted | T2.52 |
 | [0058](0058-keyboard-shortcuts.md) | Keyboard shortcuts: few, conventional, and never in a dialog's way | accepted | T2.54 |
 | [0059](0059-unread-badge.md) | The unread count on the desktop app's icon: counted by the main process | accepted | T2.56 |
+| [0060](0060-archiving-conversations.md) | Archiving conversations: on the device, brought back by new messages unless muted | accepted | T2.58 |

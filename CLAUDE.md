@@ -601,3 +601,12 @@ To verify in the test session: T2.54 (cloud sprint, no test run; see ADR 0058):
 shortcuts (ui):     cd ui && npx vitest run src/shortcuts.test.ts
 shortcuts in app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "keyboard shortcuts"
 ```
+
+To verify in the test session: T2.55 to T2.58 (cloud sprint, no test run; see ADR 0059 and 0060):
+
+```
+archive (core):     go test -tags=goolm -count=1 -run 'Archive' -v ./core/embedded/
+inbox (ui):         cd ui && npx vitest run src/store.test.ts src/inbox.test.ts      (mark all read, archive, drafts)
+icon count:         cd apps/desktop && npx vitest run test/notification-rules.test.ts
+archive in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "archived conversation"
+```
