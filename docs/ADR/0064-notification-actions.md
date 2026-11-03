@@ -42,5 +42,5 @@ Both actions require the device to be unlocked (`setAuthenticationRequired`). Ot
 
 | Claim | Status | Evidence |
 |---|---|---|
-| The Kotlin compiles | **unknown** (no Android SDK in the cloud session) | `./gradlew :app:assembleDebug` |
+| The app's Kotlin compiles | **verified** (cloud session, 2026-11-03: `./gradlew :app:compileDebugKotlin -Pmusubee.abis=x86_64 -x buildCore-x86_64` with Android SDK 36, the Go core left out) | |
 | Reply and Mark as read work from a notification, and ask to unlock first | **unknown** (to try by hand on the Pixel 8 Pro) | |

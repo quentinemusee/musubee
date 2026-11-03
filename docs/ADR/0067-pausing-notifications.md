@@ -44,4 +44,5 @@ Quiet hours every night are a later option. A pause that ends by itself covers t
 | The mobile shell reads and keeps it through the plugin | **implemented, unverified** | `ui/src/capacitor.test.ts` |
 | The choices' times | **implemented, unverified** | `ui/src/notification-preview.test.ts` |
 | The desktop app pauses, keeps it after a restart, and resumes | **implemented, unverified** | `apps/desktop/e2e/app.spec.ts`, "the user chooses what notifications show" |
-| Android notifications wait | **unknown** (to try by hand; the Kotlin is not compiled in the cloud session) | |
+| The app's Kotlin compiles | **verified** (`:app:compileDebugKotlin`, as in ADR 0064) | |
+| Android notifications wait | **unknown** (to try by hand) | |

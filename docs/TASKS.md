@@ -360,7 +360,7 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 - Outcome: **implemented, unverified** (cloud sprint, no test run). The header keeps the name, "Mute…" and "Person…"; "More…" holds Mark unread, Pin, Color…, Archive, Members…, Leave… and Delete…, and Escape closes it. 🧪 the desktop e2e tests of those actions open it first.
 
 **T2.64 — Reply and mark read from an Android notification** (E2.6)
-- Outcome: **implemented, not compiled** (cloud sprint, no Android SDK). "Reply" (inline text) and "Mark as read" on message notifications, handled by `CoreService`, after unlocking (ADR 0064). 🧪 by hand: build, then reply to an echo contact from a notification on the Pixel 8 Pro, locked and unlocked.
+- Outcome: **implemented, unverified; the app's Kotlin compiles** (cloud session, `:app:compileDebugKotlin` without the Go core). "Reply" (inline text) and "Mark as read" on message notifications, handled by `CoreService`, after unlocking (ADR 0064). 🧪 by hand: build, then reply to an echo contact from a notification on the Pixel 8 Pro, locked and unlocked.
 
 **T2.65 — Search one conversation** (E2.4)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). "Search here" in the thread's "More…" limits the search to the conversation (API 1.17's `conversation_id`); "In Alice ✕" above the field searches every conversation again. 🧪 `ui/src/store.test.ts` ("searches one conversation").
@@ -372,7 +372,7 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 - Outcome: **implemented, unverified** (cloud sprint, no test run). http and https addresses are links, shown as written (ADR 0066); the desktop opens them through the main process in the system's browser, Android through the WebView's default. 🧪 `ui/src/links.test.ts`, `apps/desktop/test/external-links.test.ts`, the desktop e2e "a web address in a message is a link" and "the interface is isolated". By hand: a link on Android.
 
 **T2.68 — Pause notifications** (E2.6)
-- Outcome: **implemented, unverified** (cloud sprint, no test run; the Kotlin not compiled). An hour, eight hours or until tomorrow morning, kept by the shells next to the preview (ADR 0067). 🧪 `apps/desktop/test/notification-settings.test.ts`, `ui/src/capacitor.test.ts`, `ui/src/notification-preview.test.ts`, the desktop e2e "the user chooses what notifications show". By hand on Android.
+- Outcome: **implemented, unverified** (cloud sprint, no test run; the app's Kotlin compiles). An hour, eight hours or until tomorrow morning, kept by the shells next to the preview (ADR 0067). 🧪 `apps/desktop/test/notification-settings.test.ts`, `ui/src/capacitor.test.ts`, `ui/src/notification-preview.test.ts`, the desktop e2e "the user chooses what notifications show". By hand on Android.
 
 **T2.69 — "New messages" in the thread** (E2.4)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). Opening a conversation with unread messages shows "New messages" above the first of them: the thread keeps the unread count it opened with, and counts back over others' messages that are not deleted, as the core does (ADR 0023). 🧪 `ui/src/message.test.ts` (`firstUnread`), the desktop e2e "the thread marks where the unread messages start".
