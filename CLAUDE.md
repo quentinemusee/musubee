@@ -659,3 +659,10 @@ To verify in the test session: T2.68 (cloud sprint, no test run; see ADR 0067). 
 pause (shells):     cd apps/desktop && npx vitest run test/notification-settings.test.ts      (ui: npx vitest run src/capacitor.test.ts src/notification-preview.test.ts)
 pause in the app:   cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "what notifications show"
 ```
+
+To verify in the test session: T2.62, T2.63 and T2.69 (cloud sprint, no test run; interface only):
+
+```
+ui units:           cd ui && npx vitest run src/message.test.ts src/shortcuts.test.ts
+thread in the app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "unread messages start|pinned|archived|deletes a conversation|leaves a group|its own color|shows its members"
+```
