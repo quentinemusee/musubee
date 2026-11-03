@@ -225,6 +225,12 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 - 🧪 Test: the core's levels per network and through the API; the Synapse journey (an encrypted room); contract examples; Vitest for the wording; a desktop Playwright journey.
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.12: `Account.connection` and `Conversation.privacy` (`end_to_end`, `network_can_read` with who reads, `bridge_can_read`, `device_only`, `unknown`), from what each network is: Signal end-to-end, Telegram readable by Telegram (mautrix-telegram has no secret chats), Matrix per room's encryption, echo on the device (ADR 0039). The thread shows a label under its header that opens its explanation; only end-to-end encryption on the device and the test network reassure. Also fixed: the Synapse journey expected Matrix actions without media, which T2.21 added. Left: metadata in the explanation, key backup and recovery (the rest of E2.8).
 
+**T2.24 — Themes, accent colors and text size** (E2.7)
+- Deliverable: the user chooses the app's theme (system, light, dark), accent color and text size, in every view, on every platform.
+- Acceptance: every accent keeps text readable (4.5:1); the choice applies at once and stays after a restart; the app never flashes in another theme.
+- 🧪 Test: Vitest for reading, writing and applying the appearance; a desktop Playwright journey through a restart.
+- Outcome: **implemented, unverified** (cloud sprint, no test run). Data attributes on the root element select the design tokens of `styles.css` (ADR 0040): accents are light and dark pairs (contrasts computed, all at least 4.5:1), font sizes are multiples of a text unit, the dark theme follows the system unless chosen. The choice is kept per device in the page's storage and applied before the first render; an "Appearance" dialog in the header changes it. Left: layout options (density, inbox width), custom colors, syncing settings between devices.
+
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.
 - **E2.2** Onboarding without Matrix jargon, account management, network connection flows (QR, codes).

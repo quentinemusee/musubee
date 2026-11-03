@@ -436,3 +436,10 @@ privacy (core):     go test -tags=goolm -count=1 -run 'Privacy' -v ./core/embedd
 privacy (ui):       cd ui && npx vitest run src/privacy.test.ts src/core-api/contract.test.ts
 privacy in the app: cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "who can read"
 ```
+
+To verify in the test session: T2.24 (cloud sprint, no test run; see ADR 0040):
+
+```
+appearance (ui):    cd ui && npx vitest run src/appearance.test.ts
+appearance in app:  cd apps/desktop && npm run build && npx playwright test app.spec.ts -g "picks a theme"
+```
