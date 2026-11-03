@@ -85,7 +85,7 @@
     { "target": "command:conversations.list:result", "value": { "conversations": [
       { "conversation_id": "c2", "account_id": "a1", "network_id": "echo", "name": "Family", "kind": "group", "activity_ms": 1791496000000, "unread_count": 3,
         "actions": { "reply": true, "react": true, "edit": true, "delete": true } },
-      { "conversation_id": "c3", "account_id": "a1", "network_id": "echo", "name": "Delayed Echo", "kind": "direct", "activity_ms": 1791495000000, "marked_unread": true, "pinned": true, "muted_until_ms": -1 }
+      { "conversation_id": "c3", "account_id": "a1", "network_id": "echo", "name": "Delayed Echo", "kind": "direct", "activity_ms": 1791495000000, "marked_unread": true, "draft": "see you", "pinned": true, "muted_until_ms": -1 }
     ] } },
 
     { "target": "command:conversations.markRead:params", "value": { "conversation_id": "c1" } },
@@ -159,6 +159,9 @@
     { "target": "command:conversations.delete:result", "value": {} },
     { "target": "command:conversations.leave:params", "value": { "conversation_id": "c5" } },
     { "target": "command:conversations.leave:result", "value": {} },
+    { "target": "command:conversations.setDraft:params", "value": { "conversation_id": "c1", "text": "half a thought" } },
+    { "target": "command:conversations.setDraft:params", "value": { "conversation_id": "c1", "text": "" } },
+    { "target": "command:conversations.setDraft:result", "value": {} },
     { "target": "command:conversations.members:params", "value": { "conversation_id": "c1" } },
     { "target": "command:conversations.members:result", "value": { "members": [{ "name": "Ada", "me": true }, { "name": "Bob" }, { "name": "" }] } },
     { "target": "event:conversation.deleted", "value": { "conversation_id": "c1" } },

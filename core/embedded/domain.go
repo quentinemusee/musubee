@@ -245,6 +245,9 @@ func (c *Core) conversation(ctx context.Context, activity *localmatrix.RoomActiv
 	conv.MarkedUnread = read.MarkedUnread
 	conv.MutedUntilMS = mutedUntil(read.MutedUntil, time.Now())
 	conv.Pinned = read.Pinned
+	if conv.Draft, err = c.host.Matrix.Draft(ctx, room.ID); err != nil {
+		return nil, err
+	}
 	if conv.Seen, err = c.seen(ctx, room.ID); err != nil {
 		return nil, err
 	}
@@ -333,6 +336,16 @@ func (c *Core) conversationsMute(ctx context.Context, p api.ConversationsMutePar
 		return api.Empty{}, err
 	}
 	return api.Empty{}, c.host.Matrix.Mute(ctx, roomID, p.UntilMS)
+}
+
+// conversationsSetDraft keeps the text left unsent in a conversation
+// (API 1.30, docs/ADR/0057).
+func (c *Core) conversationsSetDraft(ctx context.Context, p api.ConversationsSetDraftParams) (api.Empty, error) {
+	roomID, err := c.room(ctx, p.ConversationID)
+	if err != nil {
+		return api.Empty{}, err
+	}
+	return api.Empty{}, c.host.Matrix.SetDraft(ctx, roomID, p.Text)
 }
 
 // conversationsPin pins or unpins a conversation (API 1.24,

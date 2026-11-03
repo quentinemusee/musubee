@@ -16,6 +16,9 @@ import { mergePlan } from "./merge";
 import { replyTo } from "./message";
 import type { CoreStatus, ShellCore } from "./shell";
 
+/** How long the user stops typing before a draft is saved in the core (docs/ADR/0057). */
+export const DRAFT_SAVE_DELAY_MS = 1000;
+
 export interface State {
   status: CoreStatus;
   /** Set once the state was read from the core since it last started. */
@@ -135,24 +138,35 @@ export class Store {
   readonly #reading = new Set<string>();
 
   /**
-   * What the user wrote and did not send, by conversation: kept while the
-   * app runs, never stored (unsent text stays off the disk). Not state:
-   * nothing renders it but the composer that wrote it.
+   * What the user wrote and did not send, by conversation, as they left it
+   * ("" once cleared). Not state: nothing renders it but the composer that
+   * wrote it. Since API 1.30 the core keeps it too (docs/ADR/0057), saved
+   * a moment after the user stops typing, and gives it back after a
+   * restart in Conversation.draft.
    */
   readonly #drafts = new Map<string, string>();
+  readonly #draftTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   /** The text the user left in a conversation's composer, or "". */
   draftOf(conversationId: string): string {
-    return this.#drafts.get(conversationId) ?? "";
+    return this.#drafts.get(conversationId) ?? this.#state.conversations.find((c) => c.conversation_id === conversationId)?.draft ?? "";
   }
 
-  /** Keeps (or forgets, when empty) the text left in a conversation's composer. */
+  /** Keeps (or clears, when empty) the text left in a conversation's composer, and saves it in the core shortly. */
   keepDraft(conversationId: string, text: string): void {
-    if (text === "") {
-      this.#drafts.delete(conversationId);
-    } else {
-      this.#drafts.set(conversationId, text);
+    if (this.draftOf(conversationId) === text) {
+      return;
     }
+    this.#drafts.set(conversationId, text);
+    clearTimeout(this.#draftTimers.get(conversationId));
+    this.#draftTimers.set(
+      conversationId,
+      setTimeout(() => {
+        this.#draftTimers.delete(conversationId);
+        // A draft is a convenience: a failure loses it at the next restart only.
+        this.client.call("conversations.setDraft", { conversation_id: conversationId, text }).catch(() => undefined);
+      }, DRAFT_SAVE_DELAY_MS),
+    );
   }
 
   /** The persons the user reads together (docs/ADR/0042), remembered per device. */

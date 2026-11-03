@@ -3,7 +3,7 @@
   "$id": "https://musubee.invalid/core-api/v1/core-api.schema.json",
   "title": "Musubee core API",
   "description": "Contract between the Musubee core and its user interfaces (docs/ADR/0012-core-api-contract.md). Requests, responses and events are JSON documents in UTF-8. $defs/Commands lists every command with its params and result, $defs/Events every event with its data. Every object is exact for this version (additionalProperties: false), but consumers must ignore fields, event types and enum values they do not know: a newer core may send them.",
-  "x-musubee-api-version": "1.29",
+  "x-musubee-api-version": "1.30",
   "$defs": {
     "Request": {
       "description": "Envelope of a request sent to the core.",
@@ -233,6 +233,16 @@
           "type": "object",
           "properties": {
             "params": { "$ref": "#/$defs/ConversationsLeaveParams" },
+            "result": { "$ref": "#/$defs/Empty" }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "conversations.setDraft": {
+          "description": "Keeps the text the user left unsent in a conversation's composer, on this device only (an empty text forgets it): the network never sees it. Sent again in Conversation.draft, but no conversation.updated event follows: the interface that wrote it knows it. Since API 1.30.",
+          "type": "object",
+          "properties": {
+            "params": { "$ref": "#/$defs/ConversationsSetDraftParams" },
             "result": { "$ref": "#/$defs/Empty" }
           },
           "required": ["params", "result"],
@@ -929,6 +939,10 @@
           "description": "The user marked the conversation as unread (on another device, for now); reading it clears the flag. Omitted when false. Since API 1.4.",
           "type": "boolean"
         },
+        "draft": {
+          "description": "The text the user left unsent in the conversation's composer (conversations.setDraft). Omitted when none. Since API 1.30.",
+          "type": "string"
+        },
         "pinned": {
           "description": "The user pinned the conversation at the top of the inbox. Omitted when false. Since API 1.24.",
           "type": "boolean"
@@ -1105,6 +1119,15 @@
         "conversation_id": { "type": "string" }
       },
       "required": ["conversation_id"],
+      "additionalProperties": false
+    },
+    "ConversationsSetDraftParams": {
+      "type": "object",
+      "properties": {
+        "conversation_id": { "type": "string" },
+        "text": { "type": "string", "maxLength": 65536 }
+      },
+      "required": ["conversation_id", "text"],
       "additionalProperties": false
     },
     "ConversationsMembersParams": {

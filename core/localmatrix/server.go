@@ -999,3 +999,25 @@ func (s *Server) ForgetRoom(ctx context.Context, roomID id.RoomID) error {
 	s.publish(Update{RoomDeleted: roomID})
 	return nil
 }
+
+// draft is the account data that keeps the text the user left unsent in a
+// room (docs/ADR/0057).
+type draft struct {
+	Text string `json:"text"`
+}
+
+// SetDraft keeps the text the user left unsent in a room ("" forgets it),
+// on this device only: no bridge sees it.
+func (s *Server) SetDraft(ctx context.Context, roomID id.RoomID, text string) error {
+	if _, err := s.store.getRoom(ctx, roomID); err != nil {
+		return err
+	}
+	return s.store.setRoomAccountData(ctx, s.userID, roomID, accountDataDraft, &draft{Text: text})
+}
+
+// Draft returns the text the user left unsent in a room, or "".
+func (s *Server) Draft(ctx context.Context, roomID id.RoomID) (string, error) {
+	var d draft
+	_, err := s.store.getRoomAccountData(ctx, s.userID, roomID, accountDataDraft, &d)
+	return d.Text, err
+}

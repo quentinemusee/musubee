@@ -8,7 +8,7 @@ package api
 import "reflect"
 
 // APIVersion is the version of the contract, "major.minor".
-const APIVersion = "1.29"
+const APIVersion = "1.30"
 
 // Command names.
 const (
@@ -92,6 +92,11 @@ const (
 	// network answered; fails if it refuses or does not answer within 30 seconds.
 	// Since API 1.29.
 	CommandConversationsLeave = "conversations.leave"
+	// Keeps the text the user left unsent in a conversation's composer, on this
+	// device only (an empty text forgets it): the network never sees it. Sent
+	// again in Conversation.draft, but no conversation.updated event follows: the
+	// interface that wrote it knows it. Since API 1.30.
+	CommandConversationsSetDraft = "conversations.setDraft"
 	// Lists who is in a conversation, as this device knows it: the user first,
 	// then the others by name. The network's bridge is not a member. Since API
 	// 1.27.
@@ -255,6 +260,7 @@ var Commands = []CommandSpec{
 	{Name: CommandConversationsPin, Params: reflect.TypeFor[ConversationsPinParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsDelete, Params: reflect.TypeFor[ConversationsDeleteParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsLeave, Params: reflect.TypeFor[ConversationsLeaveParams](), Result: reflect.TypeFor[Empty]()},
+	{Name: CommandConversationsSetDraft, Params: reflect.TypeFor[ConversationsSetDraftParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandConversationsMembers, Params: reflect.TypeFor[ConversationsMembersParams](), Result: reflect.TypeFor[ConversationsMembersResult]()},
 	{Name: CommandConversationsMarkRead, Params: reflect.TypeFor[ConversationsMarkReadParams](), Result: reflect.TypeFor[Empty]()},
 	{Name: CommandMessagesList, Params: reflect.TypeFor[MessagesListParams](), Result: reflect.TypeFor[MessagesListResult]()},
@@ -625,6 +631,9 @@ type Conversation struct {
 	// The user marked the conversation as unread (on another device, for now);
 	// reading it clears the flag. Omitted when false. Since API 1.4.
 	MarkedUnread bool `json:"marked_unread,omitempty"`
+	// The text the user left unsent in the conversation's composer
+	// (conversations.setDraft). Omitted when none. Since API 1.30.
+	Draft string `json:"draft,omitempty"`
 	// The user pinned the conversation at the top of the inbox. Omitted when
 	// false. Since API 1.24.
 	Pinned bool `json:"pinned,omitempty"`
@@ -773,6 +782,13 @@ type ConversationsDeleteParams struct {
 // ConversationsLeaveParams is $defs/ConversationsLeaveParams of the schema.
 type ConversationsLeaveParams struct {
 	ConversationID string `json:"conversation_id"`
+}
+
+// ConversationsSetDraftParams is $defs/ConversationsSetDraftParams of the
+// schema.
+type ConversationsSetDraftParams struct {
+	ConversationID string `json:"conversation_id"`
+	Text           string `json:"text"`
 }
 
 // ConversationsMembersParams is $defs/ConversationsMembersParams of the

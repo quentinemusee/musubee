@@ -427,8 +427,9 @@ test("typing shows the echo contact typing back, then stopping", async () => {
   await app.close();
 });
 
-test("an unsent text waits in its conversation's composer", async () => {
-  const { app, page } = await launch(newDataDir());
+test("an unsent text waits in its conversation's composer, after a restart too", async () => {
+  const dataDir = newDataDir();
+  let { app, page } = await launch(dataDir);
   await addEchoAccount(page, "drafts");
   const composer = page.getByRole("textbox", { name: "Message" });
   await composer.fill("half a thought");
@@ -436,6 +437,13 @@ test("an unsent text waits in its conversation's composer", async () => {
   await expect(composer).toHaveValue("");
   await page.getByRole("button", { name: "Instant Echo" }).click();
   await expect(composer).toHaveValue("half a thought");
+  // The core keeps it a moment after the user stops typing (ADR 0057).
+  await page.waitForTimeout(2000);
+
+  await app.close();
+  ({ app, page } = await launch(dataDir));
+  await page.getByRole("button", { name: "Instant Echo" }).click();
+  await expect(page.getByRole("textbox", { name: "Message" })).toHaveValue("half a thought");
   await app.close();
 });
 

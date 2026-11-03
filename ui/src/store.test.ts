@@ -4,10 +4,10 @@
 // Unit tests of the store, with a scripted shell. The store against the real
 // core is covered by the desktop app's end-to-end tests (apps/desktop/e2e).
 
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import type { Conversation, Message, Person } from "./core-api/types.gen";
 import type { CoreStatus, ShellCore } from "./shell";
-import { INBOX_PAGE, mergeConversations, mergeMessages, OLDER_PAGE, Store } from "./store";
+import { DRAFT_SAVE_DELAY_MS, INBOX_PAGE, mergeConversations, mergeMessages, OLDER_PAGE, Store } from "./store";
 
 function conversation(id: string, name: string, activity?: number): Conversation {
   return { conversation_id: id, account_id: "a1", network_id: "echo", name, kind: "direct", ...(activity === undefined ? {} : { activity_ms: activity }) };
@@ -500,6 +500,44 @@ describe("Store", () => {
     // Unknown: nothing changes.
     shell.emit("conversation.deleted", { conversation_id: "c9" });
     expect(store.getState().conversations).toEqual([]);
+  });
+
+  test("keeps a draft in memory at once, in the core after a pause, and reads the core's after a restart", async () => {
+    const saved: unknown[] = [];
+    const shell = scriptedShell({
+      ...coreState([{ ...conversation("c1", "Adam", 1), draft: "from last time" }, conversation("c2", "Bea", 0)]),
+      "conversations.setDraft": (params) => {
+        saved.push(params);
+        return {};
+      },
+    });
+    const store = new Store(shell.core);
+    store.start();
+    shell.status({ state: "ready" });
+    await settle();
+    expect(store.draftOf("c1")).toBe("from last time");
+    expect(store.draftOf("c2")).toBe("");
+
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      store.keepDraft("c2", "h");
+      store.keepDraft("c2", "hello");
+      expect(store.draftOf("c2")).toBe("hello");
+      vi.advanceTimersByTime(DRAFT_SAVE_DELAY_MS - 1);
+      expect(saved).toEqual([]);
+      vi.advanceTimersByTime(1);
+      // Cleared: "" replaces the core's draft.
+      store.keepDraft("c1", "");
+      expect(store.draftOf("c1")).toBe("");
+      vi.advanceTimersByTime(DRAFT_SAVE_DELAY_MS);
+    } finally {
+      vi.useRealTimers();
+    }
+    await settle();
+    expect(saved).toEqual([
+      { conversation_id: "c2", text: "hello" },
+      { conversation_id: "c1", text: "" },
+    ]);
   });
 
   test("reads older messages page by page, one page at a time", async () => {
