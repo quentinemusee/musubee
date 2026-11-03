@@ -321,7 +321,7 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.27 `conversations.members`: the room's joined members without the bridge's bot, the user first; "Members…" in a group's header. No ADR: a read of what the local server already stores. 🧪 `TestMembers`, the desktop e2e "a group shows its members". Left: following membership changes live; avatars.
 
 **T2.50 — Mentions** (E2.4, E2.6)
-- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.28 `Message.mentions_me` from Matrix's `m.mentions` (ADR 0055): outlined in the thread, let through a mute by Android and the desktop; the echo contact answers `/mention`. 🧪 `TestMentions`, `MessageNotificationsTest`, `apps/desktop/test/notification-rules.test.ts`, the desktop e2e "mentions the user stands out". Left: an "@" in the inbox; checking Signal's and Matrix's connectors.
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.28 `Message.mentions_me` from Matrix's `m.mentions` (ADR 0055): outlined in the thread, let through a mute by Android and the desktop; the echo contact answers `/mention`. 🧪 `TestMentions`, `MessageNotificationsTest`, `apps/desktop/test/notification-rules.test.ts`, the desktop e2e "mentions the user stands out". Left: checking Signal's and Matrix's connectors. The "@" in the inbox came in T2.60.
 
 **T2.51 — Leave a group** (E2.3)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.29 `conversations.leave` and `ConversationActions.leave` (ADR 0056): the user's leave to the bridge (`BridgeMatrixLeave` on), waited for by its status; the portal and the room are deleted on success; "Leave…" in a group's header. 🧪 `TestLeave`, the desktop e2e "the user leaves a group". Left: deleting a group for everyone.
@@ -349,6 +349,9 @@ Order and reasons: ADR 0016. Tasks first, then the epics they belong to. 📞 = 
 
 **T2.59 — Avatars** (E2.3, E2.7)
 - Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.32 `Conversation.avatar_id` from the room's `m.room.avatar` (ADR 0061); the inbox and the thread show the picture, or initials on the name's hue; the echo contacts have a generated picture. API 1.33 `Message.sender_avatar_id`, shown before the sender's name. 🧪 `TestAvatar`, `TestSenderAvatar`, `ui/src/avatar.test.ts`.
+
+**T2.60 — Unread mentions in the inbox** (E2.3)
+- Outcome: **implemented, unverified** (cloud sprint, no test run). API 1.34 `Conversation.unread_mentions`, counted by the local server from `m.mentions` (ADR 0062); an "@" before the unread badge. 🧪 `TestUnreadMentions`, `TestMentions`.
 
 Epics:
 - **E2.1** Domain model (`Account`, `Conversation`, `Message`, `Person`) and abstraction layer, with no Matrix type leaking to the UI.

@@ -71,3 +71,4 @@ Every ADR separates what is **verified**, **assumed** and **unknown**, and cites
 | [0059](0059-unread-badge.md) | The unread count on the desktop app's icon: counted by the main process | accepted | T2.56 |
 | [0060](0060-archiving-conversations.md) | Archiving conversations: on the device, brought back by new messages unless muted | accepted | T2.58 |
 | [0061](0061-avatars.md) | Avatars: the room's picture from bridgev2, or initials on the name's hue | accepted | T2.59 |
+| [0062](0062-unread-mentions.md) | Unread mentions: counted by the local server from m.mentions | accepted | T2.60 |

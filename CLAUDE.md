@@ -617,3 +617,9 @@ To verify in the test session: T2.59 (cloud sprint, no test run; see ADR 0061). 
 avatars (core):     go test -tags=goolm -count=1 -run 'Avatar' -v ./core/embedded/
 avatars (ui):       cd ui && npx vitest run src/avatar.test.ts
 ```
+
+To verify in the test session: T2.60 (cloud sprint, no test run; see ADR 0062):
+
+```
+unread mentions:    go test -tags=goolm -count=1 -run 'UnreadMentions|Mentions' -v ./core/localmatrix/ ./core/embedded/     (-tags=goolm,musubee_cgo_sqlite: the Android driver)
+```
